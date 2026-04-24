@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dark Messenger</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="auth" class="auth">
+    <div class="auth-card">
+      <h1>Dark Messenger</h1>
+      <p>Отдельный сервер, личные чаты, сообщения в реальном времени.</p>
+      <input id="displayName" placeholder="Имя, например Артём" />
+      <input id="username" placeholder="Логин латиницей" />
+      <input id="password" type="password" placeholder="Пароль" />
+      <div class="row">
+        <button id="loginBtn">Войти</button>
+        <button id="registerBtn" class="secondary">Регистрация</button>
+      </div>
+      <div id="authError" class="error"></div>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="topbar">
+        <div>
+          <b id="meName">Пользователь</b>
+          <span id="meLogin"></span>
+        </div>
+        <button id="logoutBtn" class="icon-btn">Выйти</button>
+      </div>
+      <input id="search" class="search" placeholder="Поиск пользователя" />
+      <div id="users" class="users"></div>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-header">
+        <div class="avatar" id="chatAvatar">?</div>
+        <div>
+          <h2 id="chatName">Выбери пользователя</h2>
+          <p id="chatStatus">Чтобы начать переписку</p>
+        </div>
+      </header>
+      <section id="messages" class="messages">
+        <div class="empty">Зарегистрируй второго пользователя в другом браузере или на другом устройстве.</div>
+      </section>
+      <footer class="composer">
+        <input id="messageInput" placeholder="Сообщение" disabled />
+        <button id="sendBtn" disabled>➤</button>
+      </footer>
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
