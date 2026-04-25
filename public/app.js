@@ -1022,7 +1022,7 @@ async function startApp() {
 
   if (searchInput) {
     searchInput.value = "";
-    searchInput.placeholder = "Поиск по @id, например @ilizeum";
+    searchInput.placeholder = "Поиск по @id, например @username";
   }
 
   socket.emit("user_online", {
