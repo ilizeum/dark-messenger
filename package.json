@@ -1,16 +1,21 @@
 {
   "name": "dark-messenger",
-  "version": "1.0.2",
+  "version": "1.0.1",
   "description": "Dark Messenger",
   "main": "main.js",
   "author": "titov",
   "license": "MIT",
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder"
+    "start": "node server.js",
+    "electron": "electron .",
+    "build-exe": "electron-builder --win nsis"
   },
   "dependencies": {
-    "electron-updater": "^6.1.8"
+    "cors": "^2.8.5",
+    "electron-updater": "^6.1.8",
+    "express": "^4.18.2",
+    "lowdb": "^7.0.1",
+    "socket.io": "^4.7.5"
   },
   "devDependencies": {
     "electron": "^30.0.0",

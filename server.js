@@ -19,6 +19,7 @@ app.use(express.json());
 app.use(express.static("public"));
 
 const adapter = new JSONFile("db.json");
+
 const db = new Low(adapter, {
   users: [],
   messages: []
@@ -27,17 +28,25 @@ const db = new Low(adapter, {
 async function initDB() {
   await db.read();
 
-  if (!db.data) {
-    db.data = {
-      users: [],
-      messages: []
-    };
-  }
+  db.data ||= {
+    users: [],
+    messages: []
+  };
+
+  db.data.users ||= [];
+  db.data.messages ||= [];
 
   await db.write();
 }
 
 initDB();
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    success: true,
+    message: "Dark Messenger server is working"
+  });
+});
 
 app.post("/api/register", async (req, res) => {
   await db.read();
@@ -51,7 +60,10 @@ app.post("/api/register", async (req, res) => {
     });
   }
 
-  const exists = db.data.users.find((user) => user.username === username);
+  const cleanUsername = String(username).trim().toLowerCase();
+  const cleanDisplayName = displayName ? String(displayName).trim() : cleanUsername;
+
+  const exists = db.data.users.find((user) => user.username === cleanUsername);
 
   if (exists) {
     return res.status(400).json({
@@ -62,9 +74,9 @@ app.post("/api/register", async (req, res) => {
 
   const user = {
     id: Date.now(),
-    displayName: displayName || username,
-    username,
-    password
+    displayName: cleanDisplayName,
+    username: cleanUsername,
+    password: String(password)
   };
 
   db.data.users.push(user);
@@ -85,8 +97,17 @@ app.post("/api/login", async (req, res) => {
 
   const { username, password } = req.body;
 
+  if (!username || !password) {
+    return res.status(400).json({
+      success: false,
+      error: "Введите логин и пароль"
+    });
+  }
+
+  const cleanUsername = String(username).trim().toLowerCase();
+
   const user = db.data.users.find(
-    (user) => user.username === username && user.password === password
+    (user) => user.username === cleanUsername && user.password === String(password)
   );
 
   if (!user) {
@@ -106,10 +127,26 @@ app.post("/api/login", async (req, res) => {
   });
 });
 
+app.get("/api/users", async (req, res) => {
+  await db.read();
+
+  const users = db.data.users.map((user) => ({
+    id: user.id,
+    displayName: user.displayName,
+    username: user.username
+  }));
+
+  res.json({
+    success: true,
+    users
+  });
+});
+
 io.on("connection", async (socket) => {
   console.log("User connected");
 
   await db.read();
+
   socket.emit("load_messages", db.data.messages);
 
   socket.on("send_message", async (data) => {
@@ -117,9 +154,12 @@ io.on("connection", async (socket) => {
 
     const message = {
       id: Date.now(),
-      username: data.username,
-      displayName: data.displayName || data.username,
-      message: data.message,
+      username: data.username || "unknown",
+      displayName: data.displayName || data.username || "unknown",
+      message: data.message || data.text || "",
+      text: data.text || data.message || "",
+      to: data.to || null,
+      from: data.from || data.username || null,
       created_at: new Date().toISOString()
     };
 
@@ -127,6 +167,28 @@ io.on("connection", async (socket) => {
     await db.write();
 
     io.emit("new_message", message);
+    io.emit("message", message);
+  });
+
+  socket.on("message", async (data) => {
+    await db.read();
+
+    const message = {
+      id: Date.now(),
+      username: data.username || data.from || "unknown",
+      displayName: data.displayName || data.username || data.from || "unknown",
+      message: data.message || data.text || "",
+      text: data.text || data.message || "",
+      to: data.to || null,
+      from: data.from || data.username || null,
+      created_at: new Date().toISOString()
+    };
+
+    db.data.messages.push(message);
+    await db.write();
+
+    io.emit("new_message", message);
+    io.emit("message", message);
   });
 
   socket.on("disconnect", () => {
