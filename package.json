@@ -1,12 +1,12 @@
 {
   "name": "dark-messenger-server",
   "version": "1.0.0",
-  "main": "main.js",
+  "description": "Dark messenger backend",
+  "main": "server.js",
   "scripts": {
-  "start": "node server.js",
-  "electron": "electron .",
-  "build-exe": "electron-builder --win nsis"
-}
+    "start": "node server.js",
+    "build-exe": "electron-builder --win nsis"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "express": "^4.18.2",
@@ -15,12 +15,5 @@
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^24.13.3"
-  },
-  "build": {
-    "appId": "dark.messenger.app",
-    "productName": "Dark Messenger",
-    "win": {
-      "target": "nsis"
-    }
   }
 }

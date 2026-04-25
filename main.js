@@ -8,7 +8,7 @@ function createWindow() {
   });
 
 win.setMenu(null); 
-win.loadURL("https://30gzwl-2a02-2168-a966-7700-6c89-e7d6-1dcb-463a.ru.tuna.am");
+win.loadURL("https://dark-messenger-production.up.railway.app");
 }
 
 app.whenReady().then(createWindow);
