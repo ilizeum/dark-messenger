@@ -179,11 +179,6 @@ async function initDB() {
   `);
 
   await pool.query(`
-    ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT ''
-  `);
-
-  await pool.query(`
     CREATE TABLE IF NOT EXISTS groups (
       id BIGSERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -208,16 +203,6 @@ async function initDB() {
       media JSONB,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
-  `);
-
-  await pool.query(`
-    ALTER TABLE messages
-    ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT ''
-  `);
-
-  await pool.query(`
-    ALTER TABLE messages
-    ADD COLUMN IF NOT EXISTS media JSONB
   `);
 
   console.log("PostgreSQL tables are ready");
@@ -322,8 +307,7 @@ app.get("/api/health", async (req, res) => {
       message: "Dark Messenger server is working",
       database: "postgres",
       passwords: "bcrypt",
-      realtime: "online_typing",
-      avatars: "enabled"
+      realtime: "online_typing"
     });
   } catch (error) {
     console.error("Health error:", error);
@@ -714,7 +698,9 @@ app.post("/api/groups", async (req, res) => {
     );
 
     const foundUsers = usersResult.rows.map((row) => row.username);
-    const missingUsers = members.filter((username) => !foundUsers.includes(username));
+    const missingUsers = members.filter(
+      (username) => !foundUsers.includes(username)
+    );
 
     if (missingUsers.length) {
       return res.status(400).json({
@@ -783,7 +769,9 @@ app.post("/api/groups/:id/invite", async (req, res) => {
     );
 
     const foundUsers = usersResult.rows.map((row) => row.username);
-    const missingUsers = newMembers.filter((username) => !foundUsers.includes(username));
+    const missingUsers = newMembers.filter(
+      (username) => !foundUsers.includes(username)
+    );
 
     if (missingUsers.length) {
       return res.status(400).json({
