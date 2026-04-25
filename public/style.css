@@ -186,12 +186,31 @@ textarea {
 }
 
 .profile::before {
-  content: "";
+  display: none;
+}
+
+#profileAvatarBtn {
   width: 48px;
   height: 48px;
   border-radius: 50%;
   background: linear-gradient(135deg, #22d3ee, #2563eb);
+  color: white;
+  font-weight: 800;
+  font-size: 18px;
+  overflow: hidden;
   flex-shrink: 0;
+}
+
+#profileAvatarBtn:hover {
+  filter: brightness(1.08);
+}
+
+#profileAvatarBtn img,
+.avatar img,
+#chatAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 #meName {
@@ -275,6 +294,7 @@ textarea {
   font-weight: 800;
   color: white;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .user-info b {
@@ -424,6 +444,32 @@ textarea {
   line-height: 1.5;
 }
 
+/* MEDIA IN MESSAGES */
+
+.message-media {
+  margin-bottom: 8px;
+}
+
+.message-media img {
+  max-width: 320px;
+  max-height: 360px;
+  border-radius: 14px;
+  display: block;
+}
+
+.message-media video {
+  max-width: 360px;
+  max-height: 360px;
+  border-radius: 14px;
+  display: block;
+  background: #000;
+}
+
+.message-media audio {
+  width: 260px;
+  display: block;
+}
+
 /* INPUT */
 
 .chat-input {
@@ -460,6 +506,33 @@ textarea {
   opacity: 0.45;
 }
 
+#attachBtn,
+#voiceBtn {
+  width: 50px;
+  height: 48px;
+  border-radius: 16px;
+  background: #243044;
+  color: white;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+#attachBtn:hover,
+#voiceBtn:hover {
+  background: #334155;
+}
+
+#attachBtn:disabled,
+#voiceBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#voiceBtn.recording {
+  background: #ef4444;
+  animation: pulseRecord 1s infinite;
+}
+
 #sendBtn {
   width: 50px;
   height: 48px;
@@ -467,6 +540,7 @@ textarea {
   background: #06b6d4;
   color: white;
   font-size: 0;
+  flex-shrink: 0;
 }
 
 #sendBtn::before {
@@ -601,6 +675,25 @@ textarea {
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* ANIMATIONS */
+
+@keyframes pulseRecord {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45);
+  }
+
+  70% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
 /* MOBILE */
 
 @media (max-width: 850px) {
@@ -614,5 +707,10 @@ textarea {
 
   .message {
     max-width: 85%;
+  }
+
+  .message-media img,
+  .message-media video {
+    max-width: 260px;
   }
 }

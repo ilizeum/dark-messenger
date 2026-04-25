@@ -10,6 +10,12 @@ let usersCache = [];
 let groupsCache = [];
 let messagesCache = [];
 
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+
+const MAX_FILE_SIZE = 8 * 1024 * 1024;
+
 const auth = document.getElementById("auth");
 const app = document.getElementById("app");
 
@@ -41,6 +47,12 @@ const sendBtn = document.getElementById("sendBtn");
 let groupsBox = null;
 let createGroupBtn = null;
 let groupModal = null;
+
+let avatarInput = null;
+let fileInput = null;
+let attachBtn = null;
+let voiceBtn = null;
+let profileAvatarBtn = null;
 
 function normalizeUsername(username) {
   return String(username || "")
@@ -93,6 +105,21 @@ function saveUser(user) {
   localStorage.removeItem("darkMessengerUser");
 
   if (remember) {
+    localStorage.setItem("darkMessengerUser", JSON.stringify(user));
+  } else {
+    sessionStorage.setItem("darkMessengerUser", JSON.stringify(user));
+  }
+}
+
+function updateSavedUser(user) {
+  currentUser = user;
+
+  const hasLocal = Boolean(localStorage.getItem("darkMessengerUser"));
+
+  sessionStorage.removeItem("darkMessengerUser");
+  localStorage.removeItem("darkMessengerUser");
+
+  if (hasLocal) {
     localStorage.setItem("darkMessengerUser", JSON.stringify(user));
   } else {
     sessionStorage.setItem("darkMessengerUser", JSON.stringify(user));
@@ -196,6 +223,86 @@ async function login() {
   }
 }
 
+function setupProfileUI() {
+  if (!meName || document.getElementById("profileAvatarBtn")) return;
+
+  const profile = meName.closest(".profile");
+
+  if (!profile) return;
+
+  profileAvatarBtn = document.createElement("button");
+  profileAvatarBtn.id = "profileAvatarBtn";
+  profileAvatarBtn.type = "button";
+  profileAvatarBtn.title = "Сменить аватар";
+
+  avatarInput = document.createElement("input");
+  avatarInput.id = "avatarInput";
+  avatarInput.type = "file";
+  avatarInput.accept = "image/*";
+  avatarInput.style.display = "none";
+
+  profile.prepend(profileAvatarBtn);
+  document.body.appendChild(avatarInput);
+
+  profileAvatarBtn.addEventListener("click", () => {
+    avatarInput.click();
+  });
+
+  avatarInput.addEventListener("change", handleAvatarChange);
+
+  renderMyAvatar();
+}
+
+function renderMyAvatar() {
+  if (!profileAvatarBtn || !currentUser) return;
+
+  if (currentUser.avatar) {
+    profileAvatarBtn.innerHTML = `<img src="${currentUser.avatar}" alt="avatar">`;
+  } else {
+    profileAvatarBtn.textContent = (currentUser.displayName || currentUser.username || "?")[0].toUpperCase();
+  }
+}
+
+async function handleAvatarChange(event) {
+  const file = event.target.files && event.target.files[0];
+
+  if (!file) return;
+
+  if (!file.type.startsWith("image/")) {
+    alert("Выбери изображение");
+    return;
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    alert("Файл слишком большой. Максимум 8 МБ.");
+    return;
+  }
+
+  try {
+    const avatar = await fileToDataUrl(file);
+
+    const data = await request("/api/avatar", {
+      method: "POST",
+      body: JSON.stringify({
+        username: currentUser.username,
+        avatar
+      })
+    });
+
+    updateSavedUser(data.user);
+    renderMyAvatar();
+
+    if (meName) meName.textContent = currentUser.displayName || currentUser.username;
+    if (meLogin) meLogin.textContent = "@" + currentUser.username;
+
+    alert("Аватар обновлён");
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    event.target.value = "";
+  }
+}
+
 function setupGroupUI() {
   if (document.getElementById("createGroupBtn")) return;
 
@@ -262,7 +369,6 @@ function openGroupModal() {
   const error = document.getElementById("groupError");
 
   if (error) error.textContent = "";
-
   if (modal) modal.classList.remove("hidden");
 }
 
@@ -313,16 +419,194 @@ async function createGroup() {
   }
 }
 
+function setupMessageTools() {
+  if (!sendBtn || document.getElementById("attachBtn")) return;
+
+  attachBtn = document.createElement("button");
+  attachBtn.id = "attachBtn";
+  attachBtn.type = "button";
+  attachBtn.title = "Отправить фото или видео";
+  attachBtn.textContent = "📎";
+
+  voiceBtn = document.createElement("button");
+  voiceBtn.id = "voiceBtn";
+  voiceBtn.type = "button";
+  voiceBtn.title = "Голосовое сообщение";
+  voiceBtn.textContent = "🎙";
+
+  fileInput = document.createElement("input");
+  fileInput.id = "fileInput";
+  fileInput.type = "file";
+  fileInput.accept = "image/*,video/*";
+  fileInput.style.display = "none";
+
+  sendBtn.parentElement.insertBefore(attachBtn, sendBtn);
+  sendBtn.parentElement.insertBefore(voiceBtn, sendBtn);
+  document.body.appendChild(fileInput);
+
+  attachBtn.addEventListener("click", () => {
+    if (!canSendNow()) return;
+    fileInput.click();
+  });
+
+  fileInput.addEventListener("change", handleFileSend);
+
+  voiceBtn.addEventListener("click", toggleVoiceRecording);
+}
+
+function canSendNow() {
+  return Boolean(currentUser && selectedChatType && (selectedUser || selectedGroup));
+}
+
+async function handleFileSend(event) {
+  const file = event.target.files && event.target.files[0];
+
+  if (!file) return;
+
+  if (file.size > MAX_FILE_SIZE) {
+    alert("Файл слишком большой. Максимум 8 МБ.");
+    event.target.value = "";
+    return;
+  }
+
+  const isImage = file.type.startsWith("image/");
+  const isVideo = file.type.startsWith("video/");
+
+  if (!isImage && !isVideo) {
+    alert("Можно отправлять только фото или видео.");
+    event.target.value = "";
+    return;
+  }
+
+  try {
+    const url = await fileToDataUrl(file);
+
+    const media = {
+      type: isImage ? "image" : "video",
+      url,
+      name: file.name
+    };
+
+    sendMediaMessage(media);
+  } catch (error) {
+    alert("Не удалось отправить файл");
+  } finally {
+    event.target.value = "";
+  }
+}
+
+async function toggleVoiceRecording() {
+  if (!canSendNow()) return;
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Запись голоса не поддерживается в этом браузере/окне.");
+    return;
+  }
+
+  if (isRecording) {
+    stopVoiceRecording();
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true
+    });
+
+    recordedChunks = [];
+
+    mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        recordedChunks.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(recordedChunks, {
+        type: "audio/webm"
+      });
+
+      stream.getTracks().forEach((track) => track.stop());
+
+      if (blob.size > MAX_FILE_SIZE) {
+        alert("Голосовое слишком большое. Максимум 8 МБ.");
+        return;
+      }
+
+      const url = await blobToDataUrl(blob);
+
+      sendMediaMessage({
+        type: "audio",
+        url,
+        name: "voice.webm"
+      });
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+
+    if (voiceBtn) {
+      voiceBtn.classList.add("recording");
+      voiceBtn.textContent = "■";
+      voiceBtn.title = "Остановить запись";
+    }
+  } catch (error) {
+    alert("Разреши доступ к микрофону.");
+  }
+}
+
+function stopVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+
+  isRecording = false;
+
+  if (voiceBtn) {
+    voiceBtn.classList.remove("recording");
+    voiceBtn.textContent = "🎙";
+    voiceBtn.title = "Голосовое сообщение";
+  }
+}
+
+function sendMediaMessage(media) {
+  if (!canSendNow()) return;
+
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("send_message", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      text: "",
+      media
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("send_group_message", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      text: "",
+      media
+    });
+  }
+}
+
 async function startApp() {
   if (!currentUser) return;
 
+  setupProfileUI();
   setupGroupUI();
+  setupMessageTools();
 
   if (auth) auth.classList.add("hidden");
   if (app) app.classList.remove("hidden");
 
   if (meName) meName.textContent = currentUser.displayName || currentUser.username;
   if (meLogin) meLogin.textContent = "@" + currentUser.username;
+
+  renderMyAvatar();
 
   if (searchInput) {
     searchInput.value = "";
@@ -423,6 +707,16 @@ function renderSearchHint() {
   `;
 }
 
+function renderAvatar(user) {
+  const avatar = user && user.avatar;
+
+  if (avatar) {
+    return `<div class="avatar"><img src="${avatar}" alt="avatar"></div>`;
+  }
+
+  return `<div class="avatar">${escapeHtml(((user && (user.displayName || user.username)) || "?")[0] || "?")}</div>`;
+}
+
 function renderUsers(query = "") {
   if (!usersBox) return;
 
@@ -447,7 +741,7 @@ function renderUsers(query = "") {
     }
 
     item.innerHTML = `
-      <div class="avatar">${escapeHtml((user.displayName || user.username)[0] || "?")}</div>
+      ${renderAvatar(user)}
       <div class="user-info">
         <b>${escapeHtml(user.displayName || user.username)}</b>
         <span>@${escapeHtml(user.username)}</span>
@@ -468,7 +762,11 @@ function renderEmptyChat() {
   selectedChatType = null;
   messagesCache = [];
 
-  if (chatAvatar) chatAvatar.textContent = "?";
+  if (chatAvatar) {
+    chatAvatar.textContent = "?";
+    chatAvatar.innerHTML = "?";
+  }
+
   if (chatName) chatName.textContent = "Выберите чат";
   if (chatStatus) chatStatus.textContent = "Найдите пользователя или выберите группу";
 
@@ -486,9 +784,9 @@ function renderEmptyChat() {
     messageInput.disabled = true;
   }
 
-  if (sendBtn) {
-    sendBtn.disabled = true;
-  }
+  if (sendBtn) sendBtn.disabled = true;
+  if (attachBtn) attachBtn.disabled = true;
+  if (voiceBtn) voiceBtn.disabled = true;
 
   renderGroups();
 }
@@ -499,12 +797,21 @@ async function openChat(user) {
   selectedChatType = "direct";
   messagesCache = [];
 
-  if (chatAvatar) chatAvatar.textContent = (user.displayName || user.username)[0] || "?";
+  if (chatAvatar) {
+    if (user.avatar) {
+      chatAvatar.innerHTML = `<img src="${user.avatar}" alt="avatar">`;
+    } else {
+      chatAvatar.textContent = (user.displayName || user.username)[0] || "?";
+    }
+  }
+
   if (chatName) chatName.textContent = user.displayName || user.username;
   if (chatStatus) chatStatus.textContent = "@" + user.username;
 
   if (messageInput) messageInput.disabled = false;
   if (sendBtn) sendBtn.disabled = false;
+  if (attachBtn) attachBtn.disabled = false;
+  if (voiceBtn) voiceBtn.disabled = false;
 
   if (messagesBox) {
     messagesBox.innerHTML = `<div class="empty">Загрузка...</div>`;
@@ -537,12 +844,18 @@ async function openGroup(group) {
   selectedChatType = "group";
   messagesCache = [];
 
-  if (chatAvatar) chatAvatar.textContent = "#";
+  if (chatAvatar) {
+    chatAvatar.textContent = "#";
+    chatAvatar.innerHTML = "#";
+  }
+
   if (chatName) chatName.textContent = group.name;
   if (chatStatus) chatStatus.textContent = `${group.members.length} участн.`;
 
   if (messageInput) messageInput.disabled = false;
   if (sendBtn) sendBtn.disabled = false;
+  if (attachBtn) attachBtn.disabled = false;
+  if (voiceBtn) voiceBtn.disabled = false;
 
   if (messagesBox) {
     messagesBox.innerHTML = `<div class="empty">Загрузка...</div>`;
@@ -597,6 +910,36 @@ function sendMessage() {
   }
 }
 
+function renderMedia(media) {
+  if (!media || !media.url) return "";
+
+  if (media.type === "image") {
+    return `
+      <div class="message-media">
+        <img src="${media.url}" alt="${escapeHtml(media.name || "image")}" loading="lazy">
+      </div>
+    `;
+  }
+
+  if (media.type === "video") {
+    return `
+      <div class="message-media">
+        <video src="${media.url}" controls></video>
+      </div>
+    `;
+  }
+
+  if (media.type === "audio") {
+    return `
+      <div class="message-media">
+        <audio src="${media.url}" controls></audio>
+      </div>
+    `;
+  }
+
+  return "";
+}
+
 function renderMessages() {
   if (!messagesBox) return;
 
@@ -614,10 +957,12 @@ function renderMessages() {
     bubble.className = mine ? "message mine" : "message";
 
     const text = message.text || message.message || "";
+    const mediaHtml = renderMedia(message.media);
 
     bubble.innerHTML = `
       <div class="message-name">${escapeHtml(message.displayName || message.username || "")}</div>
-      <div class="message-text">${escapeHtml(text)}</div>
+      ${mediaHtml}
+      ${text ? `<div class="message-text">${escapeHtml(text)}</div>` : ""}
       <div class="message-time">${formatTime(message.created_at)}</div>
     `;
 
@@ -673,6 +1018,28 @@ socket.on("new_group_message", (message) => {
     }
   }
 });
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+
+    reader.readAsDataURL(blob);
+  });
+}
 
 function escapeHtml(value) {
   return String(value || "")
