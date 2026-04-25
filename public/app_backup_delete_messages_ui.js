@@ -75,11 +75,15 @@ function normalizeUsername(username) {
 }
 
 function showError(text) {
-  if (authError) authError.textContent = text || "Ошибка";
+  if (authError) {
+    authError.textContent = text || "Ошибка";
+  }
 }
 
 function clearError() {
-  if (authError) authError.textContent = "";
+  if (authError) {
+    authError.textContent = "";
+  }
 }
 
 function getInputData() {
@@ -433,6 +437,7 @@ function updateChatStatusText() {
 
 function emitTypingStart() {
   if (!currentUser || !selectedChatType) return;
+
   if (isTypingNow) return;
 
   isTypingNow = true;
@@ -1488,22 +1493,6 @@ function sendMessage() {
   }
 }
 
-async function deleteMessage(messageId) {
-  if (!currentUser || !messageId) return;
-
-  const ok = confirm("Удалить сообщение у всех?");
-
-  if (!ok) return;
-
-  try {
-    await request(`/api/messages/${encodeURIComponent(messageId)}?me=${encodeURIComponent(currentUser.username)}`, {
-      method: "DELETE"
-    });
-  } catch (error) {
-    alert(error.message);
-  }
-}
-
 function renderMedia(media) {
   if (!media || !media.url) return "";
 
@@ -1546,7 +1535,6 @@ function renderMessages() {
 
   messagesCache.forEach((message) => {
     const mine = message.from === currentUser.username || message.username === currentUser.username;
-    const canDelete = mine && selectedChatType === "direct" && message.id;
 
     const bubble = document.createElement("div");
     bubble.className = mine ? "message mine" : "message";
@@ -1559,29 +1547,7 @@ function renderMessages() {
       ${mediaHtml}
       ${text ? `<div class="message-text">${escapeHtml(text)}</div>` : ""}
       <div class="message-time">${formatTime(message.created_at)}</div>
-      ${
-        canDelete
-          ? `<button class="delete-message-btn" data-id="${escapeHtml(message.id)}" title="Удалить сообщение">Удалить</button>`
-          : ""
-      }
     `;
-
-    const deleteBtn = bubble.querySelector(".delete-message-btn");
-
-    if (deleteBtn) {
-      deleteBtn.style.marginTop = "7px";
-      deleteBtn.style.background = "rgba(127, 29, 29, 0.65)";
-      deleteBtn.style.color = "white";
-      deleteBtn.style.borderRadius = "10px";
-      deleteBtn.style.padding = "5px 9px";
-      deleteBtn.style.fontSize = "11px";
-      deleteBtn.style.fontWeight = "700";
-
-      deleteBtn.addEventListener("click", (event) => {
-        event.stopPropagation();
-        deleteMessage(deleteBtn.dataset.id);
-      });
-    }
 
     messagesBox.appendChild(bubble);
   });
@@ -1610,15 +1576,6 @@ function shouldShowIncomingGroup(message) {
 socket.on("load_messages", (messages) => {
   messagesCache = Array.isArray(messages) ? messages : [];
   renderMessages();
-});
-
-socket.on("message_deleted", (data) => {
-  if (!data || !data.id) return;
-
-  messagesCache = messagesCache.filter((message) => String(message.id) !== String(data.id));
-
-  renderMessages();
-  loadRecentChats();
 });
 
 socket.on("user_status", (data) => {
