@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dark Messenger</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="auth" class="auth">
+    <div class="auth-card">
+      <h1>Dark Messenger</h1>
+      <p>Отдельный сервер, личные чаты, сообщения в реальном времени.</p>
+      <input id="displayName" placeholder="Имя, например Артём" />
+      <input id="username" placeholder="Логин латиницей" />
+      <input id="password" type="password" placeholder="Пароль" />
+      <div class="row">
+        <button id="loginBtn">Войти</button>
+        <button id="registerBtn" class="secondary">Регистрация</button>
+      </div>
+      <div id="authError" class="error"></div>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="topbar">
+        <div>
+          <b id="meName">Пользователь</b>
+          <span id="meLogin"></span>
+        </div>
+        <button id="logoutBtn" class="icon-btn">Выйти</button>
+      </div>
+      <input id="search" class="search" placeholder="Поиск пользователя" />
+      <div id="users" class="users"></div>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-header">
+        <div class="avatar" id="chatAvatar">?</div>
+        <div>
+          <h2 id="chatName">Выбери пользователя</h2>
+          <p id="chatStatus">Чтобы начать переписку</p>
+        </div>
+      </header>
+      <section id="messages" class="messages">
+        <div class="empty">Зарегистрируй второго пользователя в другом браузере или на другом устройстве.</div>
+      </section>
+      <footer class="composer">
+        <input id="messageInput" placeholder="Сообщение" disabled />
+        <button id="sendBtn" disabled>➤</button>
+      </footer>
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+<div id="updateBox" style="display:none; position:fixed; bottom:20px; right:20px; background:#111; color:white; padding:15px; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.5); z-index:9999;">
+  <div id="updateText">Обновление...</div>
+  <div style="width:200px; height:10px; background:#333; margin-top:10px; border-radius:5px;">
+    <div id="progressBar" style="width:0%; height:100%; background:#4caf50; border-radius:5px;"></div>
+  </div>
+</div>
+<script>
+if (window.require) {
+  const { ipcRenderer } = require("electron");
+
+  const box = document.getElementById("updateBox");
+  const text = document.getElementById("updateText");
+  const bar = document.getElementById("progressBar");
+
+  ipcRenderer.on("update_available", () => {
+  box.style.display = "block";
+  text.innerText = "Найдено обновление...";
+});
+
+ipcRenderer.on("update_progress", (event, percent) => {
+  bar.style.width = percent + "%";
+  text.innerText = "Скачивание: " + percent + "%";
+});
+
+ipcRenderer.on("update_downloaded", () => {
+  text.innerText = "Перезапуск...";
+});
+}
+</script>
+</body>
+</html>

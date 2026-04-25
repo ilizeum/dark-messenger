@@ -1,88 +1,130 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dark Messenger</title>
+
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="auth" class="auth">
+
+  <!-- ЭКРАН ВХОДА / РЕГИСТРАЦИИ -->
+  <section id="auth">
     <div class="auth-card">
       <h1>Dark Messenger</h1>
-      <p>Отдельный сервер, личные чаты, сообщения в реальном времени.</p>
-      <input id="displayName" placeholder="Имя, например Артём" />
-      <input id="username" placeholder="Логин латиницей" />
-      <input id="password" type="password" placeholder="Пароль" />
-      <div class="row">
-        <button id="loginBtn">Войти</button>
-        <button id="registerBtn" class="secondary">Регистрация</button>
+      <p>Войди в аккаунт или зарегистрируйся, чтобы начать общение</p>
+
+      <input id="displayName" type="text" placeholder="Имя, например Александр" />
+
+      <input id="username" type="text" placeholder="Логин, например @ilizeum" />
+
+      <div class="password-wrap">
+        <input id="password" type="password" placeholder="Пароль" />
+        <button id="togglePassword" type="button">Показать</button>
       </div>
-      <div id="authError" class="error"></div>
+
+      <label class="remember-row">
+        <input id="rememberMe" type="checkbox" />
+        <span>Не выходить</span>
+      </label>
+
+      <button id="loginBtn" type="button">Войти</button>
+      <button id="registerBtn" type="button">Регистрация</button>
+
+      <div id="authError"></div>
+    </div>
+  </section>
+
+  <!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
+  <section id="app" class="hidden">
+
+    <!-- ЛЕВАЯ ПАНЕЛЬ -->
+    <aside class="sidebar">
+      <div class="profile">
+        <div>
+          <div id="meName">Пользователь</div>
+          <div id="meLogin">@username</div>
+        </div>
+
+        <button id="logoutBtn" type="button">Выйти</button>
+      </div>
+
+      <input id="search" type="text" placeholder="Поиск по @id, например @ilizeum" />
+
+      <div id="users">
+        <div class="empty">
+          Введите @id пользователя, чтобы найти чат.
+        </div>
+      </div>
+    </aside>
+
+    <!-- ЧАТ -->
+    <main class="chat">
+      <header class="chat-header">
+        <div id="chatAvatar">?</div>
+
+        <div>
+          <div id="chatName">Выберите чат</div>
+          <div id="chatStatus">Найдите пользователя по @id</div>
+        </div>
+      </header>
+
+      <div id="messages">
+        <div class="empty">
+          Чаты не показываются автоматически.<br>
+          Найдите пользователя через поиск слева.
+        </div>
+      </div>
+
+      <footer class="chat-input">
+        <textarea id="messageInput" placeholder="Сообщение" disabled></textarea>
+        <button id="sendBtn" type="button" disabled>Отправить</button>
+      </footer>
+    </main>
+
+  </section>
+
+  <!-- БЛОК АВТООБНОВЛЕНИЯ -->
+  <div id="updateBox" style="display:none; position:fixed; bottom:20px; right:20px; background:#111827; color:white; padding:15px; border-radius:14px; box-shadow:0 0 18px rgba(0,0,0,0.45); z-index:9999;">
+    <div id="updateText">Обновление...</div>
+    <div style="width:220px; height:10px; background:#263244; margin-top:10px; border-radius:999px; overflow:hidden;">
+      <div id="progressBar" style="width:0%; height:100%; background:#22d3ee; border-radius:999px;"></div>
     </div>
   </div>
 
-  <div id="app" class="app hidden">
-    <aside class="sidebar">
-      <div class="topbar">
-        <div>
-          <b id="meName">Пользователь</b>
-          <span id="meLogin"></span>
-        </div>
-        <button id="logoutBtn" class="icon-btn">Выйти</button>
-      </div>
-      <input id="search" class="search" placeholder="Поиск пользователя" />
-      <div id="users" class="users"></div>
-    </aside>
-
-    <main class="chat">
-      <header class="chat-header">
-        <div class="avatar" id="chatAvatar">?</div>
-        <div>
-          <h2 id="chatName">Выбери пользователя</h2>
-          <p id="chatStatus">Чтобы начать переписку</p>
-        </div>
-      </header>
-      <section id="messages" class="messages">
-        <div class="empty">Зарегистрируй второго пользователя в другом браузере или на другом устройстве.</div>
-      </section>
-      <footer class="composer">
-        <input id="messageInput" placeholder="Сообщение" disabled />
-        <button id="sendBtn" disabled>➤</button>
-      </footer>
-    </main>
-  </div>
-
+  <!-- SOCKET.IO -->
   <script src="/socket.io/socket.io.js"></script>
+
+  <!-- ОСНОВНАЯ ЛОГИКА -->
   <script src="app.js"></script>
-<div id="updateBox" style="display:none; position:fixed; bottom:20px; right:20px; background:#111; color:white; padding:15px; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.5); z-index:9999;">
-  <div id="updateText">Обновление...</div>
-  <div style="width:200px; height:10px; background:#333; margin-top:10px; border-radius:5px;">
-    <div id="progressBar" style="width:0%; height:100%; background:#4caf50; border-radius:5px;"></div>
-  </div>
-</div>
-<script>
-if (window.require) {
-  const { ipcRenderer } = require("electron");
 
-  const box = document.getElementById("updateBox");
-  const text = document.getElementById("updateText");
-  const bar = document.getElementById("progressBar");
+  <!-- ЛОГИКА ОКНА ОБНОВЛЕНИЯ ДЛЯ ELECTRON -->
+  <script>
+    if (window.require) {
+      const { ipcRenderer } = require("electron");
 
-  ipcRenderer.on("update_available", () => {
-  box.style.display = "block";
-  text.innerText = "Найдено обновление...";
-});
+      const box = document.getElementById("updateBox");
+      const text = document.getElementById("updateText");
+      const bar = document.getElementById("progressBar");
 
-ipcRenderer.on("update_progress", (event, percent) => {
-  bar.style.width = percent + "%";
-  text.innerText = "Скачивание: " + percent + "%";
-});
+      ipcRenderer.on("update_available", () => {
+        box.style.display = "block";
+        text.innerText = "Найдено обновление...";
+      });
 
-ipcRenderer.on("update_downloaded", () => {
-  text.innerText = "Перезапуск...";
-});
-}
-</script>
+      ipcRenderer.on("update_progress", (event, percent) => {
+        box.style.display = "block";
+        bar.style.width = percent + "%";
+        text.innerText = "Скачивание: " + percent + "%";
+      });
+
+      ipcRenderer.on("update_downloaded", () => {
+        box.style.display = "block";
+        text.innerText = "Перезапуск...";
+      });
+    }
+  </script>
+
 </body>
 </html>

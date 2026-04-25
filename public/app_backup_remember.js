@@ -12,8 +12,6 @@ const app = document.getElementById("app");
 const displayNameInput = document.getElementById("displayName");
 const usernameInput = document.getElementById("username");
 const passwordInput = document.getElementById("password");
-const togglePasswordBtn = document.getElementById("togglePassword");
-const rememberMeInput = document.getElementById("rememberMe");
 
 const loginBtn = document.getElementById("loginBtn");
 const registerBtn = document.getElementById("registerBtn");
@@ -72,34 +70,14 @@ async function request(url, options = {}) {
 }
 
 function saveUser(user) {
-  const remember = rememberMeInput ? rememberMeInput.checked : false;
-
-  sessionStorage.removeItem("darkMessengerUser");
-  localStorage.removeItem("darkMessengerUser");
-
-  if (remember) {
-    localStorage.setItem("darkMessengerUser", JSON.stringify(user));
-  } else {
-    sessionStorage.setItem("darkMessengerUser", JSON.stringify(user));
-  }
+  localStorage.setItem("darkMessengerUser", JSON.stringify(user));
 }
 
 function loadSavedUser() {
   try {
-    const localUser = localStorage.getItem("darkMessengerUser");
-    const sessionUser = sessionStorage.getItem("darkMessengerUser");
-
-    if (localUser) {
-      if (rememberMeInput) rememberMeInput.checked = true;
-      return JSON.parse(localUser);
-    }
-
-    if (sessionUser) {
-      if (rememberMeInput) rememberMeInput.checked = false;
-      return JSON.parse(sessionUser);
-    }
-
-    return null;
+    const raw = localStorage.getItem("darkMessengerUser");
+    if (!raw) return null;
+    return JSON.parse(raw);
   } catch {
     return null;
   }
@@ -107,14 +85,11 @@ function loadSavedUser() {
 
 function logout() {
   localStorage.removeItem("darkMessengerUser");
-  sessionStorage.removeItem("darkMessengerUser");
 
   currentUser = null;
   selectedUser = null;
   usersCache = [];
   messagesCache = [];
-
-  if (rememberMeInput) rememberMeInput.checked = false;
 
   if (app) app.classList.add("hidden");
   if (auth) auth.classList.remove("hidden");
@@ -440,15 +415,6 @@ function formatTime(value) {
 if (loginBtn) loginBtn.addEventListener("click", login);
 if (registerBtn) registerBtn.addEventListener("click", register);
 if (logoutBtn) logoutBtn.addEventListener("click", logout);
-
-if (togglePasswordBtn && passwordInput) {
-  togglePasswordBtn.addEventListener("click", () => {
-    const isHidden = passwordInput.type === "password";
-
-    passwordInput.type = isHidden ? "text" : "password";
-    togglePasswordBtn.textContent = isHidden ? "Скрыть" : "Показать";
-  });
-}
 
 if (searchInput) {
   searchInput.addEventListener("input", () => {
