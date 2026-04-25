@@ -323,8 +323,7 @@ app.get("/api/health", async (req, res) => {
       database: "postgres",
       passwords: "bcrypt",
       realtime: "online_typing",
-      avatars: "enabled",
-      deleteMessages: "enabled"
+      avatars: "enabled"
     });
   } catch (error) {
     console.error("Health error:", error);
@@ -645,85 +644,6 @@ app.get("/api/messages", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Ошибка загрузки сообщений"
-    });
-  }
-});
-
-app.delete("/api/messages/:id", async (req, res) => {
-  try {
-    const messageId = String(req.params.id);
-    const me = normalizeUsername(req.query.me || req.body.me);
-
-    if (!messageId || !me) {
-      return res.status(400).json({
-        success: false,
-        error: "Не указано сообщение или пользователь"
-      });
-    }
-
-    const messageResult = await pool.query(
-      `
-      SELECT *
-      FROM messages
-      WHERE id = $1
-      `,
-      [messageId]
-    );
-
-    const message = messageResult.rows[0];
-
-    if (!message) {
-      return res.status(404).json({
-        success: false,
-        error: "Сообщение не найдено"
-      });
-    }
-
-    if (message.type !== "direct") {
-      return res.status(400).json({
-        success: false,
-        error: "Пока можно удалять только сообщения в личном чате"
-      });
-    }
-
-    if (message.from_username !== me) {
-      return res.status(403).json({
-        success: false,
-        error: "Можно удалять только свои сообщения"
-      });
-    }
-
-    await pool.query(
-      `
-      DELETE FROM messages
-      WHERE id = $1
-      `,
-      [messageId]
-    );
-
-    const deletedMessage = {
-      id: String(message.id),
-      chatId: message.chat_id,
-      from: message.from_username,
-      to: message.to_username,
-      type: message.type
-    };
-
-    io.to(`user:${message.from_username}`).emit("message_deleted", deletedMessage);
-    io.to(`user:${message.to_username}`).emit("message_deleted", deletedMessage);
-    io.to(`chat:${message.chat_id}`).emit("message_deleted", deletedMessage);
-
-    res.json({
-      success: true,
-      deleted: true,
-      message: deletedMessage
-    });
-  } catch (error) {
-    console.error("Delete message error:", error);
-
-    res.status(500).json({
-      success: false,
-      error: "Ошибка удаления сообщения"
     });
   }
 });
