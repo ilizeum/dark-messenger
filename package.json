@@ -1,47 +1,39 @@
 {
   "name": "dark-messenger",
   "version": "1.0.1",
-  "description": "Dark Messenger App",
+  "description": "Dark Messenger",
   "main": "main.js",
-  "author": "titov",
+  "author": "you",
+  "license": "MIT",
   "scripts": {
-    "start": "node server.js",
-    "electron": "electron .",
-    "build-exe": "electron-builder --win nsis"
+    "start": "electron .",
+    "build": "electron-builder"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.6",
-    "electron-updater": "^6.1.8",
-    "express": "^4.22.1",
-    "jsonwebtoken": "^9.0.2",
-    "lowdb": "^7.0.1",
-    "socket.io": "^4.8.3"
+    "electron-updater": "^6.1.8"
   },
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "dark.messenger.app",
+    "appId": "com.dark.messenger",
     "productName": "Dark Messenger",
     "directories": {
-      "buildResources": "assets"
+      "output": "dist"
     },
     "files": [
       "main.js",
-      "package.json",
       "public/**/*"
     ],
     "win": {
       "target": "nsis"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false
     },
     "publish": [
       {

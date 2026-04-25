@@ -1,7 +1,7 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
 const cors = require("cors");
+const { Server } = require("socket.io");
 const { Low } = require("lowdb");
 const { JSONFile } = require("lowdb/node");
 
@@ -39,13 +39,13 @@ async function initDB() {
 
 initDB();
 
-app.post("/register", async (req, res) => {
+app.post("/api/register", async (req, res) => {
   await db.read();
 
-  const { username, password } = req.body;
+  const { displayName, username, password } = req.body;
 
   if (!username || !password) {
-    return res.json({
+    return res.status(400).json({
       success: false,
       error: "Введите логин и пароль"
     });
@@ -54,25 +54,33 @@ app.post("/register", async (req, res) => {
   const exists = db.data.users.find((user) => user.username === username);
 
   if (exists) {
-    return res.json({
+    return res.status(400).json({
       success: false,
       error: "Пользователь уже существует"
     });
   }
 
-  db.data.users.push({
+  const user = {
+    id: Date.now(),
+    displayName: displayName || username,
     username,
     password
-  });
+  };
 
+  db.data.users.push(user);
   await db.write();
 
   res.json({
-    success: true
+    success: true,
+    user: {
+      id: user.id,
+      displayName: user.displayName,
+      username: user.username
+    }
   });
 });
 
-app.post("/login", async (req, res) => {
+app.post("/api/login", async (req, res) => {
   await db.read();
 
   const { username, password } = req.body;
@@ -82,14 +90,19 @@ app.post("/login", async (req, res) => {
   );
 
   if (!user) {
-    return res.json({
+    return res.status(401).json({
       success: false,
       error: "Неверный логин или пароль"
     });
   }
 
   res.json({
-    success: true
+    success: true,
+    user: {
+      id: user.id,
+      displayName: user.displayName,
+      username: user.username
+    }
   });
 });
 
@@ -103,7 +116,9 @@ io.on("connection", async (socket) => {
     await db.read();
 
     const message = {
+      id: Date.now(),
       username: data.username,
+      displayName: data.displayName || data.username,
       message: data.message,
       created_at: new Date().toISOString()
     };
