@@ -47,7 +47,7 @@ function clearError() {
 function getInputData() {
   return {
     displayName: displayNameInput ? displayNameInput.value.trim() : "",
-    username: usernameInput ? usernameInput.value.trim().toLowerCase().replace(/^@/, "") : "",
+    username: usernameInput ? usernameInput.value.trim().toLowerCase() : "",
     password: passwordInput ? passwordInput.value : ""
   };
 }
@@ -85,7 +85,6 @@ function loadSavedUser() {
 
 function logout() {
   localStorage.removeItem("darkMessengerUser");
-
   currentUser = null;
   selectedUser = null;
   usersCache = [];
@@ -162,68 +161,36 @@ async function startApp() {
   if (meName) meName.textContent = currentUser.displayName || currentUser.username;
   if (meLogin) meLogin.textContent = "@" + currentUser.username;
 
-  if (searchInput) {
-    searchInput.value = "";
-    searchInput.placeholder = "Поиск по @id, например @ilizeum";
-  }
-
   socket.emit("user_online", {
     username: currentUser.username
   });
 
-  renderSearchHint();
+  await loadUsers("");
   renderEmptyChat();
 }
 
 async function loadUsers(query = "") {
   if (!currentUser) return;
 
-  const cleanQuery = String(query || "").trim().replace(/^@/, "").toLowerCase();
-
-  if (!cleanQuery) {
-    usersCache = [];
-    renderSearchHint();
-    return;
-  }
-
   try {
     const data = await request(
-      `/api/users?me=${encodeURIComponent(currentUser.username)}&q=${encodeURIComponent(cleanQuery)}`
+      `/api/users?me=${encodeURIComponent(currentUser.username)}&q=${encodeURIComponent(query)}`
     );
 
     usersCache = data.users || [];
-    renderUsers(cleanQuery);
+    renderUsers();
   } catch (error) {
     console.error(error);
-    if (usersBox) {
-      usersBox.innerHTML = `<div class="empty">Ошибка поиска</div>`;
-    }
   }
 }
 
-function renderSearchHint() {
-  if (!usersBox) return;
-
-  usersBox.innerHTML = `
-    <div class="empty">
-      Введите @id пользователя, чтобы найти чат.<br>
-      Например: <b>@ilizeum</b>
-    </div>
-  `;
-}
-
-function renderUsers(query = "") {
+function renderUsers() {
   if (!usersBox) return;
 
   usersBox.innerHTML = "";
 
   if (!usersCache.length) {
-    usersBox.innerHTML = `
-      <div class="empty">
-        Пользователь не найден.<br>
-        Проверь @id: <b>@${escapeHtml(query)}</b>
-      </div>
-    `;
+    usersBox.innerHTML = `<div class="empty">Пользователи не найдены</div>`;
     return;
   }
 
@@ -257,15 +224,10 @@ function renderEmptyChat() {
 
   if (chatAvatar) chatAvatar.textContent = "?";
   if (chatName) chatName.textContent = "Выберите чат";
-  if (chatStatus) chatStatus.textContent = "Найдите пользователя по @id";
+  if (chatStatus) chatStatus.textContent = "Найдите пользователя слева";
 
   if (messagesBox) {
-    messagesBox.innerHTML = `
-      <div class="empty">
-        Чаты не показываются автоматически.<br>
-        Найдите пользователя через поиск слева.
-      </div>
-    `;
+    messagesBox.innerHTML = `<div class="empty">Выберите пользователя, чтобы начать переписку</div>`;
   }
 
   if (messageInput) {
@@ -276,6 +238,8 @@ function renderEmptyChat() {
   if (sendBtn) {
     sendBtn.disabled = true;
   }
+
+  renderUsers();
 }
 
 async function openChat(user) {
@@ -305,11 +269,9 @@ async function openChat(user) {
 
     messagesCache = data.messages || [];
     renderMessages();
-    renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
+    renderUsers();
   } catch (error) {
-    if (messagesBox) {
-      messagesBox.innerHTML = `<div class="empty">Ошибка загрузки сообщений</div>`;
-    }
+    if (messagesBox) messagesBox.innerHTML = `<div class="empty">Ошибка загрузки сообщений</div>`;
   }
 }
 

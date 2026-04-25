@@ -47,10 +47,7 @@ function publicUser(user) {
 }
 
 function normalizeUsername(username) {
-  return String(username || "")
-    .trim()
-    .toLowerCase()
-    .replace(/^@/, "");
+  return String(username || "").trim().toLowerCase();
 }
 
 function getChatId(userA, userB) {
@@ -81,13 +78,6 @@ app.post("/api/register", async (req, res) => {
 
   const cleanUsername = normalizeUsername(username);
   const cleanDisplayName = displayName ? String(displayName).trim() : cleanUsername;
-
-  if (!cleanUsername) {
-    return res.status(400).json({
-      success: false,
-      error: "Введите логин"
-    });
-  }
 
   const exists = db.data.users.find((user) => user.username === cleanUsername);
 
@@ -151,22 +141,18 @@ app.get("/api/users", async (req, res) => {
   const me = normalizeUsername(req.query.me);
   const q = normalizeUsername(req.query.q);
 
-  if (!q) {
-    return res.json({
-      success: true,
-      users: []
-    });
-  }
-
-  const users = db.data.users
+  let users = db.data.users
     .filter((user) => user.username !== me)
-    .filter((user) => {
+    .map(publicUser);
+
+  if (q) {
+    users = users.filter((user) => {
       return (
         user.username.toLowerCase().includes(q) ||
         user.displayName.toLowerCase().includes(q)
       );
-    })
-    .map(publicUser);
+    });
+  }
 
   res.json({
     success: true,
