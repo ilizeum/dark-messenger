@@ -19,6 +19,7 @@ app.use(express.json());
 app.use(express.static("public"));
 
 const adapter = new JSONFile("db.json");
+
 const db = new Low(adapter, {
   users: [],
   messages: []
@@ -36,23 +37,6 @@ async function initDB() {
   db.data.messages ||= [];
 
   await db.write();
-}
-
-function publicUser(user) {
-  return {
-    id: user.id,
-    displayName: user.displayName,
-    username: user.username
-  };
-}
-
-function normalizeUsername(username) {
-  return String(username || "").trim().toLowerCase();
-}
-
-function getChatId(userA, userB) {
-  const users = [normalizeUsername(userA), normalizeUsername(userB)].sort();
-  return `${users[0]}__${users[1]}`;
 }
 
 initDB();
@@ -76,7 +60,7 @@ app.post("/api/register", async (req, res) => {
     });
   }
 
-  const cleanUsername = normalizeUsername(username);
+  const cleanUsername = String(username).trim().toLowerCase();
   const cleanDisplayName = displayName ? String(displayName).trim() : cleanUsername;
 
   const exists = db.data.users.find((user) => user.username === cleanUsername);
@@ -100,7 +84,11 @@ app.post("/api/register", async (req, res) => {
 
   res.json({
     success: true,
-    user: publicUser(user)
+    user: {
+      id: user.id,
+      displayName: user.displayName,
+      username: user.username
+    }
   });
 });
 
@@ -116,7 +104,7 @@ app.post("/api/login", async (req, res) => {
     });
   }
 
-  const cleanUsername = normalizeUsername(username);
+  const cleanUsername = String(username).trim().toLowerCase();
 
   const user = db.data.users.find(
     (user) => user.username === cleanUsername && user.password === String(password)
@@ -131,28 +119,22 @@ app.post("/api/login", async (req, res) => {
 
   res.json({
     success: true,
-    user: publicUser(user)
+    user: {
+      id: user.id,
+      displayName: user.displayName,
+      username: user.username
+    }
   });
 });
 
 app.get("/api/users", async (req, res) => {
   await db.read();
 
-  const me = normalizeUsername(req.query.me);
-  const q = normalizeUsername(req.query.q);
-
-  let users = db.data.users
-    .filter((user) => user.username !== me)
-    .map(publicUser);
-
-  if (q) {
-    users = users.filter((user) => {
-      return (
-        user.username.toLowerCase().includes(q) ||
-        user.displayName.toLowerCase().includes(q)
-      );
-    });
-  }
+  const users = db.data.users.map((user) => ({
+    id: user.id,
+    displayName: user.displayName,
+    username: user.username
+  }));
 
   res.json({
     success: true,
@@ -160,93 +142,53 @@ app.get("/api/users", async (req, res) => {
   });
 });
 
-app.get("/api/messages", async (req, res) => {
-  await db.read();
-
-  const me = normalizeUsername(req.query.me);
-  const withUser = normalizeUsername(req.query.with);
-
-  if (!me || !withUser) {
-    return res.status(400).json({
-      success: false,
-      error: "Не указан пользователь"
-    });
-  }
-
-  const chatId = getChatId(me, withUser);
-
-  const messages = db.data.messages.filter((message) => message.chatId === chatId);
-
-  res.json({
-    success: true,
-    messages
-  });
-});
-
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log("User connected");
 
-  socket.on("user_online", (data) => {
-    const username = normalizeUsername(data && data.username);
+  await db.read();
 
-    if (!username) return;
-
-    socket.username = username;
-    socket.join(`user:${username}`);
-
-    console.log("Online:", username);
-  });
-
-  socket.on("open_chat", async (data) => {
-    await db.read();
-
-    const me = normalizeUsername(data && data.me);
-    const withUser = normalizeUsername(data && data.with);
-
-    if (!me || !withUser) return;
-
-    const chatId = getChatId(me, withUser);
-    socket.join(`chat:${chatId}`);
-
-    const messages = db.data.messages.filter((message) => message.chatId === chatId);
-
-    socket.emit("load_messages", messages);
-  });
+  socket.emit("load_messages", db.data.messages);
 
   socket.on("send_message", async (data) => {
     await db.read();
 
-    const from = normalizeUsername(data && data.from);
-    const to = normalizeUsername(data && data.to);
-    const text = String((data && (data.text || data.message)) || "").trim();
-
-    if (!from || !to || !text) return;
-
-    const sender = db.data.users.find((user) => user.username === from);
-    const receiver = db.data.users.find((user) => user.username === to);
-
-    if (!sender || !receiver) return;
-
-    const chatId = getChatId(from, to);
-
     const message = {
       id: Date.now(),
-      chatId,
-      from,
-      to,
-      username: from,
-      displayName: sender.displayName,
-      text,
-      message: text,
+      username: data.username || "unknown",
+      displayName: data.displayName || data.username || "unknown",
+      message: data.message || data.text || "",
+      text: data.text || data.message || "",
+      to: data.to || null,
+      from: data.from || data.username || null,
       created_at: new Date().toISOString()
     };
 
     db.data.messages.push(message);
     await db.write();
 
-    io.to(`user:${from}`).emit("new_message", message);
-    io.to(`user:${to}`).emit("new_message", message);
-    io.to(`chat:${chatId}`).emit("new_message", message);
+    io.emit("new_message", message);
+    io.emit("message", message);
+  });
+
+  socket.on("message", async (data) => {
+    await db.read();
+
+    const message = {
+      id: Date.now(),
+      username: data.username || data.from || "unknown",
+      displayName: data.displayName || data.username || data.from || "unknown",
+      message: data.message || data.text || "",
+      text: data.text || data.message || "",
+      to: data.to || null,
+      from: data.from || data.username || null,
+      created_at: new Date().toISOString()
+    };
+
+    db.data.messages.push(message);
+    await db.write();
+
+    io.emit("new_message", message);
+    io.emit("message", message);
   });
 
   socket.on("disconnect", () => {
