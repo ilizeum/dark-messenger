@@ -1,9 +1,9 @@
 {
   "name": "dark-messenger",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Dark Messenger",
   "main": "main.js",
-  "author": "you",
+  "author": "titov",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -24,15 +24,18 @@
     },
     "files": [
       "main.js",
-      "public/**/*"
+      "public/**/*",
+      "package.json"
     ],
     "win": {
       "target": "nsis"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
       "deleteAppDataOnUninstall": false
     },
     "publish": [
