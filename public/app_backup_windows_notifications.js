@@ -18,8 +18,6 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let isRecording = false;
 
-let notificationPermissionRequested = false;
-
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 
 const auth = document.getElementById("auth");
@@ -245,115 +243,6 @@ function updateUnreadTitle() {
   const total = totalDirect + totalGroups;
 
   document.title = total > 0 ? `(${total}) Dark Messenger` : "Dark Messenger";
-}
-
-async function setupWindowsNotifications() {
-  if (notificationPermissionRequested) return;
-
-  notificationPermissionRequested = true;
-
-  if (!("Notification" in window)) {
-    console.log("Windows notifications are not supported here");
-    return;
-  }
-
-  if (Notification.permission === "default") {
-    try {
-      await Notification.requestPermission();
-    } catch (error) {
-      console.log("Notification permission error:", error);
-    }
-  }
-}
-
-function makeNotificationText(message) {
-  if (!message) return "Новое сообщение";
-
-  if (message.text || message.message) {
-    return String(message.text || message.message);
-  }
-
-  if (message.media) {
-    if (message.media.type === "image") return "Фото";
-    if (message.media.type === "video") return "Видео";
-    if (message.media.type === "audio") return "Голосовое сообщение";
-  }
-
-  return "Новое сообщение";
-}
-
-function showWindowsNotification(title, body, avatar) {
-  if (!("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
-
-  try {
-    const notification = new Notification(title, {
-      body,
-      icon: avatar || undefined,
-      silent: false
-    });
-
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
-
-    setTimeout(() => {
-      notification.close();
-    }, 7000);
-  } catch (error) {
-    console.log("Notification show error:", error);
-  }
-}
-
-function shouldNotifyDirect(message) {
-  if (!currentUser) return false;
-
-  const from = normalizeUsername(message.from || message.username);
-
-  if (!from || from === currentUser.username) return false;
-
-  if (selectedChatType === "direct" && selectedUser && selectedUser.username === from) {
-    return document.hidden;
-  }
-
-  return true;
-}
-
-function shouldNotifyGroup(message) {
-  if (!currentUser) return false;
-
-  const from = normalizeUsername(message.from || message.username);
-  const groupId = String(message.groupId || "");
-
-  if (!groupId || from === currentUser.username) return false;
-
-  if (selectedChatType === "group" && selectedGroup && selectedGroup.id === groupId) {
-    return document.hidden;
-  }
-
-  return true;
-}
-
-function notifyDirectMessage(message) {
-  if (!shouldNotifyDirect(message)) return;
-
-  const from = normalizeUsername(message.from || message.username);
-  const title = message.displayName || from || "Новое сообщение";
-  const body = makeNotificationText(message);
-
-  showWindowsNotification(title, body, message.avatar || "");
-}
-
-function notifyGroupMessage(message) {
-  if (!shouldNotifyGroup(message)) return;
-
-  const group = groupsCache.find((item) => item.id === String(message.groupId));
-  const groupName = group ? group.name : "Группа";
-  const sender = message.displayName || message.username || "Участник";
-  const body = `${sender}: ${makeNotificationText(message)}`;
-
-  showWindowsNotification(groupName, body, message.avatar || "");
 }
 
 function unreadBadge(count) {
@@ -884,7 +773,6 @@ async function startApp() {
   setupGroupUI();
   setupGroupActionsUI();
   setupMessageTools();
-  setupWindowsNotifications();
 
   if (auth) auth.classList.add("hidden");
   if (app) app.classList.remove("hidden");
@@ -1006,6 +894,24 @@ function upsertRecentChat(user, message) {
   });
 
   renderRecentChats();
+}
+
+function addRecentUserFromMessage(message) {
+  const from = normalizeUsername(message.from || message.username);
+
+  if (!from || !currentUser || from === currentUser.username) return;
+
+  const user = {
+    id: from,
+    username: from,
+    displayName: message.displayName || from,
+    avatar: message.avatar || "",
+    lastMessageText: message.text || message.message || "",
+    lastMessageMedia: message.media || null,
+    lastMessageAt: message.created_at
+  };
+
+  upsertRecentChat(user, message);
 }
 
 function renderGroups() {
@@ -1397,8 +1303,6 @@ socket.on("load_messages", (messages) => {
 });
 
 socket.on("new_message", (message) => {
-  if (!currentUser) return;
-
   const from = normalizeUsername(message.from || message.username);
   const to = normalizeUsername(message.to);
   const otherUsername = from === currentUser.username ? to : from;
@@ -1418,11 +1322,7 @@ socket.on("new_message", (message) => {
 
   upsertRecentChat(userForRecent, message);
 
-  if (from !== currentUser.username) {
-    notifyDirectMessage(message);
-  }
-
-  if (from === currentUser.username) {
+  if (!currentUser || from === currentUser.username) {
     if (shouldShowIncomingDirect(message)) {
       const exists = messagesCache.some((m) => m.id === message.id);
 
@@ -1462,10 +1362,6 @@ socket.on("new_group_message", (message) => {
   const from = normalizeUsername(message.from || message.username);
 
   if (!groupId) return;
-
-  if (from !== currentUser.username) {
-    notifyGroupMessage(message);
-  }
 
   if (shouldShowIncomingGroup(message)) {
     const exists = messagesCache.some((m) => m.id === message.id);
