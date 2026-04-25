@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
-    "start": "node server.js",
-    "electron": "electron .",
-    "build": "electron-builder --win nsis"
-  },
+  "start": "node server.js",
+  "electron": "electron .",
+  "build-exe": "electron-builder --win nsis"
+}
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "express": "^4.18.2",
