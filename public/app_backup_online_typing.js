@@ -13,16 +13,12 @@ let messagesCache = [];
 
 let unreadDirect = {};
 let unreadGroups = {};
-let onlineUsers = {};
-let typingUsers = {};
 
 let mediaRecorder = null;
 let recordedChunks = [];
 let isRecording = false;
 
 let notificationPermissionRequested = false;
-let typingTimer = null;
-let isTypingNow = false;
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 
@@ -160,8 +156,6 @@ function loadSavedUser() {
 }
 
 function logout() {
-  stopTyping();
-
   localStorage.removeItem("darkMessengerUser");
   sessionStorage.removeItem("darkMessengerUser");
 
@@ -176,8 +170,6 @@ function logout() {
   messagesCache = [];
   unreadDirect = {};
   unreadGroups = {};
-  onlineUsers = {};
-  typingUsers = {};
 
   updateUnreadTitle();
 
@@ -260,7 +252,10 @@ async function setupWindowsNotifications() {
 
   notificationPermissionRequested = true;
 
-  if (!("Notification" in window)) return;
+  if (!("Notification" in window)) {
+    console.log("Windows notifications are not supported here");
+    return;
+  }
 
   if (Notification.permission === "default") {
     try {
@@ -383,125 +378,6 @@ function unreadBadge(count) {
       ${count > 99 ? "99+" : count}
     </span>
   `;
-}
-
-function onlineDot(username) {
-  const online = onlineUsers[normalizeUsername(username)];
-
-  return `
-    <span style="
-      width:9px;
-      height:9px;
-      border-radius:50%;
-      background:${online ? "#22c55e" : "#64748b"};
-      display:inline-block;
-      margin-right:6px;
-      box-shadow:${online ? "0 0 0 3px rgba(34,197,94,0.18)" : "none"};
-    "></span>
-  `;
-}
-
-function updateChatStatusText() {
-  if (!chatStatus) return;
-
-  if (selectedChatType === "direct" && selectedUser) {
-    const username = selectedUser.username;
-    const typing = typingUsers[username];
-
-    if (typing) {
-      chatStatus.textContent = "печатает...";
-      return;
-    }
-
-    chatStatus.textContent = onlineUsers[username] ? "онлайн" : "офлайн";
-    return;
-  }
-
-  if (selectedChatType === "group" && selectedGroup) {
-    const typingList = Object.keys(typingUsers).filter((username) => typingUsers[username]);
-
-    if (typingList.length === 1) {
-      chatStatus.textContent = `@${typingList[0]} печатает...`;
-      return;
-    }
-
-    if (typingList.length > 1) {
-      chatStatus.textContent = "несколько участников печатают...";
-      return;
-    }
-
-    chatStatus.textContent = `${selectedGroup.members.length} участн. · создатель @${selectedGroup.owner}`;
-  }
-}
-
-function emitTypingStart() {
-  if (!currentUser || !selectedChatType) return;
-
-  if (isTypingNow) return;
-
-  isTypingNow = true;
-
-  if (selectedChatType === "direct" && selectedUser) {
-    socket.emit("typing_start", {
-      from: currentUser.username,
-      to: selectedUser.username,
-      chatType: "direct"
-    });
-  }
-
-  if (selectedChatType === "group" && selectedGroup) {
-    socket.emit("typing_start", {
-      from: currentUser.username,
-      groupId: selectedGroup.id,
-      chatType: "group"
-    });
-  }
-}
-
-function stopTyping() {
-  if (!currentUser || !selectedChatType || !isTypingNow) return;
-
-  isTypingNow = false;
-
-  if (selectedChatType === "direct" && selectedUser) {
-    socket.emit("typing_stop", {
-      from: currentUser.username,
-      to: selectedUser.username,
-      chatType: "direct"
-    });
-  }
-
-  if (selectedChatType === "group" && selectedGroup) {
-    socket.emit("typing_stop", {
-      from: currentUser.username,
-      groupId: selectedGroup.id,
-      chatType: "group"
-    });
-  }
-}
-
-function handleTypingInput() {
-  if (!canSendNow()) return;
-
-  const text = messageInput ? messageInput.value.trim() : "";
-
-  if (!text) {
-    stopTyping();
-    return;
-  }
-
-  emitTypingStart();
-
-  clearTimeout(typingTimer);
-
-  typingTimer = setTimeout(() => {
-    stopTyping();
-  }, 1600);
-}
-
-function clearTypingState() {
-  typingUsers = {};
-  updateChatStatusText();
 }
 
 function setupProfileUI() {
@@ -980,8 +856,6 @@ function stopVoiceRecording() {
 }
 
 function sendMediaMessage(media) {
-  stopTyping();
-
   if (!canSendNow()) return;
 
   if (selectedChatType === "direct" && selectedUser) {
@@ -1043,11 +917,6 @@ async function loadRecentChats() {
     const data = await request(`/api/chats?me=${encodeURIComponent(currentUser.username)}`);
 
     recentChatsCache = data.chats || [];
-
-    recentChatsCache.forEach((chat) => {
-      onlineUsers[chat.username] = Boolean(chat.online);
-    });
-
     renderRecentChats();
   } catch (error) {
     console.error(error);
@@ -1095,7 +964,7 @@ function renderRecentChats() {
     item.innerHTML = `
       ${renderAvatar(user)}
       <div class="user-info">
-        <b>${onlineDot(user.username)}${escapeHtml(user.displayName || user.username)}</b>
+        <b>${escapeHtml(user.displayName || user.username)}</b>
         <span>${escapeHtml(preview)}</span>
       </div>
       ${unreadBadge(count)}
@@ -1110,7 +979,6 @@ function renderRecentChats() {
 }
 
 function getChatPreview(user) {
-  if (typingUsers[user.username]) return "печатает...";
   if (user.lastMessageText) return user.lastMessageText;
 
   if (user.lastMessageMedia) {
@@ -1119,7 +987,7 @@ function getChatPreview(user) {
     if (user.lastMessageMedia.type === "audio") return "Голосовое";
   }
 
-  return onlineUsers[user.username] ? "онлайн" : "офлайн";
+  return "@" + user.username;
 }
 
 function upsertRecentChat(user, message) {
@@ -1132,7 +1000,6 @@ function upsertRecentChat(user, message) {
     displayName: user.displayName || user.display_name || user.username,
     username: user.username,
     avatar: user.avatar || "",
-    online: onlineUsers[user.username] || user.online || false,
     lastMessageText: message ? (message.text || message.message || "") : (user.lastMessageText || ""),
     lastMessageMedia: message ? (message.media || null) : (user.lastMessageMedia || null),
     lastMessageAt: message ? message.created_at : user.lastMessageAt
@@ -1194,11 +1061,6 @@ async function loadUsers(query = "") {
     );
 
     usersCache = data.users || [];
-
-    usersCache.forEach((user) => {
-      onlineUsers[user.username] = Boolean(user.online);
-    });
-
     renderUsers(cleanQuery);
   } catch (error) {
     console.error(error);
@@ -1262,8 +1124,8 @@ function renderUsers(query = "") {
     item.innerHTML = `
       ${renderAvatar(user)}
       <div class="user-info">
-        <b>${onlineDot(user.username)}${escapeHtml(user.displayName || user.username)}</b>
-        <span>${onlineUsers[user.username] ? "онлайн" : "офлайн"} · @${escapeHtml(user.username)}</span>
+        <b>${escapeHtml(user.displayName || user.username)}</b>
+        <span>@${escapeHtml(user.username)}</span>
       </div>
     `;
 
@@ -1276,14 +1138,11 @@ function renderUsers(query = "") {
 }
 
 function renderEmptyChat() {
-  stopTyping();
-
   selectedUser = null;
   selectedGroup = null;
   selectedChatType = null;
   messagesCache = [];
 
-  clearTypingState();
   hideGroupActions();
 
   if (chatAvatar) {
@@ -1317,24 +1176,17 @@ function renderEmptyChat() {
 }
 
 async function openChat(user) {
-  stopTyping();
-
   selectedUser = user;
   selectedGroup = null;
   selectedChatType = "direct";
   messagesCache = [];
 
-  clearTypingState();
   hideGroupActions();
 
   unreadDirect[user.username] = 0;
   updateUnreadTitle();
 
   upsertRecentChat(user, null);
-
-  socket.emit("check_user_status", {
-    username: user.username
-  });
 
   if (chatAvatar) {
     if (user.avatar) {
@@ -1345,7 +1197,7 @@ async function openChat(user) {
   }
 
   if (chatName) chatName.textContent = user.displayName || user.username;
-  updateChatStatusText();
+  if (chatStatus) chatStatus.textContent = "@" + user.username;
 
   if (messageInput) messageInput.disabled = false;
   if (sendBtn) sendBtn.disabled = false;
@@ -1379,14 +1231,10 @@ async function openChat(user) {
 }
 
 async function openGroup(group) {
-  stopTyping();
-
   selectedGroup = group;
   selectedUser = null;
   selectedChatType = "group";
   messagesCache = [];
-
-  clearTypingState();
 
   unreadGroups[group.id] = 0;
   updateUnreadTitle();
@@ -1397,7 +1245,9 @@ async function openGroup(group) {
   }
 
   if (chatName) chatName.textContent = group.name;
-  updateChatStatusText();
+  if (chatStatus) {
+    chatStatus.textContent = `${group.members.length} участн. · создатель @${group.owner}`;
+  }
 
   showGroupActions(group);
 
@@ -1438,8 +1288,6 @@ function sendMessage() {
   const text = messageInput ? messageInput.value.trim() : "";
 
   if (!text) return;
-
-  stopTyping();
 
   if (selectedChatType === "direct" && selectedUser) {
     socket.emit("send_message", {
@@ -1548,91 +1396,12 @@ socket.on("load_messages", (messages) => {
   renderMessages();
 });
 
-socket.on("user_status", (data) => {
-  if (!data || !data.username) return;
-
-  const username = normalizeUsername(data.username);
-
-  onlineUsers[username] = Boolean(data.online);
-
-  recentChatsCache = recentChatsCache.map((chat) => {
-    if (chat.username === username) {
-      return {
-        ...chat,
-        online: Boolean(data.online)
-      };
-    }
-
-    return chat;
-  });
-
-  usersCache = usersCache.map((user) => {
-    if (user.username === username) {
-      return {
-        ...user,
-        online: Boolean(data.online)
-      };
-    }
-
-    return user;
-  });
-
-  renderRecentChats();
-  renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
-  updateChatStatusText();
-});
-
-socket.on("typing_start", (data) => {
-  if (!currentUser || !data) return;
-
-  const from = normalizeUsername(data.from);
-
-  if (!from || from === currentUser.username) return;
-
-  if (data.chatType === "direct") {
-    if (selectedChatType === "direct" && selectedUser && selectedUser.username === from) {
-      typingUsers[from] = true;
-      updateChatStatusText();
-    }
-
-    if (recentChatsCache.some((chat) => chat.username === from)) {
-      typingUsers[from] = true;
-      renderRecentChats();
-    }
-  }
-
-  if (data.chatType === "group") {
-    const groupId = String(data.groupId || "");
-
-    if (selectedChatType === "group" && selectedGroup && selectedGroup.id === groupId) {
-      typingUsers[from] = true;
-      updateChatStatusText();
-    }
-  }
-});
-
-socket.on("typing_stop", (data) => {
-  if (!data) return;
-
-  const from = normalizeUsername(data.from);
-
-  if (!from) return;
-
-  delete typingUsers[from];
-
-  updateChatStatusText();
-  renderRecentChats();
-});
-
 socket.on("new_message", (message) => {
   if (!currentUser) return;
 
   const from = normalizeUsername(message.from || message.username);
   const to = normalizeUsername(message.to);
   const otherUsername = from === currentUser.username ? to : from;
-
-  delete typingUsers[otherUsername];
-  delete typingUsers[from];
 
   const userForRecent = {
     id: otherUsername,
@@ -1664,7 +1433,6 @@ socket.on("new_message", (message) => {
     }
 
     renderRecentChats();
-    updateChatStatusText();
     return;
   }
 
@@ -1683,7 +1451,6 @@ socket.on("new_message", (message) => {
 
   updateUnreadTitle();
   renderRecentChats();
-  updateChatStatusText();
 });
 
 socket.on("new_group_message", (message) => {
@@ -1693,8 +1460,6 @@ socket.on("new_group_message", (message) => {
 
   const groupId = String(message.groupId || "");
   const from = normalizeUsername(message.from || message.username);
-
-  delete typingUsers[from];
 
   if (!groupId) return;
 
@@ -1717,7 +1482,6 @@ socket.on("new_group_message", (message) => {
 
   updateUnreadTitle();
   renderGroups();
-  updateChatStatusText();
 });
 
 socket.on("group_updated", (group) => {
@@ -1729,7 +1493,11 @@ socket.on("group_updated", (group) => {
 
   if (selectedGroup && selectedGroup.id === group.id) {
     selectedGroup = group;
-    updateChatStatusText();
+
+    if (chatStatus) {
+      chatStatus.textContent = `${group.members.length} участн. · создатель @${group.owner}`;
+    }
+
     showGroupActions(group);
   }
 
@@ -1833,25 +1601,13 @@ if (sendBtn) {
 }
 
 if (messageInput) {
-  messageInput.addEventListener("input", handleTypingInput);
-
   messageInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       sendMessage();
     }
   });
-
-  messageInput.addEventListener("blur", () => {
-    setTimeout(() => {
-      stopTyping();
-    }, 500);
-  });
 }
-
-window.addEventListener("beforeunload", () => {
-  stopTyping();
-});
 
 const savedUser = loadSavedUser();
 
