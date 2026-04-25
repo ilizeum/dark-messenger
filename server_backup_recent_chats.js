@@ -248,7 +248,9 @@ app.post("/api/register", async (req, res) => {
     }
 
     const cleanUsername = normalizeUsername(username);
-    const cleanDisplayName = displayName ? String(displayName).trim() : cleanUsername;
+    const cleanDisplayName = displayName
+      ? String(displayName).trim()
+      : cleanUsername;
 
     if (!cleanUsername) {
       return res.status(400).json({
@@ -420,68 +422,6 @@ app.get("/api/users", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Ошибка поиска пользователей"
-    });
-  }
-});
-
-app.get("/api/chats", async (req, res) => {
-  try {
-    const me = normalizeUsername(req.query.me);
-
-    if (!me) {
-      return res.status(400).json({
-        success: false,
-        error: "Не указан пользователь"
-      });
-    }
-
-    const result = await pool.query(
-      `
-      WITH direct_chats AS (
-        SELECT
-          CASE
-            WHEN from_username = $1 THEN to_username
-            ELSE from_username
-          END AS other_username,
-          MAX(id) AS last_message_id
-        FROM messages
-        WHERE type = 'direct'
-          AND (from_username = $1 OR to_username = $1)
-        GROUP BY other_username
-      )
-      SELECT
-        u.id,
-        u.display_name,
-        u.username,
-        u.avatar,
-        m.text AS last_message_text,
-        m.media AS last_message_media,
-        m.created_at AS last_message_at
-      FROM direct_chats dc
-      JOIN users u ON u.username = dc.other_username
-      JOIN messages m ON m.id = dc.last_message_id
-      ORDER BY m.id DESC
-      `,
-      [me]
-    );
-
-    const chats = result.rows.map((row) => ({
-      ...publicUser(row),
-      lastMessageText: row.last_message_text || "",
-      lastMessageMedia: row.last_message_media || null,
-      lastMessageAt: row.last_message_at
-    }));
-
-    res.json({
-      success: true,
-      chats
-    });
-  } catch (error) {
-    console.error("Chats error:", error);
-
-    res.status(500).json({
-      success: false,
-      error: "Ошибка загрузки личных чатов"
     });
   }
 });

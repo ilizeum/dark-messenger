@@ -7,7 +7,6 @@ let selectedGroup = null;
 let selectedChatType = null;
 
 let usersCache = [];
-let recentChatsCache = [];
 let groupsCache = [];
 let messagesCache = [];
 
@@ -48,7 +47,6 @@ const messagesBox = document.getElementById("messages");
 const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 
-let recentChatsBox = null;
 let groupsBox = null;
 let createGroupBtn = null;
 let groupModal = null;
@@ -163,7 +161,6 @@ function logout() {
   selectedChatType = null;
 
   usersCache = [];
-  recentChatsCache = [];
   groupsCache = [];
   messagesCache = [];
   unreadDirect = {};
@@ -269,6 +266,23 @@ function unreadBadge(count) {
   `;
 }
 
+function addRecentUserFromMessage(message) {
+  const from = normalizeUsername(message.from || message.username);
+
+  if (!from || !currentUser || from === currentUser.username) return;
+
+  const exists = usersCache.some((user) => user.username === from);
+
+  if (exists) return;
+
+  usersCache.unshift({
+    id: from,
+    username: from,
+    displayName: message.displayName || from,
+    avatar: message.avatar || ""
+  });
+}
+
 function setupProfileUI() {
   if (!meName || document.getElementById("profileAvatarBtn")) return;
 
@@ -359,13 +373,6 @@ function setupGroupUI() {
   createGroupBtn.type = "button";
   createGroupBtn.textContent = "+ Создать группу";
 
-  const recentTitle = document.createElement("div");
-  recentTitle.className = "sidebar-title";
-  recentTitle.textContent = "Личные чаты";
-
-  recentChatsBox = document.createElement("div");
-  recentChatsBox.id = "recentChats";
-
   const groupsTitle = document.createElement("div");
   groupsTitle.className = "sidebar-title";
   groupsTitle.textContent = "Группы";
@@ -378,8 +385,6 @@ function setupGroupUI() {
   usersTitle.textContent = "Поиск пользователей";
 
   usersBox.parentElement.insertBefore(createGroupBtn, usersBox);
-  usersBox.parentElement.insertBefore(recentTitle, usersBox);
-  usersBox.parentElement.insertBefore(recentChatsBox, usersBox);
   usersBox.parentElement.insertBefore(groupsTitle, usersBox);
   usersBox.parentElement.insertBefore(groupsBox, usersBox);
   usersBox.parentElement.insertBefore(usersTitle, usersBox);
@@ -791,28 +796,10 @@ async function startApp() {
     username: currentUser.username
   });
 
-  await loadRecentChats();
   await loadGroups();
 
   renderSearchHint();
   renderEmptyChat();
-}
-
-async function loadRecentChats() {
-  if (!currentUser) return;
-
-  try {
-    const data = await request(`/api/chats?me=${encodeURIComponent(currentUser.username)}`);
-
-    recentChatsCache = data.chats || [];
-    renderRecentChats();
-  } catch (error) {
-    console.error(error);
-
-    if (recentChatsBox) {
-      recentChatsBox.innerHTML = `<div class="empty small-empty">Ошибка загрузки чатов</div>`;
-    }
-  }
 }
 
 async function loadGroups() {
@@ -826,92 +813,6 @@ async function loadGroups() {
   } catch (error) {
     console.error(error);
   }
-}
-
-function renderRecentChats() {
-  if (!recentChatsBox) return;
-
-  recentChatsBox.innerHTML = "";
-
-  if (!recentChatsCache.length) {
-    recentChatsBox.innerHTML = `<div class="empty small-empty">Личных чатов пока нет</div>`;
-    return;
-  }
-
-  recentChatsCache.forEach((user) => {
-    const item = document.createElement("button");
-    item.className = "user recent-chat-item";
-
-    if (selectedChatType === "direct" && selectedUser && selectedUser.username === user.username) {
-      item.classList.add("active");
-    }
-
-    const count = unreadDirect[user.username] || 0;
-    const preview = getChatPreview(user);
-
-    item.innerHTML = `
-      ${renderAvatar(user)}
-      <div class="user-info">
-        <b>${escapeHtml(user.displayName || user.username)}</b>
-        <span>${escapeHtml(preview)}</span>
-      </div>
-      ${unreadBadge(count)}
-    `;
-
-    item.addEventListener("click", () => {
-      openChat(user);
-    });
-
-    recentChatsBox.appendChild(item);
-  });
-}
-
-function getChatPreview(user) {
-  if (user.lastMessageText) return user.lastMessageText;
-
-  if (user.lastMessageMedia) {
-    if (user.lastMessageMedia.type === "image") return "Фото";
-    if (user.lastMessageMedia.type === "video") return "Видео";
-    if (user.lastMessageMedia.type === "audio") return "Голосовое";
-  }
-
-  return "@" + user.username;
-}
-
-function upsertRecentChat(user, message) {
-  if (!user || !user.username) return;
-
-  recentChatsCache = recentChatsCache.filter((item) => item.username !== user.username);
-
-  recentChatsCache.unshift({
-    id: user.id || user.username,
-    displayName: user.displayName || user.display_name || user.username,
-    username: user.username,
-    avatar: user.avatar || "",
-    lastMessageText: message ? (message.text || message.message || "") : (user.lastMessageText || ""),
-    lastMessageMedia: message ? (message.media || null) : (user.lastMessageMedia || null),
-    lastMessageAt: message ? message.created_at : user.lastMessageAt
-  });
-
-  renderRecentChats();
-}
-
-function addRecentUserFromMessage(message) {
-  const from = normalizeUsername(message.from || message.username);
-
-  if (!from || !currentUser || from === currentUser.username) return;
-
-  const user = {
-    id: from,
-    username: from,
-    displayName: message.displayName || from,
-    avatar: message.avatar || "",
-    lastMessageText: message.text || message.message || "",
-    lastMessageMedia: message.media || null,
-    lastMessageAt: message.created_at
-  };
-
-  upsertRecentChat(user, message);
 }
 
 function renderGroups() {
@@ -979,9 +880,16 @@ async function loadUsers(query = "") {
 function renderSearchHint() {
   if (!usersBox) return;
 
+  const hasUnreadUsers = usersCache.some((user) => unreadDirect[user.username] > 0);
+
+  if (hasUnreadUsers) {
+    renderUsers("");
+    return;
+  }
+
   usersBox.innerHTML = `
     <div class="empty">
-      Введите @id пользователя, чтобы найти новый чат.<br>
+      Введите @id пользователя, чтобы найти чат.<br>
       Например: <b>@ilizeum</b>
     </div>
   `;
@@ -1001,25 +909,33 @@ function renderUsers(query = "") {
   if (!usersBox) return;
 
   const hasQuery = Boolean(normalizeUsername(query));
+  const visibleUsers = hasQuery
+    ? usersCache
+    : usersCache.filter((user) => unreadDirect[user.username] > 0);
 
   usersBox.innerHTML = "";
 
-  if (!hasQuery) {
-    renderSearchHint();
+  if (!visibleUsers.length) {
+    if (hasQuery) {
+      usersBox.innerHTML = `
+        <div class="empty">
+          Пользователь не найден.<br>
+          Проверь @id: <b>@${escapeHtml(query)}</b>
+        </div>
+      `;
+    } else {
+      usersBox.innerHTML = `
+        <div class="empty">
+          Введите @id пользователя, чтобы найти чат.<br>
+          Например: <b>@ilizeum</b>
+        </div>
+      `;
+    }
+
     return;
   }
 
-  if (!usersCache.length) {
-    usersBox.innerHTML = `
-      <div class="empty">
-        Пользователь не найден.<br>
-        Проверь @id: <b>@${escapeHtml(query)}</b>
-      </div>
-    `;
-    return;
-  }
-
-  usersCache.forEach((user) => {
+  visibleUsers.forEach((user) => {
     const item = document.createElement("button");
     item.className = "user";
 
@@ -1027,12 +943,15 @@ function renderUsers(query = "") {
       item.classList.add("active");
     }
 
+    const count = unreadDirect[user.username] || 0;
+
     item.innerHTML = `
       ${renderAvatar(user)}
       <div class="user-info">
         <b>${escapeHtml(user.displayName || user.username)}</b>
         <span>@${escapeHtml(user.username)}</span>
       </div>
+      ${unreadBadge(count)}
     `;
 
     item.addEventListener("click", () => {
@@ -1057,12 +976,13 @@ function renderEmptyChat() {
   }
 
   if (chatName) chatName.textContent = "Выберите чат";
-  if (chatStatus) chatStatus.textContent = "Выберите личный чат, группу или найдите пользователя";
+  if (chatStatus) chatStatus.textContent = "Найдите пользователя или выберите группу";
 
   if (messagesBox) {
     messagesBox.innerHTML = `
       <div class="empty">
-        Выберите чат слева или найдите пользователя через поиск.
+        Чаты не показываются автоматически.<br>
+        Найдите пользователя через поиск или создайте группу.
       </div>
     `;
   }
@@ -1076,7 +996,6 @@ function renderEmptyChat() {
   if (attachBtn) attachBtn.disabled = true;
   if (voiceBtn) voiceBtn.disabled = true;
 
-  renderRecentChats();
   renderGroups();
   renderSearchHint();
 }
@@ -1091,8 +1010,6 @@ async function openChat(user) {
 
   unreadDirect[user.username] = 0;
   updateUnreadTitle();
-
-  upsertRecentChat(user, null);
 
   if (chatAvatar) {
     if (user.avatar) {
@@ -1127,7 +1044,6 @@ async function openChat(user) {
     messagesCache = data.messages || [];
     renderMessages();
     renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
-    renderRecentChats();
     renderGroups();
   } catch (error) {
     if (messagesBox) {
@@ -1179,7 +1095,6 @@ async function openGroup(group) {
     messagesCache = data.messages || [];
     renderMessages();
     renderGroups();
-    renderRecentChats();
     renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
   } catch (error) {
     if (messagesBox) {
@@ -1304,23 +1219,6 @@ socket.on("load_messages", (messages) => {
 
 socket.on("new_message", (message) => {
   const from = normalizeUsername(message.from || message.username);
-  const to = normalizeUsername(message.to);
-  const otherUsername = from === currentUser.username ? to : from;
-
-  const userForRecent = {
-    id: otherUsername,
-    username: otherUsername,
-    displayName:
-      from === currentUser.username && selectedUser
-        ? selectedUser.displayName
-        : message.displayName || otherUsername,
-    avatar:
-      from === currentUser.username && selectedUser
-        ? selectedUser.avatar
-        : message.avatar || ""
-  };
-
-  upsertRecentChat(userForRecent, message);
 
   if (!currentUser || from === currentUser.username) {
     if (shouldShowIncomingDirect(message)) {
@@ -1332,9 +1230,10 @@ socket.on("new_message", (message) => {
       }
     }
 
-    renderRecentChats();
     return;
   }
+
+  addRecentUserFromMessage(message);
 
   if (shouldShowIncomingDirect(message)) {
     const exists = messagesCache.some((m) => m.id === message.id);
@@ -1350,7 +1249,7 @@ socket.on("new_message", (message) => {
   }
 
   updateUnreadTitle();
-  renderRecentChats();
+  renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
 });
 
 socket.on("new_group_message", (message) => {
