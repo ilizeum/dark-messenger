@@ -64,7 +64,6 @@ let fileInput = null;
 let attachBtn = null;
 let voiceBtn = null;
 let profileAvatarBtn = null;
-let profileBtn = null;
 let groupActionsBox = null;
 
 function normalizeUsername(username) {
@@ -515,25 +514,7 @@ function setupProfileUI() {
   profileAvatarBtn = document.createElement("button");
   profileAvatarBtn.id = "profileAvatarBtn";
   profileAvatarBtn.type = "button";
-  profileAvatarBtn.title = "Аватар";
-
-  profileBtn = document.createElement("button");
-  profileBtn.id = "profileBtn";
-  profileBtn.type = "button";
-  profileBtn.textContent = "Профиль";
-  profileBtn.title = "Сменить аватарку";
-
-  profileBtn.style.marginLeft = "auto";
-  profileBtn.style.background = "#243044";
-  profileBtn.style.color = "#cbd5e1";
-  profileBtn.style.padding = "9px 12px";
-  profileBtn.style.borderRadius = "12px";
-  profileBtn.style.fontWeight = "700";
-  profileBtn.style.whiteSpace = "nowrap";
-
-  if (logoutBtn) {
-    logoutBtn.style.marginLeft = "6px";
-  }
+  profileAvatarBtn.title = "Сменить аватар";
 
   avatarInput = document.createElement("input");
   avatarInput.id = "avatarInput";
@@ -542,20 +523,9 @@ function setupProfileUI() {
   avatarInput.style.display = "none";
 
   profile.prepend(profileAvatarBtn);
-
-  if (logoutBtn) {
-    profile.insertBefore(profileBtn, logoutBtn);
-  } else {
-    profile.appendChild(profileBtn);
-  }
-
   document.body.appendChild(avatarInput);
 
   profileAvatarBtn.addEventListener("click", () => {
-    avatarInput.click();
-  });
-
-  profileBtn.addEventListener("click", () => {
     avatarInput.click();
   });
 
@@ -1244,7 +1214,7 @@ function renderSearchHint() {
   usersBox.innerHTML = `
     <div class="empty">
       Введите @id пользователя, чтобы найти новый чат.<br>
-      Например: <b>@username</b>
+      Например: <b>@ilizeum</b>
     </div>
   `;
 }

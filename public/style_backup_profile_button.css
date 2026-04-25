@@ -224,28 +224,13 @@ textarea {
   margin-top: 3px;
 }
 
-#profileBtn {
-  margin-left: auto;
-  background: #243044;
-  color: #cbd5e1;
-  padding: 9px 12px;
-  border-radius: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-#profileBtn:hover {
-  background: #334155;
-}
-
 #logoutBtn {
-  margin-left: 6px;
+  margin-left: auto;
   background: #2b1b24;
   color: #fb7185;
   padding: 9px 12px;
   border-radius: 12px;
   font-weight: 700;
-  white-space: nowrap;
 }
 
 #logoutBtn:hover {
@@ -312,16 +297,9 @@ textarea {
   overflow: hidden;
 }
 
-.user-info {
-  min-width: 0;
-}
-
 .user-info b {
   display: block;
   font-size: 15px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .user-info span {
@@ -329,12 +307,9 @@ textarea {
   color: #94a3b8;
   font-size: 13px;
   margin-top: 3px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-/* GROUPS AND CHATS */
+/* GROUPS */
 
 #createGroupBtn {
   margin: 0 14px 6px;
@@ -357,13 +332,6 @@ textarea {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-}
-
-#recentChats {
-  max-height: 230px;
-  overflow-y: auto;
-  padding: 4px 8px 8px;
-  border-bottom: 1px solid #243044;
 }
 
 #groups {
@@ -399,7 +367,7 @@ textarea {
 }
 
 .chat-header {
-  min-height: 76px;
+  height: 76px;
   padding: 14px 22px;
   display: flex;
   align-items: center;
@@ -417,10 +385,6 @@ textarea {
   color: #94a3b8;
   font-size: 13px;
   margin-top: 3px;
-}
-
-#groupActionsBox button:hover {
-  filter: brightness(1.12);
 }
 
 #messages {
