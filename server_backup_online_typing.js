@@ -31,8 +31,6 @@ const pool = new Pool({
 const MAX_MEDIA_LENGTH = 12 * 1024 * 1024;
 const BCRYPT_ROUNDS = 10;
 
-const onlineUsers = new Map();
-
 function normalizeUsername(username) {
   return String(username || "")
     .trim()
@@ -123,48 +121,6 @@ async function verifyPassword(inputPassword, savedPassword, username) {
   }
 
   return isOldPasswordCorrect;
-}
-
-function setUserOnline(username, socketId) {
-  const cleanUsername = normalizeUsername(username);
-
-  if (!cleanUsername) return;
-
-  const sockets = onlineUsers.get(cleanUsername) || new Set();
-  sockets.add(socketId);
-  onlineUsers.set(cleanUsername, sockets);
-
-  io.emit("user_status", {
-    username: cleanUsername,
-    online: true
-  });
-}
-
-function setUserOffline(username, socketId) {
-  const cleanUsername = normalizeUsername(username);
-
-  if (!cleanUsername) return;
-
-  const sockets = onlineUsers.get(cleanUsername);
-
-  if (!sockets) return;
-
-  sockets.delete(socketId);
-
-  if (sockets.size === 0) {
-    onlineUsers.delete(cleanUsername);
-
-    io.emit("user_status", {
-      username: cleanUsername,
-      online: false
-    });
-  } else {
-    onlineUsers.set(cleanUsername, sockets);
-  }
-}
-
-function isUserOnline(username) {
-  return onlineUsers.has(normalizeUsername(username));
 }
 
 async function initDB() {
@@ -306,8 +262,7 @@ app.get("/api/health", async (req, res) => {
       success: true,
       message: "Dark Messenger server is working",
       database: "postgres",
-      passwords: "bcrypt",
-      realtime: "online_typing"
+      passwords: "bcrypt"
     });
   } catch (error) {
     console.error("Health error:", error);
@@ -317,16 +272,6 @@ app.get("/api/health", async (req, res) => {
       error: "Database error"
     });
   }
-});
-
-app.get("/api/status/:username", (req, res) => {
-  const username = normalizeUsername(req.params.username);
-
-  res.json({
-    success: true,
-    username,
-    online: isUserOnline(username)
-  });
 });
 
 app.post("/api/register", async (req, res) => {
@@ -521,14 +466,9 @@ app.get("/api/users", async (req, res) => {
       [me, `%${q}%`]
     );
 
-    const users = result.rows.map((user) => ({
-      ...publicUser(user),
-      online: isUserOnline(user.username)
-    }));
-
     res.json({
       success: true,
-      users
+      users: result.rows.map(publicUser)
     });
   } catch (error) {
     console.error("Users error:", error);
@@ -583,7 +523,6 @@ app.get("/api/chats", async (req, res) => {
 
     const chats = result.rows.map((row) => ({
       ...publicUser(row),
-      online: isUserOnline(row.username),
       lastMessageText: row.last_message_text || "",
       lastMessageMedia: row.last_message_media || null,
       lastMessageAt: row.last_message_at
@@ -1018,70 +957,7 @@ io.on("connection", (socket) => {
     socket.username = username;
     socket.join(`user:${username}`);
 
-    setUserOnline(username, socket.id);
-
     console.log("Online:", username);
-  });
-
-  socket.on("check_user_status", (data) => {
-    const username = normalizeUsername(data && data.username);
-
-    if (!username) return;
-
-    socket.emit("user_status", {
-      username,
-      online: isUserOnline(username)
-    });
-  });
-
-  socket.on("typing_start", (data) => {
-    const from = normalizeUsername(data && data.from);
-    const to = normalizeUsername(data && data.to);
-    const groupId = String((data && data.groupId) || "");
-    const chatType = String((data && data.chatType) || "");
-
-    if (!from) return;
-
-    if (chatType === "direct" && to) {
-      io.to(`user:${to}`).emit("typing_start", {
-        from,
-        to,
-        chatType: "direct"
-      });
-    }
-
-    if (chatType === "group" && groupId) {
-      io.to(`chat:${getGroupChatId(groupId)}`).emit("typing_start", {
-        from,
-        groupId,
-        chatType: "group"
-      });
-    }
-  });
-
-  socket.on("typing_stop", (data) => {
-    const from = normalizeUsername(data && data.from);
-    const to = normalizeUsername(data && data.to);
-    const groupId = String((data && data.groupId) || "");
-    const chatType = String((data && data.chatType) || "");
-
-    if (!from) return;
-
-    if (chatType === "direct" && to) {
-      io.to(`user:${to}`).emit("typing_stop", {
-        from,
-        to,
-        chatType: "direct"
-      });
-    }
-
-    if (chatType === "group" && groupId) {
-      io.to(`chat:${getGroupChatId(groupId)}`).emit("typing_stop", {
-        from,
-        groupId,
-        chatType: "group"
-      });
-    }
   });
 
   socket.on("open_chat", async (data) => {
@@ -1097,11 +973,6 @@ io.on("connection", (socket) => {
       const messages = await getMessagesByChatId(chatId);
 
       socket.emit("load_messages", messages);
-
-      socket.emit("user_status", {
-        username: withUser,
-        online: isUserOnline(withUser)
-      });
     } catch (error) {
       console.error("Open chat error:", error);
     }
@@ -1164,12 +1035,6 @@ io.on("connection", (socket) => {
       io.to(`user:${from}`).emit("new_message", savedMessage);
       io.to(`user:${to}`).emit("new_message", savedMessage);
       io.to(`chat:${chatId}`).emit("new_message", savedMessage);
-
-      io.to(`user:${to}`).emit("typing_stop", {
-        from,
-        to,
-        chatType: "direct"
-      });
     } catch (error) {
       console.error("Send message error:", error);
     }
@@ -1214,12 +1079,6 @@ io.on("connection", (socket) => {
       (group.members || []).forEach((member) => {
         io.to(`user:${member}`).emit("new_group_message", savedMessage);
       });
-
-      io.to(`chat:${chatId}`).emit("typing_stop", {
-        from,
-        groupId,
-        chatType: "group"
-      });
     } catch (error) {
       console.error("Send group message error:", error);
     }
@@ -1227,10 +1086,6 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("User disconnected");
-
-    if (socket.username) {
-      setUserOffline(socket.username, socket.id);
-    }
   });
 });
 
