@@ -56,7 +56,6 @@ let fileInput = null;
 let attachBtn = null;
 let voiceBtn = null;
 let profileAvatarBtn = null;
-let groupActionsBox = null;
 
 function normalizeUsername(username) {
   return String(username || "")
@@ -175,8 +174,6 @@ function logout() {
 
   if (messageInput) messageInput.disabled = true;
   if (sendBtn) sendBtn.disabled = true;
-
-  hideGroupActions();
 }
 
 async function register() {
@@ -479,124 +476,6 @@ async function createGroup() {
   }
 }
 
-function setupGroupActionsUI() {
-  if (document.getElementById("groupActionsBox")) return;
-
-  if (!chatStatus || !chatStatus.parentElement) return;
-
-  groupActionsBox = document.createElement("div");
-  groupActionsBox.id = "groupActionsBox";
-  groupActionsBox.style.display = "none";
-  groupActionsBox.style.marginTop = "8px";
-  groupActionsBox.style.gap = "8px";
-  groupActionsBox.style.flexWrap = "wrap";
-
-  const leaveBtn = document.createElement("button");
-  leaveBtn.id = "leaveGroupBtn";
-  leaveBtn.type = "button";
-  leaveBtn.textContent = "Выйти";
-  leaveBtn.style.height = "32px";
-  leaveBtn.style.padding = "0 12px";
-  leaveBtn.style.borderRadius = "10px";
-  leaveBtn.style.background = "#243044";
-  leaveBtn.style.color = "white";
-  leaveBtn.style.fontWeight = "700";
-
-  const deleteBtn = document.createElement("button");
-  deleteBtn.id = "deleteGroupBtn";
-  deleteBtn.type = "button";
-  deleteBtn.textContent = "Удалить";
-  deleteBtn.style.height = "32px";
-  deleteBtn.style.padding = "0 12px";
-  deleteBtn.style.borderRadius = "10px";
-  deleteBtn.style.background = "#7f1d1d";
-  deleteBtn.style.color = "white";
-  deleteBtn.style.fontWeight = "700";
-
-  leaveBtn.addEventListener("click", leaveCurrentGroup);
-  deleteBtn.addEventListener("click", deleteCurrentGroup);
-
-  groupActionsBox.appendChild(leaveBtn);
-  groupActionsBox.appendChild(deleteBtn);
-
-  chatStatus.parentElement.appendChild(groupActionsBox);
-}
-
-function showGroupActions(group) {
-  setupGroupActionsUI();
-
-  if (!groupActionsBox || !group || !currentUser) return;
-
-  const deleteBtn = document.getElementById("deleteGroupBtn");
-
-  groupActionsBox.style.display = "flex";
-
-  if (deleteBtn) {
-    deleteBtn.style.display = group.owner === currentUser.username ? "inline-flex" : "none";
-    deleteBtn.style.alignItems = "center";
-    deleteBtn.style.justifyContent = "center";
-  }
-}
-
-function hideGroupActions() {
-  if (groupActionsBox) {
-    groupActionsBox.style.display = "none";
-  }
-}
-
-async function leaveCurrentGroup() {
-  if (!currentUser || !selectedGroup) return;
-
-  const ok = confirm(`Выйти из группы "${selectedGroup.name}"?`);
-
-  if (!ok) return;
-
-  try {
-    await request(`/api/groups/${encodeURIComponent(selectedGroup.id)}/leave`, {
-      method: "POST",
-      body: JSON.stringify({
-        me: currentUser.username
-      })
-    });
-
-    groupsCache = groupsCache.filter((group) => group.id !== selectedGroup.id);
-    delete unreadGroups[selectedGroup.id];
-
-    renderGroups();
-    renderEmptyChat();
-    updateUnreadTitle();
-
-    alert("Ты вышел из группы");
-  } catch (error) {
-    alert(error.message);
-  }
-}
-
-async function deleteCurrentGroup() {
-  if (!currentUser || !selectedGroup) return;
-
-  const ok = confirm(`Удалить группу "${selectedGroup.name}" полностью? Сообщения группы тоже удалятся.`);
-
-  if (!ok) return;
-
-  try {
-    await request(`/api/groups/${encodeURIComponent(selectedGroup.id)}?me=${encodeURIComponent(currentUser.username)}`, {
-      method: "DELETE"
-    });
-
-    groupsCache = groupsCache.filter((group) => group.id !== selectedGroup.id);
-    delete unreadGroups[selectedGroup.id];
-
-    renderGroups();
-    renderEmptyChat();
-    updateUnreadTitle();
-
-    alert("Группа удалена");
-  } catch (error) {
-    alert(error.message);
-  }
-}
-
 function setupMessageTools() {
   if (!sendBtn || document.getElementById("attachBtn")) return;
 
@@ -776,7 +655,6 @@ async function startApp() {
 
   setupProfileUI();
   setupGroupUI();
-  setupGroupActionsUI();
   setupMessageTools();
 
   if (auth) auth.classList.add("hidden");
@@ -968,8 +846,6 @@ function renderEmptyChat() {
   selectedChatType = null;
   messagesCache = [];
 
-  hideGroupActions();
-
   if (chatAvatar) {
     chatAvatar.textContent = "?";
     chatAvatar.innerHTML = "?";
@@ -1005,8 +881,6 @@ async function openChat(user) {
   selectedGroup = null;
   selectedChatType = "direct";
   messagesCache = [];
-
-  hideGroupActions();
 
   unreadDirect[user.username] = 0;
   updateUnreadTitle();
@@ -1067,11 +941,7 @@ async function openGroup(group) {
   }
 
   if (chatName) chatName.textContent = group.name;
-  if (chatStatus) {
-    chatStatus.textContent = `${group.members.length} участн. · создатель @${group.owner}`;
-  }
-
-  showGroupActions(group);
+  if (chatStatus) chatStatus.textContent = `${group.members.length} участн.`;
 
   if (messageInput) messageInput.disabled = false;
   if (sendBtn) sendBtn.disabled = false;
@@ -1277,55 +1147,6 @@ socket.on("new_group_message", (message) => {
 
   updateUnreadTitle();
   renderGroups();
-});
-
-socket.on("group_updated", (group) => {
-  if (!group || !group.id) return;
-
-  groupsCache = groupsCache.map((item) => {
-    return item.id === group.id ? group : item;
-  });
-
-  if (selectedGroup && selectedGroup.id === group.id) {
-    selectedGroup = group;
-
-    if (chatStatus) {
-      chatStatus.textContent = `${group.members.length} участн. · создатель @${group.owner}`;
-    }
-
-    showGroupActions(group);
-  }
-
-  renderGroups();
-});
-
-socket.on("group_left", (data) => {
-  if (!data || !data.groupId) return;
-
-  groupsCache = groupsCache.filter((group) => group.id !== data.groupId);
-  delete unreadGroups[data.groupId];
-
-  if (selectedGroup && selectedGroup.id === data.groupId) {
-    renderEmptyChat();
-  }
-
-  renderGroups();
-  updateUnreadTitle();
-});
-
-socket.on("group_deleted", (data) => {
-  if (!data || !data.groupId) return;
-
-  groupsCache = groupsCache.filter((group) => group.id !== data.groupId);
-  delete unreadGroups[data.groupId];
-
-  if (selectedGroup && selectedGroup.id === data.groupId) {
-    renderEmptyChat();
-    alert("Группа была удалена");
-  }
-
-  renderGroups();
-  updateUnreadTitle();
 });
 
 function fileToDataUrl(file) {
