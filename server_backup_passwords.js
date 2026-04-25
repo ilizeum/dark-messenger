@@ -3,7 +3,6 @@ const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const { Pool } = require("pg");
-const bcrypt = require("bcryptjs");
 
 const app = express();
 const server = http.createServer(app);
@@ -29,7 +28,6 @@ const pool = new Pool({
 });
 
 const MAX_MEDIA_LENGTH = 12 * 1024 * 1024;
-const BCRYPT_ROUNDS = 10;
 
 function normalizeUsername(username) {
   return String(username || "")
@@ -86,41 +84,6 @@ function cleanMedia(media) {
     url,
     name
   };
-}
-
-function isBcryptHash(value) {
-  const text = String(value || "");
-  return text.startsWith("$2a$") || text.startsWith("$2b$") || text.startsWith("$2y$");
-}
-
-async function hashPassword(password) {
-  return bcrypt.hash(String(password), BCRYPT_ROUNDS);
-}
-
-async function verifyPassword(inputPassword, savedPassword, username) {
-  const input = String(inputPassword || "");
-  const saved = String(savedPassword || "");
-
-  if (!saved) return false;
-
-  if (isBcryptHash(saved)) {
-    return bcrypt.compare(input, saved);
-  }
-
-  const isOldPasswordCorrect = input === saved;
-
-  if (isOldPasswordCorrect && username) {
-    const newHash = await hashPassword(input);
-
-    await pool.query(
-      "UPDATE users SET password = $1 WHERE username = $2",
-      [newHash, username]
-    );
-
-    console.log(`Password migrated to bcrypt for @${username}`);
-  }
-
-  return isOldPasswordCorrect;
 }
 
 async function initDB() {
@@ -261,8 +224,7 @@ app.get("/api/health", async (req, res) => {
     res.json({
       success: true,
       message: "Dark Messenger server is working",
-      database: "postgres",
-      passwords: "bcrypt"
+      database: "postgres"
     });
   } catch (error) {
     console.error("Health error:", error);
@@ -295,13 +257,6 @@ app.post("/api/register", async (req, res) => {
       });
     }
 
-    if (String(password).length < 3) {
-      return res.status(400).json({
-        success: false,
-        error: "Пароль слишком короткий"
-      });
-    }
-
     const exists = await findUser(cleanUsername);
 
     if (exists) {
@@ -311,15 +266,13 @@ app.post("/api/register", async (req, res) => {
       });
     }
 
-    const hashedPassword = await hashPassword(password);
-
     const result = await pool.query(
       `
       INSERT INTO users (display_name, username, password, avatar)
       VALUES ($1, $2, $3, $4)
       RETURNING *
       `,
-      [cleanDisplayName, cleanUsername, hashedPassword, ""]
+      [cleanDisplayName, cleanUsername, String(password), ""]
     );
 
     res.json({
@@ -350,22 +303,13 @@ app.post("/api/login", async (req, res) => {
     const cleanUsername = normalizeUsername(username);
 
     const result = await pool.query(
-      "SELECT * FROM users WHERE username = $1",
-      [cleanUsername]
+      "SELECT * FROM users WHERE username = $1 AND password = $2",
+      [cleanUsername, String(password)]
     );
 
     const user = result.rows[0];
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: "Неверный логин или пароль"
-      });
-    }
-
-    const passwordOk = await verifyPassword(password, user.password, cleanUsername);
-
-    if (!passwordOk) {
       return res.status(401).json({
         success: false,
         error: "Неверный логин или пароль"
