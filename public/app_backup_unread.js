@@ -10,9 +10,6 @@ let usersCache = [];
 let groupsCache = [];
 let messagesCache = [];
 
-let unreadDirect = {};
-let unreadGroups = {};
-
 let mediaRecorder = null;
 let recordedChunks = [];
 let isRecording = false;
@@ -158,14 +155,9 @@ function logout() {
   selectedUser = null;
   selectedGroup = null;
   selectedChatType = null;
-
   usersCache = [];
   groupsCache = [];
   messagesCache = [];
-  unreadDirect = {};
-  unreadGroups = {};
-
-  updateUnreadTitle();
 
   if (rememberMeInput) rememberMeInput.checked = false;
 
@@ -229,55 +221,6 @@ async function login() {
   } catch (error) {
     showError(error.message);
   }
-}
-
-function updateUnreadTitle() {
-  const totalDirect = Object.values(unreadDirect).reduce((sum, value) => sum + value, 0);
-  const totalGroups = Object.values(unreadGroups).reduce((sum, value) => sum + value, 0);
-  const total = totalDirect + totalGroups;
-
-  document.title = total > 0 ? `(${total}) Dark Messenger` : "Dark Messenger";
-}
-
-function unreadBadge(count) {
-  if (!count || count <= 0) return "";
-
-  return `
-    <span style="
-      margin-left:auto;
-      min-width:22px;
-      height:22px;
-      padding:0 7px;
-      border-radius:999px;
-      background:#06b6d4;
-      color:white;
-      font-size:12px;
-      font-weight:800;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      box-shadow:0 0 0 2px rgba(6,182,212,0.18);
-    ">
-      ${count > 99 ? "99+" : count}
-    </span>
-  `;
-}
-
-function addRecentUserFromMessage(message) {
-  const from = normalizeUsername(message.from || message.username);
-
-  if (!from || !currentUser || from === currentUser.username) return;
-
-  const exists = usersCache.some((user) => user.username === from);
-
-  if (exists) return;
-
-  usersCache.unshift({
-    id: from,
-    username: from,
-    displayName: message.displayName || from,
-    avatar: message.avatar || ""
-  });
 }
 
 function setupProfileUI() {
@@ -711,15 +654,12 @@ function renderGroups() {
       item.classList.add("active");
     }
 
-    const count = unreadGroups[group.id] || 0;
-
     item.innerHTML = `
       <div class="avatar group-avatar">#</div>
       <div class="user-info">
         <b>${escapeHtml(group.name)}</b>
         <span>${group.members.length} участн.</span>
       </div>
-      ${unreadBadge(count)}
     `;
 
     item.addEventListener("click", () => {
@@ -736,7 +676,8 @@ async function loadUsers(query = "") {
   const cleanQuery = normalizeUsername(query);
 
   if (!cleanQuery) {
-    renderUsers("");
+    usersCache = [];
+    renderSearchHint();
     return;
   }
 
@@ -757,13 +698,6 @@ async function loadUsers(query = "") {
 
 function renderSearchHint() {
   if (!usersBox) return;
-
-  const hasUnreadUsers = usersCache.some((user) => unreadDirect[user.username] > 0);
-
-  if (hasUnreadUsers) {
-    renderUsers("");
-    return;
-  }
 
   usersBox.innerHTML = `
     <div class="empty">
@@ -786,34 +720,19 @@ function renderAvatar(user) {
 function renderUsers(query = "") {
   if (!usersBox) return;
 
-  const hasQuery = Boolean(normalizeUsername(query));
-  const visibleUsers = hasQuery
-    ? usersCache
-    : usersCache.filter((user) => unreadDirect[user.username] > 0);
-
   usersBox.innerHTML = "";
 
-  if (!visibleUsers.length) {
-    if (hasQuery) {
-      usersBox.innerHTML = `
-        <div class="empty">
-          Пользователь не найден.<br>
-          Проверь @id: <b>@${escapeHtml(query)}</b>
-        </div>
-      `;
-    } else {
-      usersBox.innerHTML = `
-        <div class="empty">
-          Введите @id пользователя, чтобы найти чат.<br>
-          Например: <b>@ilizeum</b>
-        </div>
-      `;
-    }
-
+  if (!usersCache.length) {
+    usersBox.innerHTML = `
+      <div class="empty">
+        Пользователь не найден.<br>
+        Проверь @id: <b>@${escapeHtml(query)}</b>
+      </div>
+    `;
     return;
   }
 
-  visibleUsers.forEach((user) => {
+  usersCache.forEach((user) => {
     const item = document.createElement("button");
     item.className = "user";
 
@@ -821,15 +740,12 @@ function renderUsers(query = "") {
       item.classList.add("active");
     }
 
-    const count = unreadDirect[user.username] || 0;
-
     item.innerHTML = `
       ${renderAvatar(user)}
       <div class="user-info">
         <b>${escapeHtml(user.displayName || user.username)}</b>
         <span>@${escapeHtml(user.username)}</span>
       </div>
-      ${unreadBadge(count)}
     `;
 
     item.addEventListener("click", () => {
@@ -873,7 +789,6 @@ function renderEmptyChat() {
   if (voiceBtn) voiceBtn.disabled = true;
 
   renderGroups();
-  renderSearchHint();
 }
 
 async function openChat(user) {
@@ -881,9 +796,6 @@ async function openChat(user) {
   selectedGroup = null;
   selectedChatType = "direct";
   messagesCache = [];
-
-  unreadDirect[user.username] = 0;
-  updateUnreadTitle();
 
   if (chatAvatar) {
     if (user.avatar) {
@@ -932,9 +844,6 @@ async function openGroup(group) {
   selectedChatType = "group";
   messagesCache = [];
 
-  unreadGroups[group.id] = 0;
-  updateUnreadTitle();
-
   if (chatAvatar) {
     chatAvatar.textContent = "#";
     chatAvatar.innerHTML = "#";
@@ -965,7 +874,6 @@ async function openGroup(group) {
     messagesCache = data.messages || [];
     renderMessages();
     renderGroups();
-    renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
   } catch (error) {
     if (messagesBox) {
       messagesBox.innerHTML = `<div class="empty">Ошибка загрузки группы</div>`;
@@ -1088,23 +996,6 @@ socket.on("load_messages", (messages) => {
 });
 
 socket.on("new_message", (message) => {
-  const from = normalizeUsername(message.from || message.username);
-
-  if (!currentUser || from === currentUser.username) {
-    if (shouldShowIncomingDirect(message)) {
-      const exists = messagesCache.some((m) => m.id === message.id);
-
-      if (!exists) {
-        messagesCache.push(message);
-        renderMessages();
-      }
-    }
-
-    return;
-  }
-
-  addRecentUserFromMessage(message);
-
   if (shouldShowIncomingDirect(message)) {
     const exists = messagesCache.some((m) => m.id === message.id);
 
@@ -1112,25 +1003,11 @@ socket.on("new_message", (message) => {
       messagesCache.push(message);
       renderMessages();
     }
-
-    unreadDirect[from] = 0;
-  } else {
-    unreadDirect[from] = (unreadDirect[from] || 0) + 1;
   }
-
-  updateUnreadTitle();
-  renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
 });
 
 socket.on("new_group_message", (message) => {
   loadGroups();
-
-  if (!currentUser) return;
-
-  const groupId = String(message.groupId || "");
-  const from = normalizeUsername(message.from || message.username);
-
-  if (!groupId) return;
 
   if (shouldShowIncomingGroup(message)) {
     const exists = messagesCache.some((m) => m.id === message.id);
@@ -1139,14 +1016,7 @@ socket.on("new_group_message", (message) => {
       messagesCache.push(message);
       renderMessages();
     }
-
-    unreadGroups[groupId] = 0;
-  } else if (from !== currentUser.username) {
-    unreadGroups[groupId] = (unreadGroups[groupId] || 0) + 1;
   }
-
-  updateUnreadTitle();
-  renderGroups();
 });
 
 function fileToDataUrl(file) {
