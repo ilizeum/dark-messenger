@@ -55,5 +55,34 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="app.js"></script>
+<div id="updateBox" style="display:none; position:fixed; bottom:20px; right:20px; background:#111; color:white; padding:15px; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.5); z-index:9999;">
+  <div id="updateText">Обновление...</div>
+  <div style="width:200px; height:10px; background:#333; margin-top:10px; border-radius:5px;">
+    <div id="progressBar" style="width:0%; height:100%; background:#4caf50; border-radius:5px;"></div>
+  </div>
+</div>
+<script>
+if (window.require) {
+  const { ipcRenderer } = require("electron");
+
+  const box = document.getElementById("updateBox");
+  const text = document.getElementById("updateText");
+  const bar = document.getElementById("progressBar");
+
+  ipcRenderer.on("update_available", () => {
+  box.style.display = "block";
+  text.innerText = "Найдено обновление...";
+});
+
+ipcRenderer.on("update_progress", (event, percent) => {
+  bar.style.width = percent + "%";
+  text.innerText = "Скачивание: " + percent + "%";
+});
+
+ipcRenderer.on("update_downloaded", () => {
+  text.innerText = "Перезапуск...";
+});
+}
+</script>
 </body>
 </html>
