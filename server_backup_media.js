@@ -11,12 +11,11 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*"
-  },
-  maxHttpBufferSize: 15 * 1024 * 1024
+  }
 });
 
 app.use(cors());
-app.use(express.json({ limit: "15mb" }));
+app.use(express.json());
 app.use(express.static("public"));
 
 const adapter = new JSONFile("db.json");
@@ -25,8 +24,6 @@ const db = new Low(adapter, {
   messages: [],
   groups: []
 });
-
-const MAX_MEDIA_LENGTH = 12 * 1024 * 1024;
 
 async function initDB() {
   await db.read();
@@ -44,20 +41,6 @@ async function initDB() {
   await db.write();
 }
 
-async function ensureDB() {
-  await db.read();
-
-  db.data ||= {
-    users: [],
-    messages: [],
-    groups: []
-  };
-
-  db.data.users ||= [];
-  db.data.messages ||= [];
-  db.data.groups ||= [];
-}
-
 function normalizeUsername(username) {
   return String(username || "")
     .trim()
@@ -69,8 +52,7 @@ function publicUser(user) {
   return {
     id: user.id,
     displayName: user.displayName,
-    username: user.username,
-    avatar: user.avatar || ""
+    username: user.username
   };
 }
 
@@ -93,22 +75,18 @@ function getGroupChatId(groupId) {
   return `group:${groupId}`;
 }
 
-function cleanMedia(media) {
-  if (!media || typeof media !== "object") return null;
+async function ensureDB() {
+  await db.read();
 
-  const type = String(media.type || "");
-  const url = String(media.url || "");
-  const name = String(media.name || "file");
-
-  if (!["image", "video", "audio"].includes(type)) return null;
-  if (!url.startsWith("data:")) return null;
-  if (url.length > MAX_MEDIA_LENGTH) return null;
-
-  return {
-    type,
-    url,
-    name
+  db.data ||= {
+    users: [],
+    messages: [],
+    groups: []
   };
+
+  db.data.users ||= [];
+  db.data.messages ||= [];
+  db.data.groups ||= [];
 }
 
 initDB();
@@ -155,8 +133,7 @@ app.post("/api/register", async (req, res) => {
     id: Date.now(),
     displayName: cleanDisplayName,
     username: cleanUsername,
-    password: String(password),
-    avatar: ""
+    password: String(password)
   };
 
   db.data.users.push(user);
@@ -192,44 +169,6 @@ app.post("/api/login", async (req, res) => {
       error: "Неверный логин или пароль"
     });
   }
-
-  res.json({
-    success: true,
-    user: publicUser(user)
-  });
-});
-
-app.post("/api/avatar", async (req, res) => {
-  await ensureDB();
-
-  const username = normalizeUsername(req.body.username);
-  const avatar = String(req.body.avatar || "");
-
-  if (!username) {
-    return res.status(400).json({
-      success: false,
-      error: "Не указан пользователь"
-    });
-  }
-
-  if (avatar && (!avatar.startsWith("data:image/") || avatar.length > MAX_MEDIA_LENGTH)) {
-    return res.status(400).json({
-      success: false,
-      error: "Неверный формат аватарки"
-    });
-  }
-
-  const user = db.data.users.find((user) => user.username === username);
-
-  if (!user) {
-    return res.status(404).json({
-      success: false,
-      error: "Пользователь не найден"
-    });
-  }
-
-  user.avatar = avatar;
-  await db.write();
 
   res.json({
     success: true,
@@ -280,6 +219,7 @@ app.get("/api/messages", async (req, res) => {
   }
 
   const chatId = getDirectChatId(me, withUser);
+
   const messages = db.data.messages.filter((message) => message.chatId === chatId);
 
   res.json({
@@ -333,7 +273,10 @@ app.post("/api/groups", async (req, res) => {
     });
   }
 
-  const normalizedMembers = membersRaw.map(normalizeUsername).filter(Boolean);
+  const normalizedMembers = membersRaw
+    .map(normalizeUsername)
+    .filter(Boolean);
+
   const members = Array.from(new Set([owner, ...normalizedMembers]));
 
   const missingUsers = members.filter((username) => {
@@ -387,7 +330,9 @@ app.post("/api/groups/:id/invite", async (req, res) => {
     });
   }
 
-  const newMembers = membersRaw.map(normalizeUsername).filter(Boolean);
+  const newMembers = membersRaw
+    .map(normalizeUsername)
+    .filter(Boolean);
 
   const missingUsers = newMembers.filter((username) => {
     return !db.data.users.find((user) => user.username === username);
@@ -433,6 +378,7 @@ app.get("/api/groups/:id/messages", async (req, res) => {
   }
 
   const chatId = getGroupChatId(groupId);
+
   const messages = db.data.messages.filter((message) => message.chatId === chatId);
 
   res.json({
@@ -496,9 +442,8 @@ io.on("connection", (socket) => {
     const from = normalizeUsername(data && data.from);
     const to = normalizeUsername(data && data.to);
     const text = String((data && (data.text || data.message)) || "").trim();
-    const media = cleanMedia(data && data.media);
 
-    if (!from || !to || (!text && !media)) return;
+    if (!from || !to || !text) return;
 
     const sender = db.data.users.find((user) => user.username === from);
     const receiver = db.data.users.find((user) => user.username === to);
@@ -515,10 +460,8 @@ io.on("connection", (socket) => {
       to,
       username: from,
       displayName: sender.displayName,
-      avatar: sender.avatar || "",
       text,
       message: text,
-      media,
       created_at: new Date().toISOString()
     };
 
@@ -536,9 +479,8 @@ io.on("connection", (socket) => {
     const from = normalizeUsername(data && data.from);
     const groupId = String((data && data.groupId) || "");
     const text = String((data && (data.text || data.message)) || "").trim();
-    const media = cleanMedia(data && data.media);
 
-    if (!from || !groupId || (!text && !media)) return;
+    if (!from || !groupId || !text) return;
 
     const sender = db.data.users.find((user) => user.username === from);
     const group = db.data.groups.find((group) => group.id === groupId);
@@ -555,10 +497,8 @@ io.on("connection", (socket) => {
       from,
       username: from,
       displayName: sender.displayName,
-      avatar: sender.avatar || "",
       text,
       message: text,
-      media,
       created_at: new Date().toISOString()
     };
 
