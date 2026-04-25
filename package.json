@@ -1,6 +1,6 @@
 {
   "name": "dark-messenger",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Dark Messenger App",
   "main": "main.js",
   "author": "titov",
@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "express": "^4.18.2",
+    "cors": "^2.8.6",
+    "electron-updater": "^6.1.8",
+    "express": "^4.22.1",
     "jsonwebtoken": "^9.0.2",
-    "socket.io": "^4.7.5",
-    "electron-updater": "^6.1.8"
+    "socket.io": "^4.8.3",
+    "sqlite3": "^6.0.1"
   },
   "devDependencies": {
     "electron": "^30.0.0",
