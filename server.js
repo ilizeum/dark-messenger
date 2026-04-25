@@ -21,7 +21,8 @@ app.use(express.static("public"));
 const adapter = new JSONFile("db.json");
 const db = new Low(adapter, {
   users: [],
-  messages: []
+  messages: [],
+  groups: []
 });
 
 async function initDB() {
@@ -29,13 +30,22 @@ async function initDB() {
 
   db.data ||= {
     users: [],
-    messages: []
+    messages: [],
+    groups: []
   };
 
   db.data.users ||= [];
   db.data.messages ||= [];
+  db.data.groups ||= [];
 
   await db.write();
+}
+
+function normalizeUsername(username) {
+  return String(username || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "");
 }
 
 function publicUser(user) {
@@ -46,16 +56,37 @@ function publicUser(user) {
   };
 }
 
-function normalizeUsername(username) {
-  return String(username || "")
-    .trim()
-    .toLowerCase()
-    .replace(/^@/, "");
+function publicGroup(group) {
+  return {
+    id: group.id,
+    name: group.name,
+    owner: group.owner,
+    members: group.members || [],
+    created_at: group.created_at
+  };
 }
 
-function getChatId(userA, userB) {
+function getDirectChatId(userA, userB) {
   const users = [normalizeUsername(userA), normalizeUsername(userB)].sort();
-  return `${users[0]}__${users[1]}`;
+  return `dm:${users[0]}__${users[1]}`;
+}
+
+function getGroupChatId(groupId) {
+  return `group:${groupId}`;
+}
+
+async function ensureDB() {
+  await db.read();
+
+  db.data ||= {
+    users: [],
+    messages: [],
+    groups: []
+  };
+
+  db.data.users ||= [];
+  db.data.messages ||= [];
+  db.data.groups ||= [];
 }
 
 initDB();
@@ -68,7 +99,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.post("/api/register", async (req, res) => {
-  await db.read();
+  await ensureDB();
 
   const { displayName, username, password } = req.body;
 
@@ -115,7 +146,7 @@ app.post("/api/register", async (req, res) => {
 });
 
 app.post("/api/login", async (req, res) => {
-  await db.read();
+  await ensureDB();
 
   const { username, password } = req.body;
 
@@ -146,7 +177,7 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.get("/api/users", async (req, res) => {
-  await db.read();
+  await ensureDB();
 
   const me = normalizeUsername(req.query.me);
   const q = normalizeUsername(req.query.q);
@@ -175,7 +206,7 @@ app.get("/api/users", async (req, res) => {
 });
 
 app.get("/api/messages", async (req, res) => {
-  await db.read();
+  await ensureDB();
 
   const me = normalizeUsername(req.query.me);
   const withUser = normalizeUsername(req.query.with);
@@ -187,7 +218,166 @@ app.get("/api/messages", async (req, res) => {
     });
   }
 
-  const chatId = getChatId(me, withUser);
+  const chatId = getDirectChatId(me, withUser);
+
+  const messages = db.data.messages.filter((message) => message.chatId === chatId);
+
+  res.json({
+    success: true,
+    messages
+  });
+});
+
+app.get("/api/groups", async (req, res) => {
+  await ensureDB();
+
+  const me = normalizeUsername(req.query.me);
+
+  if (!me) {
+    return res.status(400).json({
+      success: false,
+      error: "Не указан пользователь"
+    });
+  }
+
+  const groups = db.data.groups
+    .filter((group) => (group.members || []).includes(me))
+    .map(publicGroup);
+
+  res.json({
+    success: true,
+    groups
+  });
+});
+
+app.post("/api/groups", async (req, res) => {
+  await ensureDB();
+
+  const owner = normalizeUsername(req.body.owner);
+  const name = String(req.body.name || "").trim();
+  const membersRaw = Array.isArray(req.body.members) ? req.body.members : [];
+
+  if (!owner || !name) {
+    return res.status(400).json({
+      success: false,
+      error: "Введите название группы"
+    });
+  }
+
+  const ownerUser = db.data.users.find((user) => user.username === owner);
+
+  if (!ownerUser) {
+    return res.status(404).json({
+      success: false,
+      error: "Создатель группы не найден"
+    });
+  }
+
+  const normalizedMembers = membersRaw
+    .map(normalizeUsername)
+    .filter(Boolean);
+
+  const members = Array.from(new Set([owner, ...normalizedMembers]));
+
+  const missingUsers = members.filter((username) => {
+    return !db.data.users.find((user) => user.username === username);
+  });
+
+  if (missingUsers.length) {
+    return res.status(400).json({
+      success: false,
+      error: `Пользователи не найдены: ${missingUsers.map((u) => "@" + u).join(", ")}`
+    });
+  }
+
+  const group = {
+    id: String(Date.now()),
+    name,
+    owner,
+    members,
+    created_at: new Date().toISOString()
+  };
+
+  db.data.groups.push(group);
+  await db.write();
+
+  res.json({
+    success: true,
+    group: publicGroup(group)
+  });
+});
+
+app.post("/api/groups/:id/invite", async (req, res) => {
+  await ensureDB();
+
+  const groupId = String(req.params.id);
+  const me = normalizeUsername(req.body.me);
+  const membersRaw = Array.isArray(req.body.members) ? req.body.members : [];
+
+  const group = db.data.groups.find((group) => group.id === groupId);
+
+  if (!group) {
+    return res.status(404).json({
+      success: false,
+      error: "Группа не найдена"
+    });
+  }
+
+  if (!(group.members || []).includes(me)) {
+    return res.status(403).json({
+      success: false,
+      error: "Вы не участник этой группы"
+    });
+  }
+
+  const newMembers = membersRaw
+    .map(normalizeUsername)
+    .filter(Boolean);
+
+  const missingUsers = newMembers.filter((username) => {
+    return !db.data.users.find((user) => user.username === username);
+  });
+
+  if (missingUsers.length) {
+    return res.status(400).json({
+      success: false,
+      error: `Пользователи не найдены: ${missingUsers.map((u) => "@" + u).join(", ")}`
+    });
+  }
+
+  group.members = Array.from(new Set([...(group.members || []), ...newMembers]));
+
+  await db.write();
+
+  res.json({
+    success: true,
+    group: publicGroup(group)
+  });
+});
+
+app.get("/api/groups/:id/messages", async (req, res) => {
+  await ensureDB();
+
+  const groupId = String(req.params.id);
+  const me = normalizeUsername(req.query.me);
+
+  const group = db.data.groups.find((group) => group.id === groupId);
+
+  if (!group) {
+    return res.status(404).json({
+      success: false,
+      error: "Группа не найдена"
+    });
+  }
+
+  if (!(group.members || []).includes(me)) {
+    return res.status(403).json({
+      success: false,
+      error: "Вы не участник этой группы"
+    });
+  }
+
+  const chatId = getGroupChatId(groupId);
 
   const messages = db.data.messages.filter((message) => message.chatId === chatId);
 
@@ -212,14 +402,33 @@ io.on("connection", (socket) => {
   });
 
   socket.on("open_chat", async (data) => {
-    await db.read();
+    await ensureDB();
 
     const me = normalizeUsername(data && data.me);
     const withUser = normalizeUsername(data && data.with);
 
     if (!me || !withUser) return;
 
-    const chatId = getChatId(me, withUser);
+    const chatId = getDirectChatId(me, withUser);
+    socket.join(`chat:${chatId}`);
+
+    const messages = db.data.messages.filter((message) => message.chatId === chatId);
+
+    socket.emit("load_messages", messages);
+  });
+
+  socket.on("open_group", async (data) => {
+    await ensureDB();
+
+    const me = normalizeUsername(data && data.me);
+    const groupId = String((data && data.groupId) || "");
+
+    const group = db.data.groups.find((group) => group.id === groupId);
+
+    if (!group || !(group.members || []).includes(me)) return;
+
+    const chatId = getGroupChatId(groupId);
+
     socket.join(`chat:${chatId}`);
 
     const messages = db.data.messages.filter((message) => message.chatId === chatId);
@@ -228,7 +437,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("send_message", async (data) => {
-    await db.read();
+    await ensureDB();
 
     const from = normalizeUsername(data && data.from);
     const to = normalizeUsername(data && data.to);
@@ -241,10 +450,11 @@ io.on("connection", (socket) => {
 
     if (!sender || !receiver) return;
 
-    const chatId = getChatId(from, to);
+    const chatId = getDirectChatId(from, to);
 
     const message = {
       id: Date.now(),
+      type: "direct",
       chatId,
       from,
       to,
@@ -261,6 +471,45 @@ io.on("connection", (socket) => {
     io.to(`user:${from}`).emit("new_message", message);
     io.to(`user:${to}`).emit("new_message", message);
     io.to(`chat:${chatId}`).emit("new_message", message);
+  });
+
+  socket.on("send_group_message", async (data) => {
+    await ensureDB();
+
+    const from = normalizeUsername(data && data.from);
+    const groupId = String((data && data.groupId) || "");
+    const text = String((data && (data.text || data.message)) || "").trim();
+
+    if (!from || !groupId || !text) return;
+
+    const sender = db.data.users.find((user) => user.username === from);
+    const group = db.data.groups.find((group) => group.id === groupId);
+
+    if (!sender || !group || !(group.members || []).includes(from)) return;
+
+    const chatId = getGroupChatId(groupId);
+
+    const message = {
+      id: Date.now(),
+      type: "group",
+      chatId,
+      groupId,
+      from,
+      username: from,
+      displayName: sender.displayName,
+      text,
+      message: text,
+      created_at: new Date().toISOString()
+    };
+
+    db.data.messages.push(message);
+    await db.write();
+
+    io.to(`chat:${chatId}`).emit("new_group_message", message);
+
+    (group.members || []).forEach((member) => {
+      io.to(`user:${member}`).emit("new_group_message", message);
+    });
   });
 
   socket.on("disconnect", () => {

@@ -3,7 +3,11 @@ const socket = io();
 
 let currentUser = null;
 let selectedUser = null;
+let selectedGroup = null;
+let selectedChatType = null;
+
 let usersCache = [];
+let groupsCache = [];
 let messagesCache = [];
 
 const auth = document.getElementById("auth");
@@ -34,6 +38,17 @@ const messagesBox = document.getElementById("messages");
 const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 
+let groupsBox = null;
+let createGroupBtn = null;
+let groupModal = null;
+
+function normalizeUsername(username) {
+  return String(username || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "");
+}
+
 function showError(text) {
   if (authError) {
     authError.textContent = text || "Ошибка";
@@ -49,7 +64,7 @@ function clearError() {
 function getInputData() {
   return {
     displayName: displayNameInput ? displayNameInput.value.trim() : "",
-    username: usernameInput ? usernameInput.value.trim().toLowerCase().replace(/^@/, "") : "",
+    username: usernameInput ? normalizeUsername(usernameInput.value) : "",
     password: passwordInput ? passwordInput.value : ""
   };
 }
@@ -111,7 +126,10 @@ function logout() {
 
   currentUser = null;
   selectedUser = null;
+  selectedGroup = null;
+  selectedChatType = null;
   usersCache = [];
+  groupsCache = [];
   messagesCache = [];
 
   if (rememberMeInput) rememberMeInput.checked = false;
@@ -178,8 +196,127 @@ async function login() {
   }
 }
 
+function setupGroupUI() {
+  if (document.getElementById("createGroupBtn")) return;
+
+  if (!usersBox || !usersBox.parentElement) return;
+
+  createGroupBtn = document.createElement("button");
+  createGroupBtn.id = "createGroupBtn";
+  createGroupBtn.type = "button";
+  createGroupBtn.textContent = "+ Создать группу";
+
+  const groupsTitle = document.createElement("div");
+  groupsTitle.className = "sidebar-title";
+  groupsTitle.textContent = "Группы";
+
+  groupsBox = document.createElement("div");
+  groupsBox.id = "groups";
+
+  const usersTitle = document.createElement("div");
+  usersTitle.className = "sidebar-title";
+  usersTitle.textContent = "Поиск пользователей";
+
+  usersBox.parentElement.insertBefore(createGroupBtn, usersBox);
+  usersBox.parentElement.insertBefore(groupsTitle, usersBox);
+  usersBox.parentElement.insertBefore(groupsBox, usersBox);
+  usersBox.parentElement.insertBefore(usersTitle, usersBox);
+
+  createGroupBtn.addEventListener("click", openGroupModal);
+
+  createGroupModal();
+}
+
+function createGroupModal() {
+  if (document.getElementById("groupModal")) return;
+
+  groupModal = document.createElement("div");
+  groupModal.id = "groupModal";
+  groupModal.className = "modal hidden";
+
+  groupModal.innerHTML = `
+    <div class="modal-card">
+      <h2>Создать группу</h2>
+      <p>Добавь участников через @id. Например: @test1, @test2</p>
+
+      <input id="groupNameInput" type="text" placeholder="Название группы" />
+      <textarea id="groupMembersInput" placeholder="@id участников через запятую"></textarea>
+
+      <div id="groupError"></div>
+
+      <div class="modal-actions">
+        <button id="cancelGroupBtn" type="button">Отмена</button>
+        <button id="saveGroupBtn" type="button">Создать</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(groupModal);
+
+  document.getElementById("cancelGroupBtn").addEventListener("click", closeGroupModal);
+  document.getElementById("saveGroupBtn").addEventListener("click", createGroup);
+}
+
+function openGroupModal() {
+  const modal = document.getElementById("groupModal");
+  const error = document.getElementById("groupError");
+
+  if (error) error.textContent = "";
+
+  if (modal) modal.classList.remove("hidden");
+}
+
+function closeGroupModal() {
+  const modal = document.getElementById("groupModal");
+
+  if (modal) modal.classList.add("hidden");
+}
+
+async function createGroup() {
+  const nameInput = document.getElementById("groupNameInput");
+  const membersInput = document.getElementById("groupMembersInput");
+  const error = document.getElementById("groupError");
+
+  const name = nameInput ? nameInput.value.trim() : "";
+  const membersText = membersInput ? membersInput.value.trim() : "";
+
+  const members = membersText
+    .split(",")
+    .map(normalizeUsername)
+    .filter(Boolean);
+
+  if (!name) {
+    if (error) error.textContent = "Введите название группы";
+    return;
+  }
+
+  try {
+    const data = await request("/api/groups", {
+      method: "POST",
+      body: JSON.stringify({
+        owner: currentUser.username,
+        name,
+        members
+      })
+    });
+
+    if (nameInput) nameInput.value = "";
+    if (membersInput) membersInput.value = "";
+    if (error) error.textContent = "";
+
+    closeGroupModal();
+
+    await loadGroups();
+    openGroup(data.group);
+  } catch (err) {
+    if (error) error.textContent = err.message;
+  }
+}
+
 async function startApp() {
   if (!currentUser) return;
+
+  setupGroupUI();
 
   if (auth) auth.classList.add("hidden");
   if (app) app.classList.remove("hidden");
@@ -196,14 +333,63 @@ async function startApp() {
     username: currentUser.username
   });
 
+  await loadGroups();
+
   renderSearchHint();
   renderEmptyChat();
+}
+
+async function loadGroups() {
+  if (!currentUser) return;
+
+  try {
+    const data = await request(`/api/groups?me=${encodeURIComponent(currentUser.username)}`);
+
+    groupsCache = data.groups || [];
+    renderGroups();
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function renderGroups() {
+  if (!groupsBox) return;
+
+  groupsBox.innerHTML = "";
+
+  if (!groupsCache.length) {
+    groupsBox.innerHTML = `<div class="empty small-empty">Групп пока нет</div>`;
+    return;
+  }
+
+  groupsCache.forEach((group) => {
+    const item = document.createElement("button");
+    item.className = "user group-item";
+
+    if (selectedChatType === "group" && selectedGroup && selectedGroup.id === group.id) {
+      item.classList.add("active");
+    }
+
+    item.innerHTML = `
+      <div class="avatar group-avatar">#</div>
+      <div class="user-info">
+        <b>${escapeHtml(group.name)}</b>
+        <span>${group.members.length} участн.</span>
+      </div>
+    `;
+
+    item.addEventListener("click", () => {
+      openGroup(group);
+    });
+
+    groupsBox.appendChild(item);
+  });
 }
 
 async function loadUsers(query = "") {
   if (!currentUser) return;
 
-  const cleanQuery = String(query || "").trim().replace(/^@/, "").toLowerCase();
+  const cleanQuery = normalizeUsername(query);
 
   if (!cleanQuery) {
     usersCache = [];
@@ -256,7 +442,7 @@ function renderUsers(query = "") {
     const item = document.createElement("button");
     item.className = "user";
 
-    if (selectedUser && selectedUser.username === user.username) {
+    if (selectedChatType === "direct" && selectedUser && selectedUser.username === user.username) {
       item.classList.add("active");
     }
 
@@ -278,17 +464,19 @@ function renderUsers(query = "") {
 
 function renderEmptyChat() {
   selectedUser = null;
+  selectedGroup = null;
+  selectedChatType = null;
   messagesCache = [];
 
   if (chatAvatar) chatAvatar.textContent = "?";
   if (chatName) chatName.textContent = "Выберите чат";
-  if (chatStatus) chatStatus.textContent = "Найдите пользователя по @id";
+  if (chatStatus) chatStatus.textContent = "Найдите пользователя или выберите группу";
 
   if (messagesBox) {
     messagesBox.innerHTML = `
       <div class="empty">
         Чаты не показываются автоматически.<br>
-        Найдите пользователя через поиск слева.
+        Найдите пользователя через поиск или создайте группу.
       </div>
     `;
   }
@@ -301,10 +489,14 @@ function renderEmptyChat() {
   if (sendBtn) {
     sendBtn.disabled = true;
   }
+
+  renderGroups();
 }
 
 async function openChat(user) {
   selectedUser = user;
+  selectedGroup = null;
+  selectedChatType = "direct";
   messagesCache = [];
 
   if (chatAvatar) chatAvatar.textContent = (user.displayName || user.username)[0] || "?";
@@ -331,6 +523,7 @@ async function openChat(user) {
     messagesCache = data.messages || [];
     renderMessages();
     renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
+    renderGroups();
   } catch (error) {
     if (messagesBox) {
       messagesBox.innerHTML = `<div class="empty">Ошибка загрузки сообщений</div>`;
@@ -338,18 +531,65 @@ async function openChat(user) {
   }
 }
 
+async function openGroup(group) {
+  selectedGroup = group;
+  selectedUser = null;
+  selectedChatType = "group";
+  messagesCache = [];
+
+  if (chatAvatar) chatAvatar.textContent = "#";
+  if (chatName) chatName.textContent = group.name;
+  if (chatStatus) chatStatus.textContent = `${group.members.length} участн.`;
+
+  if (messageInput) messageInput.disabled = false;
+  if (sendBtn) sendBtn.disabled = false;
+
+  if (messagesBox) {
+    messagesBox.innerHTML = `<div class="empty">Загрузка...</div>`;
+  }
+
+  socket.emit("open_group", {
+    me: currentUser.username,
+    groupId: group.id
+  });
+
+  try {
+    const data = await request(
+      `/api/groups/${encodeURIComponent(group.id)}/messages?me=${encodeURIComponent(currentUser.username)}`
+    );
+
+    messagesCache = data.messages || [];
+    renderMessages();
+    renderGroups();
+  } catch (error) {
+    if (messagesBox) {
+      messagesBox.innerHTML = `<div class="empty">Ошибка загрузки группы</div>`;
+    }
+  }
+}
+
 function sendMessage() {
-  if (!currentUser || !selectedUser) return;
+  if (!currentUser) return;
 
   const text = messageInput ? messageInput.value.trim() : "";
 
   if (!text) return;
 
-  socket.emit("send_message", {
-    from: currentUser.username,
-    to: selectedUser.username,
-    text
-  });
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("send_message", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      text
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("send_group_message", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      text
+    });
+  }
 
   if (messageInput) {
     messageInput.value = "";
@@ -387,8 +627,8 @@ function renderMessages() {
   messagesBox.scrollTop = messagesBox.scrollHeight;
 }
 
-function shouldShowIncoming(message) {
-  if (!currentUser || !selectedUser) return false;
+function shouldShowIncomingDirect(message) {
+  if (!currentUser || !selectedUser || selectedChatType !== "direct") return false;
 
   const from = message.from || message.username;
   const to = message.to;
@@ -399,13 +639,32 @@ function shouldShowIncoming(message) {
   );
 }
 
+function shouldShowIncomingGroup(message) {
+  if (!currentUser || !selectedGroup || selectedChatType !== "group") return false;
+
+  return message.groupId === selectedGroup.id;
+}
+
 socket.on("load_messages", (messages) => {
   messagesCache = Array.isArray(messages) ? messages : [];
   renderMessages();
 });
 
 socket.on("new_message", (message) => {
-  if (shouldShowIncoming(message)) {
+  if (shouldShowIncomingDirect(message)) {
+    const exists = messagesCache.some((m) => m.id === message.id);
+
+    if (!exists) {
+      messagesCache.push(message);
+      renderMessages();
+    }
+  }
+});
+
+socket.on("new_group_message", (message) => {
+  loadGroups();
+
+  if (shouldShowIncomingGroup(message)) {
     const exists = messagesCache.some((m) => m.id === message.id);
 
     if (!exists) {

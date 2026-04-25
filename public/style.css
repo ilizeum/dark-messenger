@@ -101,6 +101,10 @@ textarea {
   font-weight: 700;
 }
 
+#togglePassword:hover {
+  background: #334155;
+}
+
 .remember-row {
   display: flex;
   align-items: center;
@@ -173,7 +177,7 @@ textarea {
 }
 
 .profile {
-  height: 76px;
+  min-height: 76px;
   padding: 16px;
   display: flex;
   align-items: center;
@@ -210,6 +214,10 @@ textarea {
   font-weight: 700;
 }
 
+#logoutBtn:hover {
+  background: #3a2230;
+}
+
 #search {
   margin: 14px;
   height: 44px;
@@ -218,6 +226,14 @@ textarea {
   background: #182033;
   color: white;
   padding: 0 14px;
+}
+
+#search::placeholder {
+  color: #7d8797;
+}
+
+#search:focus {
+  border-color: #22d3ee;
 }
 
 #users {
@@ -271,6 +287,51 @@ textarea {
   color: #94a3b8;
   font-size: 13px;
   margin-top: 3px;
+}
+
+/* GROUPS */
+
+#createGroupBtn {
+  margin: 0 14px 6px;
+  height: 42px;
+  border-radius: 14px;
+  background: #06b6d4;
+  color: white;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+#createGroupBtn:hover {
+  background: #0891b2;
+}
+
+.sidebar-title {
+  padding: 12px 18px 6px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+#groups {
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid #243044;
+}
+
+.group-item {
+  background: transparent;
+}
+
+.group-avatar {
+  background: linear-gradient(135deg, #a855f7, #2563eb) !important;
+}
+
+.small-empty {
+  font-size: 13px;
+  padding: 14px 10px !important;
 }
 
 /* CHAT */
@@ -387,6 +448,14 @@ textarea {
   font-size: 15px;
 }
 
+#messageInput::placeholder {
+  color: #7d8797;
+}
+
+#messageInput:focus {
+  border-color: #22d3ee;
+}
+
 #messageInput:disabled {
   opacity: 0.45;
 }
@@ -405,9 +474,106 @@ textarea {
   font-size: 20px;
 }
 
+#sendBtn:hover {
+  background: #0891b2;
+}
+
 #sendBtn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* GROUP MODAL */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 430px;
+  background: #111827;
+  border: 1px solid #243044;
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+}
+
+.modal-card h2 {
+  margin: 0 0 8px;
+  font-size: 24px;
+}
+
+.modal-card p {
+  margin: 0 0 18px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.modal-card input,
+.modal-card textarea {
+  width: 100%;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  border: 1px solid #273449;
+  background: #182033;
+  color: white;
+  padding: 13px 14px;
+}
+
+.modal-card input::placeholder,
+.modal-card textarea::placeholder {
+  color: #7d8797;
+}
+
+.modal-card textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+#groupError {
+  min-height: 20px;
+  color: #fb7185;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+#cancelGroupBtn,
+#saveGroupBtn {
+  height: 44px;
+  border-radius: 14px;
+  font-weight: 800;
+  flex: 1;
+}
+
+#cancelGroupBtn {
+  background: #243044;
+  color: white;
+}
+
+#cancelGroupBtn:hover {
+  background: #334155;
+}
+
+#saveGroupBtn {
+  background: #06b6d4;
+  color: white;
+}
+
+#saveGroupBtn:hover {
+  background: #0891b2;
 }
 
 /* UPDATE BOX */
@@ -433,4 +599,20 @@ textarea {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
+}
+
+/* MOBILE */
+
+@media (max-width: 850px) {
+  #app {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .message {
+    max-width: 85%;
+  }
 }
