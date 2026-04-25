@@ -1,113 +1,75 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
-const sqlite3 = require("sqlite3").verbose();
 const cors = require("cors");
+const { Low } = require("lowdb");
+const { JSONFile } = require("lowdb/node");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*"
-  }
+  cors: { origin: "*" }
 });
 
 app.use(cors());
 app.use(express.json());
 
-// 📦 База данных
-const db = new sqlite3.Database("messages.db");
+// 📦 база (JSON файл)
+const adapter = new JSONFile("db.json");
+const db = new Low(adapter);
 
-// Создание таблиц
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE,
-      password TEXT
-    )
-  `);
+async function initDB() {
+  await db.read();
+  db.data ||= { users: [], messages: [] };
+  await db.write();
+}
+initDB();
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT,
-      message TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-});
-
-
-// 🔐 Регистрация
-app.post("/register", (req, res) => {
+// 🔐 регистрация
+app.post("/register", async (req, res) => {
   const { username, password } = req.body;
 
-  db.run(
-    "INSERT INTO users (username, password) VALUES (?, ?)",
-    [username, password],
-    function (err) {
-      if (err) {
-        return res.json({ success: false, error: "Пользователь уже существует" });
-      }
-      res.json({ success: true });
-    }
-  );
+  const exists = db.data.users.find(u => u.username === username);
+  if (exists) {
+    return res.json({ success: false, error: "Пользователь уже существует" });
+  }
+
+  db.data.users.push({ username, password });
+  await db.write();
+
+  res.json({ success: true });
 });
 
-
-// 🔐 Логин
+// 🔐 логин
 app.post("/login", (req, res) => {
   const { username, password } = req.body;
 
-  db.get(
-    "SELECT * FROM users WHERE username = ? AND password = ?",
-    [username, password],
-    (err, row) => {
-      if (row) {
-        res.json({ success: true });
-      } else {
-        res.json({ success: false, error: "Неверный логин или пароль" });
-      }
-    }
+  const user = db.data.users.find(
+    u => u.username === username && u.password === password
   );
+
+  if (user) {
+    res.json({ success: true });
+  } else {
+    res.json({ success: false, error: "Неверный логин или пароль" });
+  }
 });
 
-
-// 💬 WebSocket чат
+// 💬 чат
 io.on("connection", (socket) => {
-  console.log("Пользователь подключился");
+  socket.emit("load_messages", db.data.messages);
 
-  // отправка старых сообщений
-  db.all("SELECT * FROM messages ORDER BY id ASC", (err, rows) => {
-    socket.emit("load_messages", rows);
-  });
+  socket.on("send_message", async (data) => {
+    db.data.messages.push(data);
+    await db.write();
 
-  // новое сообщение
-  socket.on("send_message", (data) => {
-    const { username, message } = data;
-
-    db.run(
-      "INSERT INTO messages (username, message) VALUES (?, ?)",
-      [username, message]
-    );
-
-    io.emit("new_message", {
-      username,
-      message
-    });
-  });
-
-  socket.on("disconnect", () => {
-    console.log("Пользователь отключился");
+    io.emit("new_message", data);
   });
 });
 
-
-// 🚀 Запуск сервера
+// 🚀 запуск
 const PORT = process.env.PORT || 8080;
 
 server.listen(PORT, () => {
-  console.log("Dark Messenger server started");
-  console.log("PORT:", PORT);
+  console.log("Server started on port", PORT);
 });
