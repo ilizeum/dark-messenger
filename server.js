@@ -7,69 +7,121 @@ const { JSONFile } = require("lowdb/node");
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: {
+    origin: "*"
+  }
 });
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static("public"));
 
-// 📦 база (JSON файл)
 const adapter = new JSONFile("db.json");
-const db = new Low(adapter);
+const db = new Low(adapter, {
+  users: [],
+  messages: []
+});
 
 async function initDB() {
   await db.read();
-  db.data ||= { users: [], messages: [] };
+
+  if (!db.data) {
+    db.data = {
+      users: [],
+      messages: []
+    };
+  }
+
   await db.write();
 }
+
 initDB();
 
-// 🔐 регистрация
 app.post("/register", async (req, res) => {
+  await db.read();
+
   const { username, password } = req.body;
 
-  const exists = db.data.users.find(u => u.username === username);
-  if (exists) {
-    return res.json({ success: false, error: "Пользователь уже существует" });
+  if (!username || !password) {
+    return res.json({
+      success: false,
+      error: "Введите логин и пароль"
+    });
   }
 
-  db.data.users.push({ username, password });
+  const exists = db.data.users.find((user) => user.username === username);
+
+  if (exists) {
+    return res.json({
+      success: false,
+      error: "Пользователь уже существует"
+    });
+  }
+
+  db.data.users.push({
+    username,
+    password
+  });
+
   await db.write();
 
-  res.json({ success: true });
-});
-
-// 🔐 логин
-app.post("/login", (req, res) => {
-  const { username, password } = req.body;
-
-  const user = db.data.users.find(
-    u => u.username === username && u.password === password
-  );
-
-  if (user) {
-    res.json({ success: true });
-  } else {
-    res.json({ success: false, error: "Неверный логин или пароль" });
-  }
-});
-
-// 💬 чат
-io.on("connection", (socket) => {
-  socket.emit("load_messages", db.data.messages);
-
-  socket.on("send_message", async (data) => {
-    db.data.messages.push(data);
-    await db.write();
-
-    io.emit("new_message", data);
+  res.json({
+    success: true
   });
 });
 
-// 🚀 запуск
+app.post("/login", async (req, res) => {
+  await db.read();
+
+  const { username, password } = req.body;
+
+  const user = db.data.users.find(
+    (user) => user.username === username && user.password === password
+  );
+
+  if (!user) {
+    return res.json({
+      success: false,
+      error: "Неверный логин или пароль"
+    });
+  }
+
+  res.json({
+    success: true
+  });
+});
+
+io.on("connection", async (socket) => {
+  console.log("User connected");
+
+  await db.read();
+  socket.emit("load_messages", db.data.messages);
+
+  socket.on("send_message", async (data) => {
+    await db.read();
+
+    const message = {
+      username: data.username,
+      message: data.message,
+      created_at: new Date().toISOString()
+    };
+
+    db.data.messages.push(message);
+    await db.write();
+
+    io.emit("new_message", message);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected");
+  });
+});
+
 const PORT = process.env.PORT || 8080;
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
+  console.log("Dark Messenger server started");
   console.log("Server started on port", PORT);
 });
