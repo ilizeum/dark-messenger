@@ -473,6 +473,10 @@ textarea {
   margin-top: 5px;
 }
 
+.delete-message-btn:hover {
+  filter: brightness(1.15);
+}
+
 .empty {
   color: #94a3b8;
   text-align: center;
@@ -504,6 +508,64 @@ textarea {
 .message-media audio {
   width: 260px;
   display: block;
+}
+
+/* VOICE MESSAGE */
+
+.voice-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(30, 41, 59, 0.68);
+  border: 1px solid rgba(71, 85, 105, 0.24);
+}
+
+.voice-telegram {
+  background: linear-gradient(180deg, rgba(14, 116, 144, 0.14), rgba(30, 41, 59, 0.82));
+}
+
+.message.mine .voice-message {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.voice-audio {
+  width: 100%;
+  height: 34px;
+}
+
+.voice-waveform {
+  display: flex;
+  align-items: end;
+  gap: 2px;
+  min-height: 28px;
+  overflow: hidden;
+}
+
+.voice-wave-bar {
+  display: inline-block;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #67e8f9, #3b82f6);
+  opacity: 0.95;
+}
+
+.message.mine .voice-wave-bar {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.voice-duration {
+  font-size: 12px;
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.message.mine .voice-duration {
+  color: rgba(255, 255, 255, 0.82);
 }
 
 /* INPUT */
@@ -565,7 +627,8 @@ textarea {
 }
 
 #voiceBtn.recording {
-  background: #ef4444;
+  background: #7f1d1d !important;
+  color: white !important;
   animation: pulseRecord 1s infinite;
 }
 
@@ -593,7 +656,102 @@ textarea {
   cursor: not-allowed;
 }
 
-/* GROUP MODAL */
+/* RECORDING PANEL */
+
+.recording-panel {
+  margin: 10px 20px 15px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(71, 85, 105, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.recording-panel.hidden {
+  display: none;
+}
+
+.recording-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 90px;
+}
+
+.recording-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.12);
+  animation: recordingPulse 1.2s infinite;
+}
+
+.recording-timer {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f8fafc;
+  min-width: 44px;
+}
+
+.recording-visualizer {
+  flex: 1;
+  min-height: 42px;
+  display: flex;
+  align-items: end;
+  gap: 3px;
+  padding: 0 4px;
+  overflow: hidden;
+}
+
+.recording-bar {
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #22d3ee, #2563eb);
+  opacity: 0.95;
+}
+
+.recording-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recording-action {
+  border: none;
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.recording-action.cancel {
+  background: #2b2230;
+  color: #fda4af;
+}
+
+.recording-action.cancel:hover {
+  background: #3a2230;
+}
+
+.recording-action.send {
+  background: linear-gradient(135deg, #22d3ee, #2563eb);
+  color: white;
+}
+
+.recording-action.send:hover {
+  filter: brightness(1.08);
+}
+
+.recording-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* GROUP MODAL / PROFILE MODAL */
 
 .modal {
   position: fixed;
@@ -643,12 +801,18 @@ textarea {
   color: #7d8797;
 }
 
+.modal-card input:focus,
+.modal-card textarea:focus {
+  border-color: #22d3ee;
+}
+
 .modal-card textarea {
   min-height: 90px;
   resize: vertical;
 }
 
-#groupError {
+#groupError,
+#profileError {
   min-height: 20px;
   color: #fb7185;
   font-size: 14px;
@@ -661,28 +825,34 @@ textarea {
 }
 
 #cancelGroupBtn,
-#saveGroupBtn {
+#saveGroupBtn,
+#cancelProfileBtn,
+#saveProfileBtn {
   height: 44px;
   border-radius: 14px;
   font-weight: 800;
   flex: 1;
 }
 
-#cancelGroupBtn {
+#cancelGroupBtn,
+#cancelProfileBtn {
   background: #243044;
   color: white;
 }
 
-#cancelGroupBtn:hover {
+#cancelGroupBtn:hover,
+#cancelProfileBtn:hover {
   background: #334155;
 }
 
-#saveGroupBtn {
+#saveGroupBtn,
+#saveProfileBtn {
   background: #06b6d4;
   color: white;
 }
 
-#saveGroupBtn:hover {
+#saveGroupBtn:hover,
+#saveProfileBtn:hover {
   background: #0891b2;
 }
 
@@ -730,6 +900,23 @@ textarea {
   }
 }
 
+@keyframes recordingPulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.15);
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 /* MOBILE */
 
 @media (max-width: 850px) {
@@ -748,5 +935,14 @@ textarea {
   .message-media img,
   .message-media video {
     max-width: 260px;
+  }
+
+  .voice-message {
+    min-width: 210px;
+    max-width: 260px;
+  }
+
+  .recording-panel {
+    margin: 10px 12px 14px;
   }
 }

@@ -20,18 +20,6 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let isRecording = false;
 
-let recordingStream = null;
-let recordingStartTime = 0;
-let recordingTimerInterval = null;
-
-let audioContext = null;
-let analyserNode = null;
-let analyserDataArray = null;
-let visualizerAnimationFrame = null;
-
-let liveWaveformBars = [];
-let finalVoiceBlob = null;
-
 let notificationPermissionRequested = false;
 let typingTimer = null;
 let isTypingNow = false;
@@ -82,12 +70,6 @@ let profileBtn = null;
 let groupActionsBox = null;
 let profileModal = null;
 let profileModalAvatarInput = null;
-
-let recordingPanel = null;
-let recordingTimer = null;
-let recordingVisualizer = null;
-let recordingCancelBtn = null;
-let recordingSendBtn = null;
 
 function normalizeUsername(username) {
   return String(username || "")
@@ -179,7 +161,6 @@ function loadSavedUser() {
 }
 
 function logout() {
-  cancelVoiceRecording();
   stopTyping();
 
   localStorage.removeItem("darkMessengerUser");
@@ -1087,45 +1068,6 @@ function setupMessageTools() {
   fileInput.addEventListener("change", handleFileSend);
 
   voiceBtn.addEventListener("click", toggleVoiceRecording);
-
-  setupRecordingPanel();
-}
-
-function setupRecordingPanel() {
-  if (document.getElementById("recordingPanel")) return;
-  if (!sendBtn || !sendBtn.parentElement) return;
-
-  recordingPanel = document.createElement("div");
-  recordingPanel.id = "recordingPanel";
-  recordingPanel.className = "recording-panel hidden";
-
-  recordingPanel.innerHTML = `
-    <div class="recording-left">
-      <div class="recording-dot"></div>
-      <div id="recordingTimer" class="recording-timer">00:00</div>
-    </div>
-
-    <div id="recordingVisualizer" class="recording-visualizer"></div>
-
-    <div class="recording-actions">
-      <button id="recordingCancelBtn" type="button" class="recording-action cancel">Отмена</button>
-      <button id="recordingSendBtn" type="button" class="recording-action send" disabled>Отправить</button>
-    </div>
-  `;
-
-  const chatInput = sendBtn.parentElement;
-
-  if (chatInput && chatInput.parentElement) {
-    chatInput.parentElement.appendChild(recordingPanel);
-  }
-
-  recordingTimer = document.getElementById("recordingTimer");
-  recordingVisualizer = document.getElementById("recordingVisualizer");
-  recordingCancelBtn = document.getElementById("recordingCancelBtn");
-  recordingSendBtn = document.getElementById("recordingSendBtn");
-
-  if (recordingCancelBtn) recordingCancelBtn.addEventListener("click", cancelVoiceRecording);
-  if (recordingSendBtn) recordingSendBtn.addEventListener("click", sendRecordedVoice);
 }
 
 function canSendNow() {
@@ -1169,145 +1111,6 @@ async function handleFileSend(event) {
   }
 }
 
-function openRecordingPanel() {
-  if (!recordingPanel) return;
-
-  recordingPanel.classList.remove("hidden");
-
-  if (voiceBtn) voiceBtn.disabled = true;
-  if (attachBtn) attachBtn.disabled = true;
-  if (sendBtn) sendBtn.disabled = true;
-  if (messageInput) messageInput.disabled = true;
-
-  if (recordingSendBtn) recordingSendBtn.disabled = true;
-  if (recordingVisualizer) recordingVisualizer.innerHTML = "";
-
-  liveWaveformBars = [];
-  renderLiveWaveform([]);
-}
-
-function closeRecordingPanel() {
-  if (!recordingPanel) return;
-
-  recordingPanel.classList.add("hidden");
-
-  if (voiceBtn) voiceBtn.disabled = false;
-  if (attachBtn) attachBtn.disabled = false;
-  if (sendBtn) sendBtn.disabled = false;
-  if (messageInput) messageInput.disabled = false;
-
-  if (recordingTimer) recordingTimer.textContent = "00:00";
-  if (recordingVisualizer) recordingVisualizer.innerHTML = "";
-
-  finalVoiceBlob = null;
-  liveWaveformBars = [];
-}
-
-function formatRecordingTime(ms) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
-  const seconds = String(totalSeconds % 60).padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
-
-function startRecordingTimer() {
-  recordingStartTime = Date.now();
-
-  if (recordingTimer) {
-    recordingTimer.textContent = "00:00";
-  }
-
-  clearInterval(recordingTimerInterval);
-
-  recordingTimerInterval = setInterval(() => {
-    const elapsed = Date.now() - recordingStartTime;
-
-    if (recordingTimer) {
-      recordingTimer.textContent = formatRecordingTime(elapsed);
-    }
-  }, 200);
-}
-
-function stopRecordingTimer() {
-  clearInterval(recordingTimerInterval);
-  recordingTimerInterval = null;
-}
-
-function renderLiveWaveform(values) {
-  if (!recordingVisualizer) return;
-
-  recordingVisualizer.innerHTML = "";
-
-  const bars = values.length ? values : [8, 10, 12, 9, 11, 7, 13, 10];
-
-  bars.forEach((value) => {
-    const bar = document.createElement("div");
-    bar.className = "recording-bar";
-    bar.style.height = `${Math.max(6, Math.min(36, value))}px`;
-    recordingVisualizer.appendChild(bar);
-  });
-}
-
-function startRealtimeVisualizer() {
-  if (!analyserNode) return;
-
-  const bufferLength = analyserNode.fftSize;
-  analyserDataArray = new Uint8Array(bufferLength);
-
-  function draw() {
-    if (!analyserNode || !analyserDataArray) return;
-
-    analyserNode.getByteTimeDomainData(analyserDataArray);
-
-    let sum = 0;
-
-    for (let i = 0; i < analyserDataArray.length; i++) {
-      sum += Math.abs(analyserDataArray[i] - 128);
-    }
-
-    const average = sum / analyserDataArray.length;
-    const barHeight = Math.max(6, Math.min(36, Math.round(average * 1.2)));
-
-    liveWaveformBars.push(barHeight);
-
-    if (liveWaveformBars.length > 42) {
-      liveWaveformBars.shift();
-    }
-
-    renderLiveWaveform(liveWaveformBars);
-
-    visualizerAnimationFrame = requestAnimationFrame(draw);
-  }
-
-  draw();
-}
-
-function stopRealtimeVisualizer() {
-  if (visualizerAnimationFrame) {
-    cancelAnimationFrame(visualizerAnimationFrame);
-    visualizerAnimationFrame = null;
-  }
-}
-
-function normalizeWaveformBars(bars, targetCount = 48) {
-  if (!Array.isArray(bars) || !bars.length) {
-    return Array.from({ length: targetCount }, () => 10);
-  }
-
-  const result = [];
-
-  for (let i = 0; i < targetCount; i++) {
-    const start = Math.floor((i / targetCount) * bars.length);
-    const end = Math.floor(((i + 1) / targetCount) * bars.length);
-    const slice = bars.slice(start, Math.max(start + 1, end));
-
-    const avg = slice.reduce((sum, value) => sum + value, 0) / slice.length;
-    result.push(Math.max(6, Math.min(32, Math.round(avg))));
-  }
-
-  return result;
-}
-
 async function toggleVoiceRecording() {
   if (!canSendNow()) return;
 
@@ -1317,35 +1120,18 @@ async function toggleVoiceRecording() {
   }
 
   if (isRecording) {
-    await finishVoiceRecording();
+    stopVoiceRecording();
     return;
   }
 
   try {
-    recordingStream = await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: true
     });
 
     recordedChunks = [];
-    finalVoiceBlob = null;
-    liveWaveformBars = [];
 
-    let recorderOptions = {};
-
-    if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported("audio/webm")) {
-      recorderOptions = {
-        mimeType: "audio/webm"
-      };
-    }
-
-    mediaRecorder = new MediaRecorder(recordingStream, recorderOptions);
-
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-    const source = audioContext.createMediaStreamSource(recordingStream);
-    analyserNode = audioContext.createAnalyser();
-    analyserNode.fftSize = 256;
-    source.connect(analyserNode);
+    mediaRecorder = new MediaRecorder(stream);
 
     mediaRecorder.ondataavailable = (event) => {
       if (event.data && event.data.size > 0) {
@@ -1353,127 +1139,51 @@ async function toggleVoiceRecording() {
       }
     };
 
-    mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = async () => {
       const blob = new Blob(recordedChunks, {
         type: "audio/webm"
       });
 
-      finalVoiceBlob = blob;
+      stream.getTracks().forEach((track) => track.stop());
 
-      if (recordingSendBtn) {
-        recordingSendBtn.disabled = !blob.size;
+      if (blob.size > MAX_FILE_SIZE) {
+        alert("Голосовое слишком большое. Максимум 8 МБ.");
+        return;
       }
+
+      const url = await blobToDataUrl(blob);
+
+      sendMediaMessage({
+        type: "audio",
+        url,
+        name: "voice.webm"
+      });
     };
 
     mediaRecorder.start();
     isRecording = true;
 
-    openRecordingPanel();
-    startRecordingTimer();
-    startRealtimeVisualizer();
-
     if (voiceBtn) {
       voiceBtn.classList.add("recording");
       voiceBtn.textContent = "■";
       voiceBtn.title = "Остановить запись";
-      voiceBtn.disabled = false;
     }
   } catch (error) {
     alert("Разреши доступ к микрофону.");
-    cancelVoiceRecording();
   }
 }
 
-async function finishVoiceRecording() {
-  if (!mediaRecorder || mediaRecorder.state === "inactive") return;
-
-  isRecording = false;
-
-  stopRecordingTimer();
-  stopRealtimeVisualizer();
-
-  if (voiceBtn) {
-    voiceBtn.classList.remove("recording");
-    voiceBtn.textContent = "🎙";
-    voiceBtn.title = "Голосовое сообщение";
-    voiceBtn.disabled = false;
-  }
-
-  mediaRecorder.stop();
-
-  if (recordingStream) {
-    recordingStream.getTracks().forEach((track) => track.stop());
-    recordingStream = null;
-  }
-
-  if (audioContext) {
-    try {
-      await audioContext.close();
-    } catch {}
-    audioContext = null;
-  }
-}
-
-function cancelVoiceRecording() {
+function stopVoiceRecording() {
   if (mediaRecorder && mediaRecorder.state !== "inactive") {
-    mediaRecorder.onstop = null;
     mediaRecorder.stop();
   }
 
-  if (recordingStream) {
-    recordingStream.getTracks().forEach((track) => track.stop());
-    recordingStream = null;
-  }
-
-  stopRecordingTimer();
-  stopRealtimeVisualizer();
-
-  if (audioContext) {
-    audioContext.close().catch(() => {});
-    audioContext = null;
-  }
-
-  recordedChunks = [];
-  finalVoiceBlob = null;
-  liveWaveformBars = [];
   isRecording = false;
 
   if (voiceBtn) {
     voiceBtn.classList.remove("recording");
     voiceBtn.textContent = "🎙";
     voiceBtn.title = "Голосовое сообщение";
-    voiceBtn.disabled = false;
-  }
-
-  closeRecordingPanel();
-}
-
-async function sendRecordedVoice() {
-  if (!finalVoiceBlob) return;
-
-  if (finalVoiceBlob.size > MAX_FILE_SIZE) {
-    alert("Голосовое слишком большое. Максимум 8 МБ.");
-    return;
-  }
-
-  try {
-    const url = await blobToDataUrl(finalVoiceBlob);
-
-    const elapsed = Math.max(1000, Date.now() - recordingStartTime);
-    const waveform = normalizeWaveformBars(liveWaveformBars, 48);
-
-    sendMediaMessage({
-      type: "audio",
-      url,
-      name: "voice.webm",
-      isVoice: true,
-      durationMs: elapsed,
-      waveform
-    });
-
-    closeRecordingPanel();
-  } catch (error) {
-    alert("Не удалось отправить голосовое");
   }
 }
 
@@ -1774,7 +1484,6 @@ function renderUsers(query = "") {
 }
 
 function renderEmptyChat() {
-  cancelVoiceRecording();
   stopTyping();
 
   selectedUser = null;
@@ -1816,7 +1525,6 @@ function renderEmptyChat() {
 }
 
 async function openChat(user) {
-  cancelVoiceRecording();
   stopTyping();
 
   selectedUser = user;
@@ -1879,7 +1587,6 @@ async function openChat(user) {
 }
 
 async function openGroup(group) {
-  cancelVoiceRecording();
   stopTyping();
 
   selectedGroup = group;
@@ -2000,22 +1707,9 @@ function renderMedia(media) {
   }
 
   if (media.type === "audio") {
-    const waveform = Array.isArray(media.waveform) ? media.waveform : [];
-    const durationText = media.durationMs ? formatRecordingTime(media.durationMs) : "00:00";
-
-    const waveformHtml = waveform.length
-      ? waveform
-          .map((value) => `<span class="voice-wave-bar" style="height:${Math.max(5, Math.min(26, value))}px"></span>`)
-          .join("")
-      : Array.from({ length: 32 }, () => `<span class="voice-wave-bar" style="height:10px"></span>`).join("");
-
     return `
       <div class="message-media">
-        <div class="voice-message ${media.isVoice ? "voice-telegram" : ""}">
-          <audio src="${media.url}" controls class="voice-audio"></audio>
-          <div class="voice-waveform">${waveformHtml}</div>
-          <div class="voice-duration">${durationText}</div>
-        </div>
+        <audio src="${media.url}" controls></audio>
       </div>
     `;
   }
@@ -2483,7 +2177,6 @@ if (messageInput) {
 }
 
 window.addEventListener("beforeunload", () => {
-  cancelVoiceRecording();
   stopTyping();
 });
 
