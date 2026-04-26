@@ -946,3 +946,139 @@ textarea {
     margin: 10px 12px 14px;
   }
 }
+
+.voice-card {
+  width: 100%;
+  min-width: 260px;
+  max-width: 360px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.38), rgba(37, 99, 235, 0.48));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.18);
+}
+
+.message.mine .voice-card {
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.9), rgba(37, 99, 235, 0.92));
+}
+
+.voice-card__main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-card__play {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+  font-size: 15px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-card__play:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.04);
+}
+
+.voice-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.voice-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.voice-card__time {
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.voice-card__slash {
+  opacity: 0.6;
+  margin: 0 2px;
+}
+
+.voice-card__hint {
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.voice-card__wave {
+  width: 100%;
+  height: 38px;
+  border-radius: 13px;
+  overflow: hidden;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.09);
+  padding: 2px 4px;
+}
+
+.voice-card__fallback-wave {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.voice-card__fallback-wave .voice-wave-bar {
+  width: 3px;
+  min-width: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.voice-card__footer {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.voice-card__delete {
+  width: 30px;
+  height: 30px;
+  border-radius: 11px;
+  padding: 0;
+  background: rgba(127, 29, 29, 0.48);
+  color: white;
+  font-size: 14px;
+}
+
+.voice-card__delete:hover {
+  background: rgba(127, 29, 29, 0.8);
+}
+
+.voice-card__clock {
+  margin-left: auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.voice-card wave {
+  overflow: hidden !important;
+}
+
+.voice-card canvas {
+  border-radius: 12px;
+}

@@ -38,6 +38,8 @@ let isTypingNow = false;
 
 let profileAvatarDraft = "";
 
+const voicePlayers = new Map();
+
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 
 const auth = document.getElementById("auth");
@@ -181,6 +183,7 @@ function loadSavedUser() {
 function logout() {
   cancelVoiceRecording();
   stopTyping();
+  destroyAllVoicePlayers();
 
   localStorage.removeItem("darkMessengerUser");
   sessionStorage.removeItem("darkMessengerUser");
@@ -1210,6 +1213,13 @@ function formatRecordingTime(ms) {
   return `${minutes}:${seconds}`;
 }
 
+function formatVoiceSeconds(seconds) {
+  const totalSeconds = Math.floor(seconds || 0);
+  const minutes = String(Math.floor(totalSeconds / 60));
+  const sec = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${sec}`;
+}
+
 function startRecordingTimer() {
   recordingStartTime = Date.now();
 
@@ -1270,7 +1280,7 @@ function startRealtimeVisualizer() {
 
     liveWaveformBars.push(barHeight);
 
-    if (liveWaveformBars.length > 42) {
+    if (liveWaveformBars.length > 80) {
       liveWaveformBars.shift();
     }
 
@@ -1289,7 +1299,7 @@ function stopRealtimeVisualizer() {
   }
 }
 
-function normalizeWaveformBars(bars, targetCount = 48) {
+function normalizeWaveformBars(bars, targetCount = 96) {
   if (!Array.isArray(bars) || !bars.length) {
     return Array.from({ length: targetCount }, () => 10);
   }
@@ -1460,7 +1470,7 @@ async function sendRecordedVoice() {
     const url = await blobToDataUrl(finalVoiceBlob);
 
     const elapsed = Math.max(1000, Date.now() - recordingStartTime);
-    const waveform = normalizeWaveformBars(liveWaveformBars, 48);
+    const waveform = normalizeWaveformBars(liveWaveformBars, 96);
 
     sendMediaMessage({
       type: "audio",
@@ -1776,6 +1786,7 @@ function renderUsers(query = "") {
 function renderEmptyChat() {
   cancelVoiceRecording();
   stopTyping();
+  destroyAllVoicePlayers();
 
   selectedUser = null;
   selectedGroup = null;
@@ -1818,6 +1829,7 @@ function renderEmptyChat() {
 async function openChat(user) {
   cancelVoiceRecording();
   stopTyping();
+  destroyAllVoicePlayers();
 
   selectedUser = user;
   selectedGroup = null;
@@ -1881,6 +1893,7 @@ async function openChat(user) {
 async function openGroup(group) {
   cancelVoiceRecording();
   stopTyping();
+  destroyAllVoicePlayers();
 
   selectedGroup = group;
   selectedUser = null;
@@ -1972,6 +1985,8 @@ async function deleteMessage(messageId) {
   if (!ok) return;
 
   try {
+    destroyVoicePlayer(messageId);
+
     await request(`/api/messages/${encodeURIComponent(messageId)}?me=${encodeURIComponent(currentUser.username)}`, {
       method: "DELETE"
     });
@@ -1980,7 +1995,191 @@ async function deleteMessage(messageId) {
   }
 }
 
-function renderMedia(media) {
+function destroyVoicePlayer(messageId) {
+  const id = String(messageId);
+  const player = voicePlayers.get(id);
+
+  if (player) {
+    try {
+      player.destroy();
+    } catch {}
+
+    voicePlayers.delete(id);
+  }
+}
+
+function destroyAllVoicePlayers() {
+  for (const [id, player] of voicePlayers.entries()) {
+    try {
+      player.destroy();
+    } catch {}
+
+    voicePlayers.delete(id);
+  }
+}
+
+function stopOtherVoicePlayers(exceptId) {
+  for (const [id, player] of voicePlayers.entries()) {
+    if (id !== String(exceptId) && player && player.isPlaying && player.isPlaying()) {
+      player.pause();
+    }
+  }
+}
+
+function createFallbackWaveformHtml(waveform) {
+  const bars = Array.isArray(waveform) && waveform.length
+    ? waveform
+    : Array.from({ length: 60 }, (_, index) => 8 + ((index * 7) % 20));
+
+  return bars
+    .map((value) => {
+      const height = Math.max(5, Math.min(26, value));
+
+      return `<span class="voice-wave-bar" style="height:${height}px"></span>`;
+    })
+    .join("");
+}
+
+function renderVoiceCard(media, message, mine, canDelete) {
+  const id = String(message.id);
+  const audioUrl = media.url || "";
+  const durationText = media.durationMs ? formatRecordingTime(media.durationMs) : "00:00";
+  const clockText = formatTime(message.created_at);
+  const fallbackWave = createFallbackWaveformHtml(media.waveform);
+
+  return `
+    <div class="voice-card" data-voice-id="${escapeHtml(id)}" data-audio-url="${escapeHtml(audioUrl)}">
+      <div class="voice-card__main">
+        <button class="voice-card__play" type="button" data-voice-play="${escapeHtml(id)}">▶</button>
+
+        <div class="voice-card__body">
+          <div class="voice-card__top">
+            <span class="voice-card__time">
+              <span id="voice-current-${escapeHtml(id)}">0:00</span>
+              <span class="voice-card__slash">/</span>
+              <span id="voice-duration-${escapeHtml(id)}">${escapeHtml(durationText)}</span>
+            </span>
+
+            <span class="voice-card__hint">тяни волну</span>
+          </div>
+
+          <div class="voice-card__wave" id="voice-wave-${escapeHtml(id)}">
+            <div class="voice-card__fallback-wave">
+              ${fallbackWave}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="voice-card__footer">
+        ${
+          canDelete
+            ? `<button class="delete-message-btn voice-card__delete" data-id="${escapeHtml(id)}" title="Удалить сообщение">🗑</button>`
+            : `<span></span>`
+        }
+
+        <span class="voice-card__clock">${escapeHtml(clockText)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function initVoicePlayer(message) {
+  if (!message || !message.id || !message.media || message.media.type !== "audio") return;
+
+  const id = String(message.id);
+  const media = message.media;
+  const audioUrl = media.url || "";
+
+  if (!audioUrl) return;
+  if (voicePlayers.has(id)) return;
+
+  const waveEl = document.getElementById(`voice-wave-${id}`);
+  const playBtn = document.querySelector(`[data-voice-play="${CSS.escape(id)}"]`);
+  const currentEl = document.getElementById(`voice-current-${id}`);
+  const durationEl = document.getElementById(`voice-duration-${id}`);
+
+  if (!waveEl || !playBtn || !currentEl || !durationEl) return;
+
+  if (typeof WaveSurfer === "undefined") {
+    console.warn("WaveSurfer не подключён. Проверь public/index.html");
+    return;
+  }
+
+  waveEl.innerHTML = "";
+
+  const player = WaveSurfer.create({
+    container: waveEl,
+    height: 38,
+    waveColor: "rgba(255,255,255,0.34)",
+    progressColor: "#ffffff",
+    cursorColor: "#7fe3ff",
+    cursorWidth: 2,
+    barWidth: 3,
+    barGap: 2,
+    barRadius: 4,
+    normalize: true,
+    interact: true,
+    dragToSeek: true,
+    hideScrollbar: true,
+    backend: "MediaElement"
+  });
+
+  voicePlayers.set(id, player);
+
+  player.load(audioUrl);
+
+  player.on("ready", () => {
+    const duration = player.getDuration();
+
+    if (duration && Number.isFinite(duration)) {
+      durationEl.textContent = formatVoiceSeconds(duration);
+    } else if (media.durationMs) {
+      durationEl.textContent = formatRecordingTime(media.durationMs);
+    }
+  });
+
+  player.on("play", () => {
+    stopOtherVoicePlayers(id);
+    playBtn.textContent = "❚❚";
+  });
+
+  player.on("pause", () => {
+    playBtn.textContent = "▶";
+  });
+
+  player.on("finish", () => {
+    playBtn.textContent = "▶";
+    currentEl.textContent = "0:00";
+
+    try {
+      player.seekTo(0);
+    } catch {}
+  });
+
+  player.on("audioprocess", () => {
+    currentEl.textContent = formatVoiceSeconds(player.getCurrentTime());
+  });
+
+  player.on("seeking", () => {
+    currentEl.textContent = formatVoiceSeconds(player.getCurrentTime());
+  });
+
+  player.on("interaction", () => {
+    currentEl.textContent = formatVoiceSeconds(player.getCurrentTime());
+  });
+
+  playBtn.addEventListener("click", () => {
+    if (player.isPlaying()) {
+      player.pause();
+    } else {
+      stopOtherVoicePlayers(id);
+      player.play();
+    }
+  });
+}
+
+function renderMedia(media, message, mine, canDelete) {
   if (!media || !media.url) return "";
 
   if (media.type === "image") {
@@ -2000,22 +2199,9 @@ function renderMedia(media) {
   }
 
   if (media.type === "audio") {
-    const waveform = Array.isArray(media.waveform) ? media.waveform : [];
-    const durationText = media.durationMs ? formatRecordingTime(media.durationMs) : "00:00";
-
-    const waveformHtml = waveform.length
-      ? waveform
-          .map((value) => `<span class="voice-wave-bar" style="height:${Math.max(5, Math.min(26, value))}px"></span>`)
-          .join("")
-      : Array.from({ length: 32 }, () => `<span class="voice-wave-bar" style="height:10px"></span>`).join("");
-
     return `
       <div class="message-media">
-        <div class="voice-message ${media.isVoice ? "voice-telegram" : ""}">
-          <audio src="${media.url}" controls class="voice-audio"></audio>
-          <div class="voice-waveform">${waveformHtml}</div>
-          <div class="voice-duration">${durationText}</div>
-        </div>
+        ${renderVoiceCard(media, message, mine, canDelete)}
       </div>
     `;
   }
@@ -2025,6 +2211,8 @@ function renderMedia(media) {
 
 function renderMessages() {
   if (!messagesBox) return;
+
+  destroyAllVoicePlayers();
 
   messagesBox.innerHTML = "";
 
@@ -2036,20 +2224,21 @@ function renderMessages() {
   messagesCache.forEach((message) => {
     const mine = message.from === currentUser.username || message.username === currentUser.username;
     const canDelete = mine && selectedChatType === "direct" && message.id;
+    const isAudio = message.media && message.media.type === "audio";
 
     const bubble = document.createElement("div");
     bubble.className = mine ? "message mine" : "message";
 
     const text = message.text || message.message || "";
-    const mediaHtml = renderMedia(message.media);
+    const mediaHtml = renderMedia(message.media, message, mine, canDelete);
 
     bubble.innerHTML = `
       <div class="message-name">${escapeHtml(message.displayName || message.username || "")}</div>
       ${mediaHtml}
       ${text ? `<div class="message-text">${escapeHtml(text)}</div>` : ""}
-      <div class="message-time">${formatTime(message.created_at)}</div>
+      ${!isAudio ? `<div class="message-time">${formatTime(message.created_at)}</div>` : ""}
       ${
-        canDelete
+        canDelete && !isAudio
           ? `<button class="delete-message-btn" data-id="${escapeHtml(message.id)}" title="Удалить сообщение">Удалить</button>`
           : ""
       }
@@ -2057,7 +2246,7 @@ function renderMessages() {
 
     const deleteBtn = bubble.querySelector(".delete-message-btn");
 
-    if (deleteBtn) {
+    if (deleteBtn && !deleteBtn.classList.contains("voice-card__delete")) {
       deleteBtn.style.marginTop = "7px";
       deleteBtn.style.background = "rgba(127, 29, 29, 0.65)";
       deleteBtn.style.color = "white";
@@ -2065,7 +2254,9 @@ function renderMessages() {
       deleteBtn.style.padding = "5px 9px";
       deleteBtn.style.fontSize = "11px";
       deleteBtn.style.fontWeight = "700";
+    }
 
+    if (deleteBtn) {
       deleteBtn.addEventListener("click", (event) => {
         event.stopPropagation();
         deleteMessage(deleteBtn.dataset.id);
@@ -2073,6 +2264,10 @@ function renderMessages() {
     }
 
     messagesBox.appendChild(bubble);
+
+    if (isAudio) {
+      initVoicePlayer(message);
+    }
   });
 
   messagesBox.scrollTop = messagesBox.scrollHeight;
@@ -2103,6 +2298,8 @@ socket.on("load_messages", (messages) => {
 
 socket.on("message_deleted", (data) => {
   if (!data || !data.id) return;
+
+  destroyVoicePlayer(data.id);
 
   messagesCache = messagesCache.filter((message) => String(message.id) !== String(data.id));
 
@@ -2485,6 +2682,7 @@ if (messageInput) {
 window.addEventListener("beforeunload", () => {
   cancelVoiceRecording();
   stopTyping();
+  destroyAllVoicePlayers();
 });
 
 const savedUser = loadSavedUser();

@@ -3,24 +3,39 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>Dark Messenger</title>
 
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
-  <!-- ЭКРАН ВХОДА / РЕГИСТРАЦИИ -->
-  <section id="auth">
+  <!-- ВХОД / РЕГИСТРАЦИЯ -->
+  <div id="auth">
     <div class="auth-card">
       <h1>Dark Messenger</h1>
       <p>Войди в аккаунт или зарегистрируйся, чтобы начать общение</p>
 
-      <input id="displayName" type="text" placeholder="Имя, например Александр" />
+      <input
+        id="displayName"
+        type="text"
+        placeholder="Имя, например Александр"
+        autocomplete="name"
+      />
 
-      <input id="username" type="text" placeholder="Логин, например @ilizeum" />
+      <input
+        id="username"
+        type="text"
+        placeholder="Логин, например username"
+        autocomplete="username"
+      />
 
       <div class="password-wrap">
-        <input id="password" type="password" placeholder="Пароль" />
+        <input
+          id="password"
+          type="password"
+          placeholder="Пароль"
+          autocomplete="current-password"
+        />
         <button id="togglePassword" type="button">Показать</button>
       </div>
 
@@ -34,11 +49,10 @@
 
       <div id="authError"></div>
     </div>
-  </section>
+  </div>
 
   <!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
-  <section id="app" class="hidden">
-
+  <div id="app" class="hidden">
     <!-- ЛЕВАЯ ПАНЕЛЬ -->
     <aside class="sidebar">
       <div class="profile">
@@ -50,13 +64,14 @@
         <button id="logoutBtn" type="button">Выйти</button>
       </div>
 
-      <input id="search" type="text" placeholder="Поиск по @id, например @ilizeum" />
+      <input
+        id="search"
+        type="text"
+        placeholder="Поиск по @id, например @username"
+        autocomplete="off"
+      />
 
-      <div id="users">
-        <div class="empty">
-          Введите @id пользователя, чтобы найти чат.
-        </div>
-      </div>
+      <div id="users"></div>
     </aside>
 
     <!-- ЧАТ -->
@@ -66,35 +81,33 @@
 
         <div>
           <div id="chatName">Выберите чат</div>
-          <div id="chatStatus">Найдите пользователя по @id</div>
+          <div id="chatStatus">Выберите личный чат, группу или найдите пользователя</div>
         </div>
       </header>
 
-      <div id="messages">
+      <section id="messages">
         <div class="empty">
-          Чаты не показываются автоматически.<br>
-          Найдите пользователя через поиск слева.
+          Выберите чат слева или найдите пользователя через поиск.
         </div>
-      </div>
+      </section>
 
       <footer class="chat-input">
-        <textarea id="messageInput" placeholder="Сообщение" disabled></textarea>
+        <textarea
+          id="messageInput"
+          placeholder="Сообщение"
+          disabled
+        ></textarea>
+
         <button id="sendBtn" type="button" disabled>Отправить</button>
       </footer>
     </main>
-
-  </section>
-
-  <!-- БЛОК АВТООБНОВЛЕНИЯ -->
-  <div id="updateBox" style="display:none; position:fixed; bottom:20px; right:20px; background:#111827; color:white; padding:15px; border-radius:14px; box-shadow:0 0 18px rgba(0,0,0,0.45); z-index:9999;">
-    <div id="updateText">Обновление...</div>
-    <div style="width:220px; height:10px; background:#263244; margin-top:10px; border-radius:999px; overflow:hidden;">
-      <div id="progressBar" style="width:0%; height:100%; background:#22d3ee; border-radius:999px;"></div>
-    </div>
   </div>
 
   <!-- SOCKET.IO -->
   <script src="/socket.io/socket.io.js"></script>
+
+  <!-- WAVESURFER ДЛЯ КРАСИВЫХ ГОЛОСОВЫХ -->
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
 
   <!-- ОСНОВНАЯ ЛОГИКА -->
   <script src="app.js"></script>
@@ -102,29 +115,73 @@
   <!-- ЛОГИКА ОКНА ОБНОВЛЕНИЯ ДЛЯ ELECTRON -->
   <script>
     if (window.require) {
-      const { ipcRenderer } = require("electron");
+      try {
+        const { ipcRenderer } = require("electron");
 
-      const box = document.getElementById("updateBox");
-      const text = document.getElementById("updateText");
-      const bar = document.getElementById("progressBar");
+        const updateBox = document.createElement("div");
+        updateBox.id = "updateBox";
+        updateBox.style.position = "fixed";
+        updateBox.style.right = "16px";
+        updateBox.style.bottom = "16px";
+        updateBox.style.zIndex = "99999";
+        updateBox.style.maxWidth = "340px";
+        updateBox.style.padding = "14px 16px";
+        updateBox.style.borderRadius = "16px";
+        updateBox.style.background = "#111827";
+        updateBox.style.border = "1px solid #243044";
+        updateBox.style.color = "white";
+        updateBox.style.boxShadow = "0 20px 60px rgba(0,0,0,0.45)";
+        updateBox.style.display = "none";
+        updateBox.style.fontFamily = "Arial, sans-serif";
+        document.body.appendChild(updateBox);
 
-      ipcRenderer.on("update_available", () => {
-        box.style.display = "block";
-        text.innerText = "Найдено обновление...";
-      });
+        function showUpdateMessage(text) {
+          updateBox.textContent = text;
+          updateBox.style.display = "block";
+        }
 
-      ipcRenderer.on("update_progress", (event, percent) => {
-        box.style.display = "block";
-        bar.style.width = percent + "%";
-        text.innerText = "Скачивание: " + percent + "%";
-      });
+        ipcRenderer.on("update-message", (event, message) => {
+          showUpdateMessage(message);
+        });
 
-      ipcRenderer.on("update_downloaded", () => {
-        box.style.display = "block";
-        text.innerText = "Перезапуск...";
-      });
+        ipcRenderer.on("update-downloaded", () => {
+          updateBox.innerHTML = "";
+
+          const title = document.createElement("div");
+          title.textContent = "Обновление загружено";
+          title.style.fontWeight = "800";
+          title.style.marginBottom = "8px";
+
+          const text = document.createElement("div");
+          text.textContent = "Перезапусти приложение, чтобы установить новую версию.";
+          text.style.color = "#cbd5e1";
+          text.style.fontSize = "14px";
+          text.style.marginBottom = "12px";
+
+          const button = document.createElement("button");
+          button.textContent = "Перезапустить";
+          button.style.background = "#06b6d4";
+          button.style.color = "white";
+          button.style.border = "none";
+          button.style.borderRadius = "12px";
+          button.style.padding = "10px 14px";
+          button.style.fontWeight = "800";
+          button.style.cursor = "pointer";
+
+          button.addEventListener("click", () => {
+            ipcRenderer.send("restart-app");
+          });
+
+          updateBox.appendChild(title);
+          updateBox.appendChild(text);
+          updateBox.appendChild(button);
+
+          updateBox.style.display = "block";
+        });
+      } catch (error) {
+        console.log("Electron update UI disabled:", error);
+      }
     }
   </script>
-
 </body>
 </html>
