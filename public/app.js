@@ -2691,3 +2691,821 @@ if (savedUser) {
   currentUser = savedUser;
   startApp();
 }
+
+/* =========================================================
+   DARK MESSENGER — МЕНЮ СООБЩЕНИЯ КАК В TELEGRAM
+   ПКМ: Ответить / Редактировать / Удалить
+   ВСТАВЛЕНО В КОНЕЦ app.js
+   ========================================================= */
+
+let contextSelectedMessage = null;
+let replyToMessage = null;
+let editingMessage = null;
+
+let messageContextMenu = null;
+let replyPanel = null;
+let editPanel = null;
+let replyPanelText = null;
+
+function setupTelegramMessageMenu() {
+  setupTelegramMenuStyles();
+  createMessageContextMenu();
+  createReplyAndEditPanels();
+}
+
+function setupTelegramMenuStyles() {
+  if (document.getElementById("telegramMessageMenuStyles")) return;
+
+  const style = document.createElement("style");
+  style.id = "telegramMessageMenuStyles";
+
+  style.textContent = `
+    .telegram-message-menu {
+      position: fixed;
+      z-index: 999999;
+      width: 220px;
+      padding: 7px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(18px);
+      animation: telegramMenuShow 0.12s ease-out;
+    }
+
+    .telegram-message-menu.hidden {
+      display: none;
+    }
+
+    .telegram-message-menu button {
+      width: 100%;
+      height: 40px;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: #e5e7eb;
+      border-radius: 11px;
+      padding: 0 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      font-size: 14px;
+      font-weight: 700;
+      text-align: left;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .telegram-message-menu button:hover {
+      background: rgba(148, 163, 184, 0.13);
+    }
+
+    .telegram-message-menu button.danger {
+      color: #fb7185;
+    }
+
+    .telegram-message-menu button.danger:hover {
+      background: rgba(251, 113, 133, 0.14);
+    }
+
+    .telegram-message-menu-icon {
+      width: 22px;
+      text-align: center;
+      font-size: 15px;
+    }
+
+    @keyframes telegramMenuShow {
+      from {
+        opacity: 0;
+        transform: scale(0.96) translateY(-4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .dm-reply-panel,
+    .dm-edit-panel {
+      margin: 8px 0 10px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dm-reply-panel.hidden,
+    .dm-edit-panel.hidden {
+      display: none;
+    }
+
+    .dm-reply-line,
+    .dm-edit-line {
+      width: 3px;
+      align-self: stretch;
+      min-height: 36px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+    }
+
+    .dm-reply-line {
+      background: #22d3ee;
+    }
+
+    .dm-edit-line {
+      background: #f59e0b;
+    }
+
+    .dm-panel-content {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .dm-panel-title {
+      font-size: 12px;
+      font-weight: 900;
+      margin-bottom: 3px;
+    }
+
+    .dm-reply-panel .dm-panel-title {
+      color: #67e8f9;
+    }
+
+    .dm-edit-panel .dm-panel-title {
+      color: #fbbf24;
+    }
+
+    .dm-panel-text {
+      color: #cbd5e1;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dm-panel-close {
+      width: 30px;
+      height: 30px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(148, 163, 184, 0.13);
+      color: white;
+      cursor: pointer;
+      font-size: 20px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+
+    .dm-panel-close:hover {
+      background: rgba(148, 163, 184, 0.22);
+    }
+
+    .message {
+      position: relative;
+    }
+
+    .message-reply-preview {
+      margin-bottom: 8px;
+      padding: 7px 9px;
+      border-radius: 11px;
+      border-left: 3px solid #22d3ee;
+      background: rgba(34, 211, 238, 0.12);
+      overflow: hidden;
+    }
+
+    .message.mine .message-reply-preview {
+      border-left-color: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.13);
+    }
+
+    .message-reply-author {
+      font-size: 12px;
+      font-weight: 900;
+      color: #67e8f9;
+      margin-bottom: 2px;
+    }
+
+    .message.mine .message-reply-author {
+      color: rgba(255, 255, 255, 0.82);
+    }
+
+    .message-reply-text {
+      font-size: 12px;
+      color: rgba(226, 232, 240, 0.78);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .message-edited {
+      opacity: 0.72;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function createMessageContextMenu() {
+  if (document.getElementById("telegramMessageContextMenu")) {
+    messageContextMenu = document.getElementById("telegramMessageContextMenu");
+    return;
+  }
+
+  messageContextMenu = document.createElement("div");
+  messageContextMenu.id = "telegramMessageContextMenu";
+  messageContextMenu.className = "telegram-message-menu hidden";
+
+  messageContextMenu.innerHTML = `
+    <button id="telegramReplyBtn" type="button">
+      <span class="telegram-message-menu-icon">↩</span>
+      Ответить
+    </button>
+
+    <button id="telegramEditBtn" type="button">
+      <span class="telegram-message-menu-icon">✎</span>
+      Редактировать
+    </button>
+
+    <button id="telegramDeleteBtn" type="button" class="danger">
+      <span class="telegram-message-menu-icon">🗑</span>
+      Удалить
+    </button>
+  `;
+
+  document.body.appendChild(messageContextMenu);
+
+  const replyBtn = document.getElementById("telegramReplyBtn");
+  const editBtn = document.getElementById("telegramEditBtn");
+  const deleteBtn = document.getElementById("telegramDeleteBtn");
+
+  if (replyBtn) {
+    replyBtn.addEventListener("click", () => {
+      if (!contextSelectedMessage) return;
+
+      replyToMessage = {
+        id: contextSelectedMessage.id,
+        text: contextSelectedMessage.text,
+        username: contextSelectedMessage.username,
+        displayName: contextSelectedMessage.displayName
+      };
+
+      hideEditPanel();
+      showReplyPanel(replyToMessage);
+      hideMessageContextMenu();
+
+      if (messageInput) {
+        messageInput.focus();
+      }
+    });
+  }
+
+  if (editBtn) {
+    editBtn.addEventListener("click", () => {
+      if (!contextSelectedMessage) return;
+      if (!contextSelectedMessage.mine) return;
+
+      editingMessage = {
+        id: contextSelectedMessage.id,
+        text: contextSelectedMessage.text
+      };
+
+      hideReplyPanel();
+      showEditPanel();
+
+      if (messageInput) {
+        messageInput.value = contextSelectedMessage.text;
+        messageInput.focus();
+        messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+      }
+
+      if (sendBtn) {
+        sendBtn.textContent = "Сохранить";
+      }
+
+      hideMessageContextMenu();
+    });
+  }
+
+  if (deleteBtn) {
+    deleteBtn.addEventListener("click", () => {
+      if (!contextSelectedMessage) return;
+      if (!contextSelectedMessage.mine) return;
+
+      deleteMessage(contextSelectedMessage.id);
+      hideMessageContextMenu();
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#telegramMessageContextMenu")) {
+      hideMessageContextMenu();
+    }
+  });
+
+  window.addEventListener("resize", hideMessageContextMenu);
+  window.addEventListener("scroll", hideMessageContextMenu);
+}
+
+function createReplyAndEditPanels() {
+  if (!sendBtn || !sendBtn.parentElement) return;
+
+  const inputBox = sendBtn.parentElement;
+  const parent = inputBox.parentElement;
+
+  if (!parent) return;
+
+  if (!document.getElementById("dmReplyPanel")) {
+    replyPanel = document.createElement("div");
+    replyPanel.id = "dmReplyPanel";
+    replyPanel.className = "dm-reply-panel hidden";
+
+    replyPanel.innerHTML = `
+      <div class="dm-reply-line"></div>
+
+      <div class="dm-panel-content">
+        <div class="dm-panel-title">Ответ на сообщение</div>
+        <div id="dmReplyPanelText" class="dm-panel-text"></div>
+      </div>
+
+      <button id="dmCancelReplyBtn" class="dm-panel-close" type="button">×</button>
+    `;
+
+    parent.insertBefore(replyPanel, inputBox);
+
+    replyPanelText = document.getElementById("dmReplyPanelText");
+
+    const cancelReplyBtn = document.getElementById("dmCancelReplyBtn");
+
+    if (cancelReplyBtn) {
+      cancelReplyBtn.addEventListener("click", () => {
+        hideReplyPanel();
+
+        if (messageInput) {
+          messageInput.focus();
+        }
+      });
+    }
+  } else {
+    replyPanel = document.getElementById("dmReplyPanel");
+    replyPanelText = document.getElementById("dmReplyPanelText");
+  }
+
+  if (!document.getElementById("dmEditPanel")) {
+    editPanel = document.createElement("div");
+    editPanel.id = "dmEditPanel";
+    editPanel.className = "dm-edit-panel hidden";
+
+    editPanel.innerHTML = `
+      <div class="dm-edit-line"></div>
+
+      <div class="dm-panel-content">
+        <div class="dm-panel-title">Редактирование сообщения</div>
+        <div class="dm-panel-text">Измени текст и нажми «Сохранить»</div>
+      </div>
+
+      <button id="dmCancelEditBtn" class="dm-panel-close" type="button">×</button>
+    `;
+
+    parent.insertBefore(editPanel, inputBox);
+
+    const cancelEditBtn = document.getElementById("dmCancelEditBtn");
+
+    if (cancelEditBtn) {
+      cancelEditBtn.addEventListener("click", () => {
+        hideEditPanel();
+
+        if (messageInput) {
+          messageInput.value = "";
+          messageInput.focus();
+        }
+      });
+    }
+  } else {
+    editPanel = document.getElementById("dmEditPanel");
+  }
+}
+
+function showReplyPanel(message) {
+  createReplyAndEditPanels();
+
+  if (!replyPanel || !replyPanelText) return;
+
+  replyPanelText.textContent = message.text || "Медиа";
+  replyPanel.classList.remove("hidden");
+}
+
+function hideReplyPanel() {
+  replyToMessage = null;
+
+  if (replyPanel) {
+    replyPanel.classList.add("hidden");
+  }
+
+  if (replyPanelText) {
+    replyPanelText.textContent = "";
+  }
+}
+
+function showEditPanel() {
+  createReplyAndEditPanels();
+
+  if (editPanel) {
+    editPanel.classList.remove("hidden");
+  }
+
+  if (sendBtn) {
+    sendBtn.textContent = "Сохранить";
+  }
+}
+
+function hideEditPanel() {
+  editingMessage = null;
+
+  if (editPanel) {
+    editPanel.classList.add("hidden");
+  }
+
+  if (sendBtn) {
+    sendBtn.textContent = "Отправить";
+  }
+}
+
+function cancelMessageModes() {
+  hideReplyPanel();
+  hideEditPanel();
+  hideMessageContextMenu();
+}
+
+function openMessageContextMenu(event, message) {
+  setupTelegramMessageMenu();
+
+  contextSelectedMessage = message;
+
+  if (!messageContextMenu) return;
+
+  const editBtn = document.getElementById("telegramEditBtn");
+  const deleteBtn = document.getElementById("telegramDeleteBtn");
+
+  if (message.mine) {
+    if (editBtn) editBtn.style.display = "flex";
+    if (deleteBtn) deleteBtn.style.display = "flex";
+  } else {
+    if (editBtn) editBtn.style.display = "none";
+    if (deleteBtn) deleteBtn.style.display = "none";
+  }
+
+  messageContextMenu.classList.remove("hidden");
+
+  const rect = messageContextMenu.getBoundingClientRect();
+
+  let x = event.clientX;
+  let y = event.clientY;
+
+  if (x + rect.width > window.innerWidth) {
+    x = window.innerWidth - rect.width - 10;
+  }
+
+  if (y + rect.height > window.innerHeight) {
+    y = window.innerHeight - rect.height - 10;
+  }
+
+  messageContextMenu.style.left = x + "px";
+  messageContextMenu.style.top = y + "px";
+}
+
+function hideMessageContextMenu() {
+  if (messageContextMenu) {
+    messageContextMenu.classList.add("hidden");
+  }
+}
+
+function getMessageTextForAction(message) {
+  if (!message) return "";
+
+  const text = message.text || message.message || "";
+
+  if (text) return String(text);
+
+  if (message.media) {
+    if (message.media.type === "image") return "Фото";
+    if (message.media.type === "video") return "Видео";
+    if (message.media.type === "audio") return "Голосовое сообщение";
+  }
+
+  return "Сообщение";
+}
+
+function buildReplyPayload() {
+  if (!replyToMessage) return null;
+
+  return {
+    id: String(replyToMessage.id || ""),
+    text: String(replyToMessage.text || "").slice(0, 500),
+    username: normalizeUsername(replyToMessage.username || ""),
+    displayName: String(replyToMessage.displayName || "").trim()
+  };
+}
+
+function getReplyFromMessage(message) {
+  return message.replyTo || message.reply_to || null;
+}
+
+function renderReplyPreview(message) {
+  const reply = getReplyFromMessage(message);
+
+  if (!reply) return "";
+
+  const author = reply.displayName || reply.display_name || reply.authorName || reply.username || "Сообщение";
+  const text = reply.text || reply.message || "Медиа";
+
+  return `
+    <div class="message-reply-preview">
+      <div class="message-reply-author">${escapeHtml(author)}</div>
+      <div class="message-reply-text">${escapeHtml(text)}</div>
+    </div>
+  `;
+}
+
+/* =========================================================
+   НОВАЯ ОТПРАВКА: обычное сообщение / ответ / редактирование
+   ========================================================= */
+
+function sendMessage() {
+  if (!currentUser) return;
+
+  const text = messageInput ? messageInput.value.trim() : "";
+
+  if (!text) return;
+
+  stopTyping();
+
+  if (editingMessage) {
+    socket.emit("edit_message", {
+      messageId: editingMessage.id,
+      me: currentUser.username,
+      username: currentUser.username,
+      text
+    });
+
+    if (messageInput) {
+      messageInput.value = "";
+      messageInput.focus();
+    }
+
+    hideEditPanel();
+    return;
+  }
+
+  const replyTo = buildReplyPayload();
+
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("send_message", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      text,
+      replyTo
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("send_group_message", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      text,
+      replyTo
+    });
+  }
+
+  if (messageInput) {
+    messageInput.value = "";
+    messageInput.focus();
+  }
+
+  hideReplyPanel();
+}
+
+/* =========================================================
+   НОВАЯ ОТПРАВКА МЕДИА: фото / видео / голосовое + ответ
+   ========================================================= */
+
+function sendMediaMessage(media) {
+  stopTyping();
+
+  if (!canSendNow()) return;
+
+  const replyTo = buildReplyPayload();
+
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("send_message", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      text: "",
+      media,
+      replyTo
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("send_group_message", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      text: "",
+      media,
+      replyTo
+    });
+  }
+
+  hideReplyPanel();
+}
+
+/* =========================================================
+   НОВОЕ УДАЛЕНИЕ
+   ========================================================= */
+
+async function deleteMessage(messageId) {
+  if (!currentUser || !messageId) return;
+
+  const ok = confirm("Удалить сообщение у всех?");
+
+  if (!ok) return;
+
+  try {
+    destroyVoicePlayer(messageId);
+
+    socket.emit("delete_message", {
+      messageId,
+      me: currentUser.username,
+      username: currentUser.username
+    });
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+/* =========================================================
+   НОВАЯ ОТРИСОВКА СООБЩЕНИЙ
+   ========================================================= */
+
+function renderMessages() {
+  setupTelegramMessageMenu();
+
+  if (!messagesBox) return;
+
+  destroyAllVoicePlayers();
+
+  messagesBox.innerHTML = "";
+
+  if (!messagesCache.length) {
+    messagesBox.innerHTML = `<div class="empty">Сообщений пока нет. Напиши первым.</div>`;
+    return;
+  }
+
+  messagesCache.forEach((message) => {
+    const mine = message.from === currentUser.username || message.username === currentUser.username;
+    const canEditOrDelete = mine && message.id;
+    const isAudio = message.media && message.media.type === "audio";
+
+    const bubble = document.createElement("div");
+    bubble.className = mine ? "message mine" : "message";
+
+    bubble.dataset.messageId = String(message.id || "");
+    bubble.dataset.messageMine = mine ? "true" : "false";
+
+    const text = message.text || message.message || "";
+    const mediaHtml = renderMedia(message.media, message, mine, false);
+    const replyHtml = renderReplyPreview(message);
+
+    bubble.innerHTML = `
+      <div class="message-name">${escapeHtml(message.displayName || message.username || "")}</div>
+      ${replyHtml}
+      ${mediaHtml}
+      ${text ? `<div class="message-text">${escapeHtml(text)}</div>` : ""}
+      ${
+        !isAudio
+          ? `
+            <div class="message-time">
+              ${formatTime(message.created_at)}
+              ${message.edited ? `<span class="message-edited">изменено</span>` : ""}
+            </div>
+          `
+          : ""
+      }
+    `;
+
+    bubble.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+
+      openMessageContextMenu(event, {
+        id: String(message.id || ""),
+        text: getMessageTextForAction(message),
+        username: message.username || message.from || "",
+        displayName: message.displayName || message.username || "",
+        mine: canEditOrDelete,
+        message
+      });
+    });
+
+    messagesBox.appendChild(bubble);
+
+    if (isAudio) {
+      initVoicePlayer(message);
+    }
+  });
+
+  messagesBox.scrollTop = messagesBox.scrollHeight;
+}
+
+/* =========================================================
+   СОБЫТИЯ ОТ СЕРВЕРА: РЕДАКТИРОВАНИЕ / УДАЛЕНИЕ
+   ========================================================= */
+
+function handleMessageEdited(data) {
+  if (!data) return;
+
+  const id = String(data.id || data.messageId || "");
+
+  if (!id) return;
+
+  messagesCache = messagesCache.map((message) => {
+    if (String(message.id) !== id) return message;
+
+    return {
+      ...message,
+      text: data.text || data.message || message.text || "",
+      message: data.text || data.message || message.message || "",
+      edited: true,
+      updatedAt: data.updatedAt || data.updated_at || new Date().toISOString()
+    };
+  });
+
+  renderMessages();
+  loadRecentChats();
+}
+
+function handleMessageDeleted(data) {
+  if (!data) return;
+
+  const id = String(data.id || data.messageId || "");
+
+  if (!id) return;
+
+  destroyVoicePlayer(id);
+
+  messagesCache = messagesCache.filter((message) => String(message.id) !== id);
+
+  if (contextSelectedMessage && String(contextSelectedMessage.id) === id) {
+    contextSelectedMessage = null;
+  }
+
+  if (replyToMessage && String(replyToMessage.id) === id) {
+    hideReplyPanel();
+  }
+
+  if (editingMessage && String(editingMessage.id) === id) {
+    hideEditPanel();
+  }
+
+  renderMessages();
+  loadRecentChats();
+}
+
+socket.on("message_edited", handleMessageEdited);
+socket.on("message-edited", handleMessageEdited);
+socket.on("group_message_edited", handleMessageEdited);
+
+socket.on("message_deleted", handleMessageDeleted);
+socket.on("message-deleted", handleMessageDeleted);
+socket.on("group_message_deleted", handleMessageDeleted);
+
+socket.on("message_error", (data) => {
+  if (!data) return;
+
+  alert(data.error || "Ошибка сообщения");
+});
+
+/* =========================================================
+   ДОПОЛНИТЕЛЬНО: ESC отменяет ответ/редактирование
+   ========================================================= */
+
+if (messageInput) {
+  messageInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      cancelMessageModes();
+
+      if (messageInput) {
+        messageInput.value = "";
+      }
+    }
+  });
+}
+
+setupTelegramMessageMenu();

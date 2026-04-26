@@ -90,6 +90,24 @@ function cleanMedia(media) {
   };
 }
 
+function cleanReplyTo(replyTo) {
+  if (!replyTo || typeof replyTo !== "object") return null;
+
+  const id = String(replyTo.id || "").trim();
+  const text = String(replyTo.text || replyTo.message || "").trim();
+  const username = normalizeUsername(replyTo.username || replyTo.from || "");
+  const displayName = String(replyTo.displayName || replyTo.display_name || replyTo.authorName || "").trim();
+
+  if (!id && !text) return null;
+
+  return {
+    id,
+    text: text.slice(0, 500),
+    username,
+    displayName
+  };
+}
+
 function isBcryptHash(value) {
   const text = String(value || "");
   return text.startsWith("$2a$") || text.startsWith("$2b$") || text.startsWith("$2y$");
@@ -230,6 +248,9 @@ async function initDB() {
       avatar TEXT DEFAULT '',
       text TEXT DEFAULT '',
       media JSONB,
+      reply_to JSONB,
+      edited BOOLEAN DEFAULT FALSE,
+      updated_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
@@ -242,6 +263,21 @@ async function initDB() {
   await pool.query(`
     ALTER TABLE messages
     ADD COLUMN IF NOT EXISTS media JSONB
+  `);
+
+  await pool.query(`
+    ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS reply_to JSONB
+  `);
+
+  await pool.query(`
+    ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS edited BOOLEAN DEFAULT FALSE
+  `);
+
+  await pool.query(`
+    ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
   `);
 
   console.log("PostgreSQL tables are ready");
@@ -274,6 +310,9 @@ async function getMessagesByChatId(chatId) {
       text,
       text AS message,
       media,
+      reply_to AS "replyTo",
+      edited,
+      updated_at AS "updatedAt",
       created_at
     FROM messages
     WHERE chat_id = $1
@@ -298,9 +337,11 @@ async function saveMessage(message) {
       display_name,
       avatar,
       text,
-      media
+      media,
+      reply_to,
+      edited
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
     RETURNING
       id::text AS id,
       type,
@@ -314,6 +355,9 @@ async function saveMessage(message) {
       text,
       text AS message,
       media,
+      reply_to AS "replyTo",
+      edited,
+      updated_at AS "updatedAt",
       created_at
     `,
     [
@@ -326,7 +370,9 @@ async function saveMessage(message) {
       message.displayName,
       message.avatar || "",
       message.text || "",
-      message.media || null
+      message.media || null,
+      message.replyTo || null,
+      false
     ]
   );
 
@@ -360,6 +406,196 @@ async function updateDirectChatIdsForUsername(client, username) {
   }
 }
 
+async function getMessageById(messageId) {
+  const result = await pool.query(
+    `
+    SELECT
+      id::text AS id,
+      type,
+      chat_id AS "chatId",
+      group_id AS "groupId",
+      from_username AS "from",
+      to_username AS "to",
+      username,
+      display_name AS "displayName",
+      avatar,
+      text,
+      text AS message,
+      media,
+      reply_to AS "replyTo",
+      edited,
+      updated_at AS "updatedAt",
+      created_at
+    FROM messages
+    WHERE id = $1
+    `,
+    [messageId]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function editMessage({ messageId, me, text }) {
+  const cleanMe = normalizeUsername(me);
+  const cleanText = String(text || "").trim();
+
+  if (!messageId || !cleanMe || !cleanText) {
+    return {
+      success: false,
+      status: 400,
+      error: "Не указано сообщение, пользователь или текст"
+    };
+  }
+
+  const oldMessage = await getMessageById(messageId);
+
+  if (!oldMessage) {
+    return {
+      success: false,
+      status: 404,
+      error: "Сообщение не найдено"
+    };
+  }
+
+  if (oldMessage.from !== cleanMe) {
+    return {
+      success: false,
+      status: 403,
+      error: "Можно редактировать только свои сообщения"
+    };
+  }
+
+  const result = await pool.query(
+    `
+    UPDATE messages
+    SET text = $1,
+        edited = TRUE,
+        updated_at = NOW()
+    WHERE id = $2
+    RETURNING
+      id::text AS id,
+      type,
+      chat_id AS "chatId",
+      group_id AS "groupId",
+      from_username AS "from",
+      to_username AS "to",
+      username,
+      display_name AS "displayName",
+      avatar,
+      text,
+      text AS message,
+      media,
+      reply_to AS "replyTo",
+      edited,
+      updated_at AS "updatedAt",
+      created_at
+    `,
+    [cleanText, messageId]
+  );
+
+  return {
+    success: true,
+    message: result.rows[0]
+  };
+}
+
+async function deleteMessageById({ messageId, me }) {
+  const cleanMe = normalizeUsername(me);
+
+  if (!messageId || !cleanMe) {
+    return {
+      success: false,
+      status: 400,
+      error: "Не указано сообщение или пользователь"
+    };
+  }
+
+  const message = await getMessageById(messageId);
+
+  if (!message) {
+    return {
+      success: false,
+      status: 404,
+      error: "Сообщение не найдено"
+    };
+  }
+
+  if (message.from !== cleanMe) {
+    return {
+      success: false,
+      status: 403,
+      error: "Можно удалять только свои сообщения"
+    };
+  }
+
+  await pool.query(
+    `
+    DELETE FROM messages
+    WHERE id = $1
+    `,
+    [messageId]
+  );
+
+  return {
+    success: true,
+    message
+  };
+}
+
+function emitEditedMessage(message) {
+  const payload = {
+    id: String(message.id),
+    messageId: String(message.id),
+    chatId: message.chatId,
+    groupId: message.groupId,
+    type: message.type,
+    text: message.text,
+    message: message.text,
+    edited: true,
+    updatedAt: message.updatedAt
+  };
+
+  io.to(`chat:${message.chatId}`).emit("message_edited", payload);
+  io.to(`chat:${message.chatId}`).emit("message-edited", payload);
+
+  if (message.type === "direct") {
+    io.to(`user:${message.from}`).emit("message_edited", payload);
+    io.to(`user:${message.to}`).emit("message_edited", payload);
+    io.to(`user:${message.from}`).emit("message-edited", payload);
+    io.to(`user:${message.to}`).emit("message-edited", payload);
+  }
+
+  if (message.type === "group") {
+    io.to(`chat:${message.chatId}`).emit("group_message_edited", payload);
+  }
+}
+
+function emitDeletedMessage(message) {
+  const payload = {
+    id: String(message.id),
+    messageId: String(message.id),
+    chatId: message.chatId,
+    groupId: message.groupId,
+    from: message.from,
+    to: message.to,
+    type: message.type
+  };
+
+  io.to(`chat:${message.chatId}`).emit("message_deleted", payload);
+  io.to(`chat:${message.chatId}`).emit("message-deleted", payload);
+
+  if (message.type === "direct") {
+    io.to(`user:${message.from}`).emit("message_deleted", payload);
+    io.to(`user:${message.to}`).emit("message_deleted", payload);
+    io.to(`user:${message.from}`).emit("message-deleted", payload);
+    io.to(`user:${message.to}`).emit("message-deleted", payload);
+  }
+
+  if (message.type === "group") {
+    io.to(`chat:${message.chatId}`).emit("group_message_deleted", payload);
+  }
+}
+
 initDB().catch((error) => {
   console.error("Database init error:", error);
 });
@@ -376,6 +612,8 @@ app.get("/api/health", async (req, res) => {
       realtime: "online_typing",
       avatars: "enabled",
       deleteMessages: "enabled",
+      editMessages: "enabled",
+      replyMessages: "enabled",
       profileEdit: "enabled"
     });
   } catch (error) {
@@ -879,74 +1117,71 @@ app.get("/api/messages", async (req, res) => {
   }
 });
 
+app.put("/api/messages/:id", async (req, res) => {
+  try {
+    const messageId = String(req.params.id);
+    const me = normalizeUsername(req.body.me || req.query.me);
+    const text = String(req.body.text || req.body.message || "").trim();
+
+    const result = await editMessage({
+      messageId,
+      me,
+      text
+    });
+
+    if (!result.success) {
+      return res.status(result.status || 400).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+    emitEditedMessage(result.message);
+
+    res.json({
+      success: true,
+      message: result.message
+    });
+  } catch (error) {
+    console.error("Edit message error:", error);
+
+    res.status(500).json({
+      success: false,
+      error: "Ошибка редактирования сообщения"
+    });
+  }
+});
+
 app.delete("/api/messages/:id", async (req, res) => {
   try {
     const messageId = String(req.params.id);
     const me = normalizeUsername(req.query.me || req.body.me);
 
-    if (!messageId || !me) {
-      return res.status(400).json({
+    const result = await deleteMessageById({
+      messageId,
+      me
+    });
+
+    if (!result.success) {
+      return res.status(result.status || 400).json({
         success: false,
-        error: "Не указано сообщение или пользователь"
+        error: result.error
       });
     }
 
-    const messageResult = await pool.query(
-      `
-      SELECT *
-      FROM messages
-      WHERE id = $1
-      `,
-      [messageId]
-    );
-
-    const message = messageResult.rows[0];
-
-    if (!message) {
-      return res.status(404).json({
-        success: false,
-        error: "Сообщение не найдено"
-      });
-    }
-
-    if (message.type !== "direct") {
-      return res.status(400).json({
-        success: false,
-        error: "Пока можно удалять только сообщения в личном чате"
-      });
-    }
-
-    if (message.from_username !== me) {
-      return res.status(403).json({
-        success: false,
-        error: "Можно удалять только свои сообщения"
-      });
-    }
-
-    await pool.query(
-      `
-      DELETE FROM messages
-      WHERE id = $1
-      `,
-      [messageId]
-    );
-
-    const deletedMessage = {
-      id: String(message.id),
-      chatId: message.chat_id,
-      from: message.from_username,
-      to: message.to_username,
-      type: message.type
-    };
-
-    io.to(`user:${message.from_username}`).emit("message_deleted", deletedMessage);
-    io.to(`user:${message.to_username}`).emit("message_deleted", deletedMessage);
-    io.to(`chat:${message.chat_id}`).emit("message_deleted", deletedMessage);
+    emitDeletedMessage(result.message);
 
     res.json({
       success: true,
       deleted: true,
-      message: deletedMessage
+      message: {
+        id: String(result.message.id),
+        chatId: result.message.chatId,
+        from: result.message.from,
+        to: result.message.to,
+        type: result.message.type,
+        groupId: result.message.groupId
+      }
     });
   } catch (error) {
     console.error("Delete message error:", error);
@@ -1461,6 +1696,7 @@ io.on("connection", (socket) => {
       const to = normalizeUsername(data && data.to);
       const text = String((data && (data.text || data.message)) || "").trim();
       const media = cleanMedia(data && data.media);
+      const replyTo = cleanReplyTo(data && (data.replyTo || data.reply_to));
 
       if (!from || !to || (!text && !media)) return;
 
@@ -1480,7 +1716,8 @@ io.on("connection", (socket) => {
         displayName: sender.display_name,
         avatar: sender.avatar || "",
         text,
-        media
+        media,
+        replyTo
       });
 
       io.to(`user:${from}`).emit("new_message", savedMessage);
@@ -1503,6 +1740,7 @@ io.on("connection", (socket) => {
       const groupId = String((data && data.groupId) || "");
       const text = String((data && (data.text || data.message)) || "").trim();
       const media = cleanMedia(data && data.media);
+      const replyTo = cleanReplyTo(data && (data.replyTo || data.reply_to));
 
       if (!from || !groupId || (!text && !media)) return;
 
@@ -1528,7 +1766,8 @@ io.on("connection", (socket) => {
         displayName: sender.display_name,
         avatar: sender.avatar || "",
         text,
-        media
+        media,
+        replyTo
       });
 
       io.to(`chat:${chatId}`).emit("new_group_message", savedMessage);
@@ -1544,6 +1783,130 @@ io.on("connection", (socket) => {
       });
     } catch (error) {
       console.error("Send group message error:", error);
+    }
+  });
+
+  socket.on("edit_message", async (data) => {
+    try {
+      const messageId = String((data && (data.messageId || data.id)) || "");
+      const me = normalizeUsername(data && (data.me || data.from || data.username));
+      const text = String((data && (data.text || data.message)) || "").trim();
+
+      const result = await editMessage({
+        messageId,
+        me,
+        text
+      });
+
+      if (!result.success) {
+        socket.emit("message_error", {
+          action: "edit",
+          error: result.error
+        });
+
+        return;
+      }
+
+      emitEditedMessage(result.message);
+    } catch (error) {
+      console.error("Socket edit message error:", error);
+
+      socket.emit("message_error", {
+        action: "edit",
+        error: "Ошибка редактирования сообщения"
+      });
+    }
+  });
+
+  socket.on("edit-message", async (data) => {
+    try {
+      const messageId = String((data && (data.messageId || data.id)) || "");
+      const me = normalizeUsername(data && (data.me || data.from || data.username));
+      const text = String((data && (data.text || data.message)) || "").trim();
+
+      const result = await editMessage({
+        messageId,
+        me,
+        text
+      });
+
+      if (!result.success) {
+        socket.emit("message_error", {
+          action: "edit",
+          error: result.error
+        });
+
+        return;
+      }
+
+      emitEditedMessage(result.message);
+    } catch (error) {
+      console.error("Socket edit-message error:", error);
+
+      socket.emit("message_error", {
+        action: "edit",
+        error: "Ошибка редактирования сообщения"
+      });
+    }
+  });
+
+  socket.on("delete_message", async (data) => {
+    try {
+      const messageId = String((data && (data.messageId || data.id)) || "");
+      const me = normalizeUsername(data && (data.me || data.from || data.username));
+
+      const result = await deleteMessageById({
+        messageId,
+        me
+      });
+
+      if (!result.success) {
+        socket.emit("message_error", {
+          action: "delete",
+          error: result.error
+        });
+
+        return;
+      }
+
+      emitDeletedMessage(result.message);
+    } catch (error) {
+      console.error("Socket delete message error:", error);
+
+      socket.emit("message_error", {
+        action: "delete",
+        error: "Ошибка удаления сообщения"
+      });
+    }
+  });
+
+  socket.on("delete-message", async (data) => {
+    try {
+      const messageId = String((data && (data.messageId || data.id)) || "");
+      const me = normalizeUsername(data && (data.me || data.from || data.username));
+
+      const result = await deleteMessageById({
+        messageId,
+        me
+      });
+
+      if (!result.success) {
+        socket.emit("message_error", {
+          action: "delete",
+          error: result.error
+        });
+
+        return;
+      }
+
+      emitDeletedMessage(result.message);
+    } catch (error) {
+      console.error("Socket delete-message error:", error);
+
+      socket.emit("message_error", {
+        action: "delete",
+        error: "Ошибка удаления сообщения"
+      });
     }
   });
 
