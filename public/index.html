@@ -6,7 +6,7 @@
 
   <title>Callibri</title>
 
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=callibri-4" />
 </head>
 <body>
   <!-- ВХОД / РЕГИСТРАЦИЯ -->
@@ -104,13 +104,13 @@
   </div>
 
   <!-- SOCKET.IO -->
-  <script src="/socket.io/socket.io.js"></script>
+  <script src="/socket.io/socket.io.js?v=callibri-4"></script>
 
   <!-- WAVESURFER ДЛЯ КРАСИВЫХ ГОЛОСОВЫХ -->
   <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
 
   <!-- ОСНОВНАЯ ЛОГИКА -->
-  <script src="app.js"></script>
+  <script src="app.js?v=callibri-4"></script>
 
   <!-- ЛОГИКА ОКНА ОБНОВЛЕНИЯ ДЛЯ ELECTRON -->
   <script>
@@ -183,46 +183,5 @@
       }
     }
   </script>
-<!-- Меню сообщения по ПКМ -->
-<div id="messageContextMenu" class="message-context-menu hidden">
-  <button id="replyMessageBtn" type="button">
-    <span>↩</span>
-    Ответить
-  </button>
-
-  <button id="editMessageBtn" type="button">
-    <span>✎</span>
-    Редактировать
-  </button>
-
-  <button id="deleteMessageBtn" type="button" class="danger">
-    <span>🗑</span>
-    Удалить
-  </button>
-</div>
-
-<!-- Панель ответа -->
-<div id="replyPanel" class="reply-panel hidden">
-  <div class="reply-panel-line"></div>
-
-  <div class="reply-panel-content">
-    <div class="reply-panel-title">Ответ на сообщение</div>
-    <div id="replyText" class="reply-panel-text"></div>
-  </div>
-
-  <button id="cancelReplyBtn" class="reply-panel-close" type="button">×</button>
-</div>
-
-<!-- Панель редактирования -->
-<div id="editPanel" class="edit-panel hidden">
-  <div class="edit-panel-line"></div>
-
-  <div class="edit-panel-content">
-    <div class="edit-panel-title">Редактирование сообщения</div>
-    <div class="edit-panel-text">Измени текст и нажми отправить</div>
-  </div>
-
-  <button id="cancelEditBtn" class="edit-panel-close" type="button">×</button>
-</div>
 </body>
 </html>
