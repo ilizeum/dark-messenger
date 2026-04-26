@@ -31,7 +31,6 @@ let visualizerAnimationFrame = null;
 
 let liveWaveformBars = [];
 let finalVoiceBlob = null;
-let finalVoiceMimeType = "audio/webm";
 
 let notificationPermissionRequested = false;
 let typingTimer = null;
@@ -92,19 +91,6 @@ let recordingVisualizer = null;
 let recordingCancelBtn = null;
 let recordingSendBtn = null;
 
-/* =========================================================
-   MESSAGE MENU / REPLY / EDIT STATE
-   ========================================================= */
-
-let contextSelectedMessage = null;
-let replyToMessage = null;
-let editingMessage = null;
-
-let messageContextMenu = null;
-let replyPanel = null;
-let editPanel = null;
-let replyPanelText = null;
-
 function normalizeUsername(username) {
   return String(username || "")
     .trim()
@@ -150,39 +136,33 @@ function saveUser(user) {
 
   sessionStorage.removeItem("darkMessengerUser");
   localStorage.removeItem("darkMessengerUser");
-  sessionStorage.removeItem("callibriUser");
-  localStorage.removeItem("callibriUser");
 
   if (remember) {
-    localStorage.setItem("callibriUser", JSON.stringify(user));
+    localStorage.setItem("darkMessengerUser", JSON.stringify(user));
   } else {
-    sessionStorage.setItem("callibriUser", JSON.stringify(user));
+    sessionStorage.setItem("darkMessengerUser", JSON.stringify(user));
   }
 }
 
 function updateSavedUser(user) {
   currentUser = user;
 
-  const hasLocal =
-    Boolean(localStorage.getItem("callibriUser")) ||
-    Boolean(localStorage.getItem("darkMessengerUser"));
+  const hasLocal = Boolean(localStorage.getItem("darkMessengerUser"));
 
   sessionStorage.removeItem("darkMessengerUser");
   localStorage.removeItem("darkMessengerUser");
-  sessionStorage.removeItem("callibriUser");
-  localStorage.removeItem("callibriUser");
 
   if (hasLocal) {
-    localStorage.setItem("callibriUser", JSON.stringify(user));
+    localStorage.setItem("darkMessengerUser", JSON.stringify(user));
   } else {
-    sessionStorage.setItem("callibriUser", JSON.stringify(user));
+    sessionStorage.setItem("darkMessengerUser", JSON.stringify(user));
   }
 }
 
 function loadSavedUser() {
   try {
-    const localUser = localStorage.getItem("callibriUser") || localStorage.getItem("darkMessengerUser");
-    const sessionUser = sessionStorage.getItem("callibriUser") || sessionStorage.getItem("darkMessengerUser");
+    const localUser = localStorage.getItem("darkMessengerUser");
+    const sessionUser = sessionStorage.getItem("darkMessengerUser");
 
     if (localUser) {
       if (rememberMeInput) rememberMeInput.checked = true;
@@ -207,8 +187,6 @@ function logout() {
 
   localStorage.removeItem("darkMessengerUser");
   sessionStorage.removeItem("darkMessengerUser");
-  localStorage.removeItem("callibriUser");
-  sessionStorage.removeItem("callibriUser");
 
   currentUser = null;
   selectedUser = null;
@@ -235,7 +213,6 @@ function logout() {
   if (sendBtn) sendBtn.disabled = true;
 
   hideGroupActions();
-  cancelMessageModes();
 }
 
 async function register() {
@@ -534,8 +511,6 @@ function handleTypingInput() {
     stopTyping();
     return;
   }
-
-  if (editingMessage) return;
 
   emitTypingStart();
 
@@ -1228,7 +1203,6 @@ function closeRecordingPanel() {
   if (recordingVisualizer) recordingVisualizer.innerHTML = "";
 
   finalVoiceBlob = null;
-  finalVoiceMimeType = "audio/webm";
   liveWaveformBars = [];
 }
 
@@ -1344,25 +1318,6 @@ function normalizeWaveformBars(bars, targetCount = 96) {
   return result;
 }
 
-/* =========================================================
-   HIGH QUALITY VOICE RECORDING
-   ========================================================= */
-
-function getBestAudioMimeType() {
-  const types = [
-    "audio/webm;codecs=opus",
-    "audio/ogg;codecs=opus",
-    "audio/webm",
-    "audio/ogg"
-  ];
-
-  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) {
-    return "";
-  }
-
-  return types.find((type) => MediaRecorder.isTypeSupported(type)) || "";
-}
-
 async function toggleVoiceRecording() {
   if (!canSendNow()) return;
 
@@ -1378,35 +1333,24 @@ async function toggleVoiceRecording() {
 
   try {
     recordingStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        channelCount: 1,
-        sampleRate: 48000,
-        sampleSize: 16
-      }
+      audio: true
     });
 
     recordedChunks = [];
     finalVoiceBlob = null;
     liveWaveformBars = [];
 
-    const selectedMimeType = getBestAudioMimeType();
+    let recorderOptions = {};
 
-    const recorderOptions = {
-      audioBitsPerSecond: 128000
-    };
-
-    if (selectedMimeType) {
-      recorderOptions.mimeType = selectedMimeType;
+    if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported("audio/webm")) {
+      recorderOptions = {
+        mimeType: "audio/webm"
+      };
     }
 
     mediaRecorder = new MediaRecorder(recordingStream, recorderOptions);
 
-    audioContext = new (window.AudioContext || window.webkitAudioContext)({
-      sampleRate: 48000
-    });
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
     const source = audioContext.createMediaStreamSource(recordingStream);
     analyserNode = audioContext.createAnalyser();
@@ -1420,21 +1364,18 @@ async function toggleVoiceRecording() {
     };
 
     mediaRecorder.onstop = () => {
-      const finalType = selectedMimeType || "audio/webm";
-
       const blob = new Blob(recordedChunks, {
-        type: finalType
+        type: "audio/webm"
       });
 
       finalVoiceBlob = blob;
-      finalVoiceMimeType = finalType;
 
       if (recordingSendBtn) {
         recordingSendBtn.disabled = !blob.size;
       }
     };
 
-    mediaRecorder.start(250);
+    mediaRecorder.start();
     isRecording = true;
 
     openRecordingPanel();
@@ -1448,8 +1389,7 @@ async function toggleVoiceRecording() {
       voiceBtn.disabled = false;
     }
   } catch (error) {
-    console.error("Voice recording error:", error);
-    alert("Разреши доступ к микрофону. Если звук плохой — проверь, что выбран не Bluetooth Hands-Free микрофон.");
+    alert("Разреши доступ к микрофону.");
     cancelVoiceRecording();
   }
 }
@@ -1505,7 +1445,6 @@ function cancelVoiceRecording() {
 
   recordedChunks = [];
   finalVoiceBlob = null;
-  finalVoiceMimeType = "audio/webm";
   liveWaveformBars = [];
   isRecording = false;
 
@@ -1533,33 +1472,44 @@ async function sendRecordedVoice() {
     const elapsed = Math.max(1000, Date.now() - recordingStartTime);
     const waveform = normalizeWaveformBars(liveWaveformBars, 96);
 
-    let fileName = "voice.webm";
-
-    if ((finalVoiceBlob.type || finalVoiceMimeType).includes("ogg")) {
-      fileName = "voice.ogg";
-    }
-
     sendMediaMessage({
       type: "audio",
       url,
-      name: fileName,
+      name: "voice.webm",
       isVoice: true,
       durationMs: elapsed,
-      waveform,
-      mimeType: finalVoiceBlob.type || finalVoiceMimeType || "audio/webm",
-      quality: "high"
+      waveform
     });
 
     closeRecordingPanel();
   } catch (error) {
-    console.error("Send voice error:", error);
     alert("Не удалось отправить голосовое");
   }
 }
 
-/* =========================================================
-   APP START / CHATS
-   ========================================================= */
+function sendMediaMessage(media) {
+  stopTyping();
+
+  if (!canSendNow()) return;
+
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("send_message", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      text: "",
+      media
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("send_group_message", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      text: "",
+      media
+    });
+  }
+}
 
 async function startApp() {
   if (!currentUser) return;
@@ -1568,7 +1518,6 @@ async function startApp() {
   setupGroupUI();
   setupGroupActionsUI();
   setupMessageTools();
-  setupTelegramMessageMenu();
   setupWindowsNotifications();
 
   if (auth) auth.classList.add("hidden");
@@ -1838,7 +1787,6 @@ function renderEmptyChat() {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
-  cancelMessageModes();
 
   selectedUser = null;
   selectedGroup = null;
@@ -1882,7 +1830,6 @@ async function openChat(user) {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
-  cancelMessageModes();
 
   selectedUser = user;
   selectedGroup = null;
@@ -1947,7 +1894,6 @@ async function openGroup(group) {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
-  cancelMessageModes();
 
   selectedGroup = group;
   selectedUser = null;
@@ -2000,10 +1946,6 @@ async function openGroup(group) {
   }
 }
 
-/* =========================================================
-   SEND MESSAGE / MEDIA
-   ========================================================= */
-
 function sendMessage() {
   if (!currentUser) return;
 
@@ -2013,31 +1955,11 @@ function sendMessage() {
 
   stopTyping();
 
-  if (editingMessage) {
-    socket.emit("edit_message", {
-      messageId: editingMessage.id,
-      me: currentUser.username,
-      username: currentUser.username,
-      text
-    });
-
-    if (messageInput) {
-      messageInput.value = "";
-      messageInput.focus();
-    }
-
-    hideEditPanel();
-    return;
-  }
-
-  const replyTo = buildReplyPayload();
-
   if (selectedChatType === "direct" && selectedUser) {
     socket.emit("send_message", {
       from: currentUser.username,
       to: selectedUser.username,
-      text,
-      replyTo
+      text
     });
   }
 
@@ -2045,8 +1967,7 @@ function sendMessage() {
     socket.emit("send_group_message", {
       from: currentUser.username,
       groupId: selectedGroup.id,
-      text,
-      replyTo
+      text
     });
   }
 
@@ -2054,38 +1975,6 @@ function sendMessage() {
     messageInput.value = "";
     messageInput.focus();
   }
-
-  hideReplyPanel();
-}
-
-function sendMediaMessage(media) {
-  stopTyping();
-
-  if (!canSendNow()) return;
-
-  const replyTo = buildReplyPayload();
-
-  if (selectedChatType === "direct" && selectedUser) {
-    socket.emit("send_message", {
-      from: currentUser.username,
-      to: selectedUser.username,
-      text: "",
-      media,
-      replyTo
-    });
-  }
-
-  if (selectedChatType === "group" && selectedGroup) {
-    socket.emit("send_group_message", {
-      from: currentUser.username,
-      groupId: selectedGroup.id,
-      text: "",
-      media,
-      replyTo
-    });
-  }
-
-  hideReplyPanel();
 }
 
 async function deleteMessage(messageId) {
@@ -2098,19 +1987,13 @@ async function deleteMessage(messageId) {
   try {
     destroyVoicePlayer(messageId);
 
-    socket.emit("delete_message", {
-      messageId,
-      me: currentUser.username,
-      username: currentUser.username
+    await request(`/api/messages/${encodeURIComponent(messageId)}?me=${encodeURIComponent(currentUser.username)}`, {
+      method: "DELETE"
     });
   } catch (error) {
     alert(error.message);
   }
 }
-
-/* =========================================================
-   VOICE PLAYERS
-   ========================================================= */
 
 function destroyVoicePlayer(messageId) {
   const id = String(messageId);
@@ -2189,11 +2072,13 @@ function renderVoiceCard(media, message, mine, canDelete) {
       </div>
 
       <div class="voice-card__footer">
-        <span></span>
-        <span class="voice-card__clock">
-          ${escapeHtml(clockText)}
-          ${message.edited ? `<span class="message-edited">изменено</span>` : ""}
-        </span>
+        ${
+          canDelete
+            ? `<button class="delete-message-btn voice-card__delete" data-id="${escapeHtml(id)}" title="Удалить сообщение">🗑</button>`
+            : `<span></span>`
+        }
+
+        <span class="voice-card__clock">${escapeHtml(clockText)}</span>
       </div>
     </div>
   `;
@@ -2324,9 +2209,503 @@ function renderMedia(media, message, mine, canDelete) {
   return "";
 }
 
+function renderMessages() {
+  if (!messagesBox) return;
+
+  destroyAllVoicePlayers();
+
+  messagesBox.innerHTML = "";
+
+  if (!messagesCache.length) {
+    messagesBox.innerHTML = `<div class="empty">Сообщений пока нет. Напиши первым.</div>`;
+    return;
+  }
+
+  messagesCache.forEach((message) => {
+    const mine = message.from === currentUser.username || message.username === currentUser.username;
+    const canDelete = mine && selectedChatType === "direct" && message.id;
+    const isAudio = message.media && message.media.type === "audio";
+
+    const bubble = document.createElement("div");
+    bubble.className = mine ? "message mine" : "message";
+
+    const text = message.text || message.message || "";
+    const mediaHtml = renderMedia(message.media, message, mine, canDelete);
+
+    bubble.innerHTML = `
+      <div class="message-name">${escapeHtml(message.displayName || message.username || "")}</div>
+      ${mediaHtml}
+      ${text ? `<div class="message-text">${escapeHtml(text)}</div>` : ""}
+      ${!isAudio ? `<div class="message-time">${formatTime(message.created_at)}</div>` : ""}
+      ${
+        canDelete && !isAudio
+          ? `<button class="delete-message-btn" data-id="${escapeHtml(message.id)}" title="Удалить сообщение">Удалить</button>`
+          : ""
+      }
+    `;
+
+    const deleteBtn = bubble.querySelector(".delete-message-btn");
+
+    if (deleteBtn && !deleteBtn.classList.contains("voice-card__delete")) {
+      deleteBtn.style.marginTop = "7px";
+      deleteBtn.style.background = "rgba(127, 29, 29, 0.65)";
+      deleteBtn.style.color = "white";
+      deleteBtn.style.borderRadius = "10px";
+      deleteBtn.style.padding = "5px 9px";
+      deleteBtn.style.fontSize = "11px";
+      deleteBtn.style.fontWeight = "700";
+    }
+
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        deleteMessage(deleteBtn.dataset.id);
+      });
+    }
+
+    messagesBox.appendChild(bubble);
+
+    if (isAudio) {
+      initVoicePlayer(message);
+    }
+  });
+
+  messagesBox.scrollTop = messagesBox.scrollHeight;
+}
+
+function shouldShowIncomingDirect(message) {
+  if (!currentUser || !selectedUser || selectedChatType !== "direct") return false;
+
+  const from = message.from || message.username;
+  const to = message.to;
+
+  return (
+    (from === currentUser.username && to === selectedUser.username) ||
+    (from === selectedUser.username && to === currentUser.username)
+  );
+}
+
+function shouldShowIncomingGroup(message) {
+  if (!currentUser || !selectedGroup || selectedChatType !== "group") return false;
+
+  return message.groupId === selectedGroup.id;
+}
+
+socket.on("load_messages", (messages) => {
+  messagesCache = Array.isArray(messages) ? messages : [];
+  renderMessages();
+});
+
+socket.on("message_deleted", (data) => {
+  if (!data || !data.id) return;
+
+  destroyVoicePlayer(data.id);
+
+  messagesCache = messagesCache.filter((message) => String(message.id) !== String(data.id));
+
+  renderMessages();
+  loadRecentChats();
+});
+
+socket.on("profile_updated", (data) => {
+  if (!data || !data.user) return;
+
+  const oldUsername = normalizeUsername(data.oldUsername);
+  const user = data.user;
+
+  if (currentUser && oldUsername === currentUser.username) {
+    updateSavedUser(user);
+
+    if (meName) meName.textContent = currentUser.displayName || currentUser.username;
+    if (meLogin) meLogin.textContent = "@" + currentUser.username;
+
+    renderMyAvatar();
+
+    socket.emit("user_online", {
+      username: currentUser.username
+    });
+  }
+
+  recentChatsCache = recentChatsCache.map((chat) => {
+    if (chat.username === oldUsername || chat.username === user.username) {
+      return {
+        ...chat,
+        id: user.id,
+        displayName: user.displayName,
+        username: user.username,
+        avatar: user.avatar
+      };
+    }
+
+    return chat;
+  });
+
+  usersCache = usersCache.map((item) => {
+    if (item.username === oldUsername || item.username === user.username) {
+      return {
+        ...item,
+        id: user.id,
+        displayName: user.displayName,
+        username: user.username,
+        avatar: user.avatar
+      };
+    }
+
+    return item;
+  });
+
+  if (selectedUser && (selectedUser.username === oldUsername || selectedUser.username === user.username)) {
+    selectedUser = {
+      ...selectedUser,
+      id: user.id,
+      displayName: user.displayName,
+      username: user.username,
+      avatar: user.avatar
+    };
+
+    if (chatName) chatName.textContent = selectedUser.displayName || selectedUser.username;
+
+    if (chatAvatar) {
+      if (selectedUser.avatar) {
+        chatAvatar.innerHTML = `<img src="${selectedUser.avatar}" alt="avatar">`;
+      } else {
+        chatAvatar.textContent = (selectedUser.displayName || selectedUser.username)[0] || "?";
+      }
+    }
+  }
+
+  renderRecentChats();
+  renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
+});
+
+socket.on("user_status", (data) => {
+  if (!data || !data.username) return;
+
+  const username = normalizeUsername(data.username);
+
+  onlineUsers[username] = Boolean(data.online);
+
+  recentChatsCache = recentChatsCache.map((chat) => {
+    if (chat.username === username) {
+      return {
+        ...chat,
+        online: Boolean(data.online)
+      };
+    }
+
+    return chat;
+  });
+
+  usersCache = usersCache.map((user) => {
+    if (user.username === username) {
+      return {
+        ...user,
+        online: Boolean(data.online)
+      };
+    }
+
+    return user;
+  });
+
+  renderRecentChats();
+  renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
+  updateChatStatusText();
+});
+
+socket.on("typing_start", (data) => {
+  if (!currentUser || !data) return;
+
+  const from = normalizeUsername(data.from);
+
+  if (!from || from === currentUser.username) return;
+
+  if (data.chatType === "direct") {
+    if (selectedChatType === "direct" && selectedUser && selectedUser.username === from) {
+      typingUsers[from] = true;
+      updateChatStatusText();
+    }
+
+    if (recentChatsCache.some((chat) => chat.username === from)) {
+      typingUsers[from] = true;
+      renderRecentChats();
+    }
+  }
+
+  if (data.chatType === "group") {
+    const groupId = String(data.groupId || "");
+
+    if (selectedChatType === "group" && selectedGroup && selectedGroup.id === groupId) {
+      typingUsers[from] = true;
+      updateChatStatusText();
+    }
+  }
+});
+
+socket.on("typing_stop", (data) => {
+  if (!data) return;
+
+  const from = normalizeUsername(data.from);
+
+  if (!from) return;
+
+  delete typingUsers[from];
+
+  updateChatStatusText();
+  renderRecentChats();
+});
+
+socket.on("new_message", (message) => {
+  if (!currentUser) return;
+
+  const from = normalizeUsername(message.from || message.username);
+  const to = normalizeUsername(message.to);
+  const otherUsername = from === currentUser.username ? to : from;
+
+  delete typingUsers[otherUsername];
+  delete typingUsers[from];
+
+  const userForRecent = {
+    id: otherUsername,
+    username: otherUsername,
+    displayName:
+      from === currentUser.username && selectedUser
+        ? selectedUser.displayName
+        : message.displayName || otherUsername,
+    avatar:
+      from === currentUser.username && selectedUser
+        ? selectedUser.avatar
+        : message.avatar || ""
+  };
+
+  upsertRecentChat(userForRecent, message);
+
+  if (from !== currentUser.username) {
+    notifyDirectMessage(message);
+  }
+
+  if (from === currentUser.username) {
+    if (shouldShowIncomingDirect(message)) {
+      const exists = messagesCache.some((m) => m.id === message.id);
+
+      if (!exists) {
+        messagesCache.push(message);
+        renderMessages();
+      }
+    }
+
+    renderRecentChats();
+    updateChatStatusText();
+    return;
+  }
+
+  if (shouldShowIncomingDirect(message)) {
+    const exists = messagesCache.some((m) => m.id === message.id);
+
+    if (!exists) {
+      messagesCache.push(message);
+      renderMessages();
+    }
+
+    unreadDirect[from] = 0;
+  } else {
+    unreadDirect[from] = (unreadDirect[from] || 0) + 1;
+  }
+
+  updateUnreadTitle();
+  renderRecentChats();
+  updateChatStatusText();
+});
+
+socket.on("new_group_message", (message) => {
+  loadGroups();
+
+  if (!currentUser) return;
+
+  const groupId = String(message.groupId || "");
+  const from = normalizeUsername(message.from || message.username);
+
+  delete typingUsers[from];
+
+  if (!groupId) return;
+
+  if (from !== currentUser.username) {
+    notifyGroupMessage(message);
+  }
+
+  if (shouldShowIncomingGroup(message)) {
+    const exists = messagesCache.some((m) => m.id === message.id);
+
+    if (!exists) {
+      messagesCache.push(message);
+      renderMessages();
+    }
+
+    unreadGroups[groupId] = 0;
+  } else if (from !== currentUser.username) {
+    unreadGroups[groupId] = (unreadGroups[groupId] || 0) + 1;
+  }
+
+  updateUnreadTitle();
+  renderGroups();
+  updateChatStatusText();
+});
+
+socket.on("group_updated", (group) => {
+  if (!group || !group.id) return;
+
+  groupsCache = groupsCache.map((item) => {
+    return item.id === group.id ? group : item;
+  });
+
+  if (selectedGroup && selectedGroup.id === group.id) {
+    selectedGroup = group;
+    updateChatStatusText();
+    showGroupActions(group);
+  }
+
+  renderGroups();
+});
+
+socket.on("group_left", (data) => {
+  if (!data || !data.groupId) return;
+
+  groupsCache = groupsCache.filter((group) => group.id !== data.groupId);
+  delete unreadGroups[data.groupId];
+
+  if (selectedGroup && selectedGroup.id === data.groupId) {
+    renderEmptyChat();
+  }
+
+  renderGroups();
+  updateUnreadTitle();
+});
+
+socket.on("group_deleted", (data) => {
+  if (!data || !data.groupId) return;
+
+  groupsCache = groupsCache.filter((group) => group.id !== data.groupId);
+  delete unreadGroups[data.groupId];
+
+  if (selectedGroup && selectedGroup.id === data.groupId) {
+    renderEmptyChat();
+    alert("Группа была удалена");
+  }
+
+  renderGroups();
+  updateUnreadTitle();
+});
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+
+    reader.readAsDataURL(blob);
+  });
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatTime(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+if (loginBtn) loginBtn.addEventListener("click", login);
+if (registerBtn) registerBtn.addEventListener("click", register);
+if (logoutBtn) logoutBtn.addEventListener("click", logout);
+
+if (togglePasswordBtn && passwordInput) {
+  togglePasswordBtn.addEventListener("click", () => {
+    const isHidden = passwordInput.type === "password";
+
+    passwordInput.type = isHidden ? "text" : "password";
+    togglePasswordBtn.textContent = isHidden ? "Скрыть" : "Показать";
+  });
+}
+
+if (searchInput) {
+  searchInput.addEventListener("input", () => {
+    loadUsers(searchInput.value);
+  });
+}
+
+if (sendBtn) {
+  sendBtn.addEventListener("click", sendMessage);
+}
+
+if (messageInput) {
+  messageInput.addEventListener("input", handleTypingInput);
+
+  messageInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
+
+  messageInput.addEventListener("blur", () => {
+    setTimeout(() => {
+      stopTyping();
+    }, 500);
+  });
+}
+
+window.addEventListener("beforeunload", () => {
+  cancelVoiceRecording();
+  stopTyping();
+  destroyAllVoicePlayers();
+});
+
+const savedUser = loadSavedUser();
+
+if (savedUser) {
+  currentUser = savedUser;
+  startApp();
+}
+
 /* =========================================================
-   TELEGRAM-LIKE MESSAGE MENU
+   DARK MESSENGER — МЕНЮ СООБЩЕНИЯ КАК В TELEGRAM
+   ПКМ: Ответить / Редактировать / Удалить
+   ВСТАВЛЕНО В КОНЕЦ app.js
    ========================================================= */
+
+let contextSelectedMessage = null;
+let replyToMessage = null;
+let editingMessage = null;
+
+let messageContextMenu = null;
+let replyPanel = null;
+let editPanel = null;
+let replyPanelText = null;
 
 function setupTelegramMessageMenu() {
   setupTelegramMenuStyles();
@@ -2856,6 +3235,126 @@ function renderReplyPreview(message) {
   `;
 }
 
+/* =========================================================
+   НОВАЯ ОТПРАВКА: обычное сообщение / ответ / редактирование
+   ========================================================= */
+
+function sendMessage() {
+  if (!currentUser) return;
+
+  const text = messageInput ? messageInput.value.trim() : "";
+
+  if (!text) return;
+
+  stopTyping();
+
+  if (editingMessage) {
+    socket.emit("edit_message", {
+      messageId: editingMessage.id,
+      me: currentUser.username,
+      username: currentUser.username,
+      text
+    });
+
+    if (messageInput) {
+      messageInput.value = "";
+      messageInput.focus();
+    }
+
+    hideEditPanel();
+    return;
+  }
+
+  const replyTo = buildReplyPayload();
+
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("send_message", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      text,
+      replyTo
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("send_group_message", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      text,
+      replyTo
+    });
+  }
+
+  if (messageInput) {
+    messageInput.value = "";
+    messageInput.focus();
+  }
+
+  hideReplyPanel();
+}
+
+/* =========================================================
+   НОВАЯ ОТПРАВКА МЕДИА: фото / видео / голосовое + ответ
+   ========================================================= */
+
+function sendMediaMessage(media) {
+  stopTyping();
+
+  if (!canSendNow()) return;
+
+  const replyTo = buildReplyPayload();
+
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("send_message", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      text: "",
+      media,
+      replyTo
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("send_group_message", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      text: "",
+      media,
+      replyTo
+    });
+  }
+
+  hideReplyPanel();
+}
+
+/* =========================================================
+   НОВОЕ УДАЛЕНИЕ
+   ========================================================= */
+
+async function deleteMessage(messageId) {
+  if (!currentUser || !messageId) return;
+
+  const ok = confirm("Удалить сообщение у всех?");
+
+  if (!ok) return;
+
+  try {
+    destroyVoicePlayer(messageId);
+
+    socket.emit("delete_message", {
+      messageId,
+      me: currentUser.username,
+      username: currentUser.username
+    });
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+/* =========================================================
+   НОВАЯ ОТРИСОВКА СООБЩЕНИЙ
+   ========================================================= */
+
 function renderMessages() {
   setupTelegramMessageMenu();
 
@@ -2926,26 +3425,8 @@ function renderMessages() {
 }
 
 /* =========================================================
-   SOCKET HELPERS
+   СОБЫТИЯ ОТ СЕРВЕРА: РЕДАКТИРОВАНИЕ / УДАЛЕНИЕ
    ========================================================= */
-
-function shouldShowIncomingDirect(message) {
-  if (!currentUser || !selectedUser || selectedChatType !== "direct") return false;
-
-  const from = message.from || message.username;
-  const to = message.to;
-
-  return (
-    (from === currentUser.username && to === selectedUser.username) ||
-    (from === selectedUser.username && to === currentUser.username)
-  );
-}
-
-function shouldShowIncomingGroup(message) {
-  if (!currentUser || !selectedGroup || selectedChatType !== "group") return false;
-
-  return String(message.groupId) === String(selectedGroup.id);
-}
 
 function handleMessageEdited(data) {
   if (!data) return;
@@ -2997,428 +3478,34 @@ function handleMessageDeleted(data) {
   loadRecentChats();
 }
 
-/* =========================================================
-   SOCKET EVENTS
-   ========================================================= */
-
-socket.on("load_messages", (messages) => {
-  messagesCache = Array.isArray(messages) ? messages : [];
-  renderMessages();
-});
+socket.on("message_edited", handleMessageEdited);
+socket.on("message-edited", handleMessageEdited);
+socket.on("group_message_edited", handleMessageEdited);
 
 socket.on("message_deleted", handleMessageDeleted);
 socket.on("message-deleted", handleMessageDeleted);
 socket.on("group_message_deleted", handleMessageDeleted);
 
-socket.on("message_edited", handleMessageEdited);
-socket.on("message-edited", handleMessageEdited);
-socket.on("group_message_edited", handleMessageEdited);
-
 socket.on("message_error", (data) => {
   if (!data) return;
+
   alert(data.error || "Ошибка сообщения");
 });
 
-socket.on("profile_updated", (data) => {
-  if (!data || !data.user) return;
-
-  const oldUsername = normalizeUsername(data.oldUsername);
-  const user = data.user;
-
-  if (currentUser && oldUsername === currentUser.username) {
-    updateSavedUser(user);
-
-    if (meName) meName.textContent = currentUser.displayName || currentUser.username;
-    if (meLogin) meLogin.textContent = "@" + currentUser.username;
-
-    renderMyAvatar();
-
-    socket.emit("user_online", {
-      username: currentUser.username
-    });
-  }
-
-  recentChatsCache = recentChatsCache.map((chat) => {
-    if (chat.username === oldUsername || chat.username === user.username) {
-      return {
-        ...chat,
-        id: user.id,
-        displayName: user.displayName,
-        username: user.username,
-        avatar: user.avatar
-      };
-    }
-
-    return chat;
-  });
-
-  usersCache = usersCache.map((item) => {
-    if (item.username === oldUsername || item.username === user.username) {
-      return {
-        ...item,
-        id: user.id,
-        displayName: user.displayName,
-        username: user.username,
-        avatar: user.avatar
-      };
-    }
-
-    return item;
-  });
-
-  if (selectedUser && (selectedUser.username === oldUsername || selectedUser.username === user.username)) {
-    selectedUser = {
-      ...selectedUser,
-      id: user.id,
-      displayName: user.displayName,
-      username: user.username,
-      avatar: user.avatar
-    };
-
-    if (chatName) chatName.textContent = selectedUser.displayName || selectedUser.username;
-
-    if (chatAvatar) {
-      if (selectedUser.avatar) {
-        chatAvatar.innerHTML = `<img src="${selectedUser.avatar}" alt="avatar">`;
-      } else {
-        chatAvatar.textContent = (selectedUser.displayName || selectedUser.username)[0] || "?";
-      }
-    }
-  }
-
-  renderRecentChats();
-  renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
-});
-
-socket.on("user_status", (data) => {
-  if (!data || !data.username) return;
-
-  const username = normalizeUsername(data.username);
-
-  onlineUsers[username] = Boolean(data.online);
-
-  recentChatsCache = recentChatsCache.map((chat) => {
-    if (chat.username === username) {
-      return {
-        ...chat,
-        online: Boolean(data.online)
-      };
-    }
-
-    return chat;
-  });
-
-  usersCache = usersCache.map((user) => {
-    if (user.username === username) {
-      return {
-        ...user,
-        online: Boolean(data.online)
-      };
-    }
-
-    return user;
-  });
-
-  renderRecentChats();
-  renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
-  updateChatStatusText();
-});
-
-socket.on("typing_start", (data) => {
-  if (!currentUser || !data) return;
-
-  const from = normalizeUsername(data.from);
-
-  if (!from || from === currentUser.username) return;
-
-  if (data.chatType === "direct") {
-    if (selectedChatType === "direct" && selectedUser && selectedUser.username === from) {
-      typingUsers[from] = true;
-      updateChatStatusText();
-    }
-
-    if (recentChatsCache.some((chat) => chat.username === from)) {
-      typingUsers[from] = true;
-      renderRecentChats();
-    }
-  }
-
-  if (data.chatType === "group") {
-    const groupId = String(data.groupId || "");
-
-    if (selectedChatType === "group" && selectedGroup && selectedGroup.id === groupId) {
-      typingUsers[from] = true;
-      updateChatStatusText();
-    }
-  }
-});
-
-socket.on("typing_stop", (data) => {
-  if (!data) return;
-
-  const from = normalizeUsername(data.from);
-
-  if (!from) return;
-
-  delete typingUsers[from];
-
-  updateChatStatusText();
-  renderRecentChats();
-});
-
-socket.on("new_message", (message) => {
-  if (!currentUser) return;
-
-  const from = normalizeUsername(message.from || message.username);
-  const to = normalizeUsername(message.to);
-  const otherUsername = from === currentUser.username ? to : from;
-
-  delete typingUsers[otherUsername];
-  delete typingUsers[from];
-
-  const userForRecent = {
-    id: otherUsername,
-    username: otherUsername,
-    displayName:
-      from === currentUser.username && selectedUser
-        ? selectedUser.displayName
-        : message.displayName || otherUsername,
-    avatar:
-      from === currentUser.username && selectedUser
-        ? selectedUser.avatar
-        : message.avatar || ""
-  };
-
-  upsertRecentChat(userForRecent, message);
-
-  if (from !== currentUser.username) {
-    notifyDirectMessage(message);
-  }
-
-  if (from === currentUser.username) {
-    if (shouldShowIncomingDirect(message)) {
-      const exists = messagesCache.some((m) => m.id === message.id);
-
-      if (!exists) {
-        messagesCache.push(message);
-        renderMessages();
-      }
-    }
-
-    renderRecentChats();
-    updateChatStatusText();
-    return;
-  }
-
-  if (shouldShowIncomingDirect(message)) {
-    const exists = messagesCache.some((m) => m.id === message.id);
-
-    if (!exists) {
-      messagesCache.push(message);
-      renderMessages();
-    }
-
-    unreadDirect[from] = 0;
-  } else {
-    unreadDirect[from] = (unreadDirect[from] || 0) + 1;
-  }
-
-  updateUnreadTitle();
-  renderRecentChats();
-  updateChatStatusText();
-});
-
-socket.on("new_group_message", (message) => {
-  loadGroups();
-
-  if (!currentUser) return;
-
-  const groupId = String(message.groupId || "");
-  const from = normalizeUsername(message.from || message.username);
-
-  delete typingUsers[from];
-
-  if (!groupId) return;
-
-  if (from !== currentUser.username) {
-    notifyGroupMessage(message);
-  }
-
-  if (shouldShowIncomingGroup(message)) {
-    const exists = messagesCache.some((m) => m.id === message.id);
-
-    if (!exists) {
-      messagesCache.push(message);
-      renderMessages();
-    }
-
-    unreadGroups[groupId] = 0;
-  } else if (from !== currentUser.username) {
-    unreadGroups[groupId] = (unreadGroups[groupId] || 0) + 1;
-  }
-
-  updateUnreadTitle();
-  renderGroups();
-  updateChatStatusText();
-});
-
-socket.on("group_updated", (group) => {
-  if (!group || !group.id) return;
-
-  groupsCache = groupsCache.map((item) => {
-    return item.id === group.id ? group : item;
-  });
-
-  if (selectedGroup && selectedGroup.id === group.id) {
-    selectedGroup = group;
-    updateChatStatusText();
-    showGroupActions(group);
-  }
-
-  renderGroups();
-});
-
-socket.on("group_left", (data) => {
-  if (!data || !data.groupId) return;
-
-  groupsCache = groupsCache.filter((group) => group.id !== data.groupId);
-  delete unreadGroups[data.groupId];
-
-  if (selectedGroup && selectedGroup.id === data.groupId) {
-    renderEmptyChat();
-  }
-
-  renderGroups();
-  updateUnreadTitle();
-});
-
-socket.on("group_deleted", (data) => {
-  if (!data || !data.groupId) return;
-
-  groupsCache = groupsCache.filter((group) => group.id !== data.groupId);
-  delete unreadGroups[data.groupId];
-
-  if (selectedGroup && selectedGroup.id === data.groupId) {
-    renderEmptyChat();
-    alert("Группа была удалена");
-  }
-
-  renderGroups();
-  updateUnreadTitle();
-});
-
 /* =========================================================
-   UTILS
+   ДОПОЛНИТЕЛЬНО: ESC отменяет ответ/редактирование
    ========================================================= */
-
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-
-    reader.readAsDataURL(file);
-  });
-}
-
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-
-    reader.readAsDataURL(blob);
-  });
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function formatTime(value) {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "";
-
-  return date.toLocaleTimeString("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-/* =========================================================
-   EVENTS
-   ========================================================= */
-
-if (loginBtn) loginBtn.addEventListener("click", login);
-if (registerBtn) registerBtn.addEventListener("click", register);
-if (logoutBtn) logoutBtn.addEventListener("click", logout);
-
-if (togglePasswordBtn && passwordInput) {
-  togglePasswordBtn.addEventListener("click", () => {
-    const isHidden = passwordInput.type === "password";
-
-    passwordInput.type = isHidden ? "text" : "password";
-    togglePasswordBtn.textContent = isHidden ? "Скрыть" : "Показать";
-  });
-}
-
-if (searchInput) {
-  searchInput.addEventListener("input", () => {
-    loadUsers(searchInput.value);
-  });
-}
-
-if (sendBtn) {
-  sendBtn.addEventListener("click", sendMessage);
-}
 
 if (messageInput) {
-  messageInput.addEventListener("input", handleTypingInput);
-
   messageInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      sendMessage();
-    }
-
     if (event.key === "Escape") {
       cancelMessageModes();
-      messageInput.value = "";
+
+      if (messageInput) {
+        messageInput.value = "";
+      }
     }
   });
-
-  messageInput.addEventListener("blur", () => {
-    setTimeout(() => {
-      stopTyping();
-    }, 500);
-  });
 }
-
-window.addEventListener("beforeunload", () => {
-  cancelVoiceRecording();
-  stopTyping();
-  destroyAllVoicePlayers();
-});
-
-/* =========================================================
-   START
-   ========================================================= */
 
 setupTelegramMessageMenu();
-
-const savedUser = loadSavedUser();
-
-if (savedUser) {
-  currentUser = savedUser;
-  startApp();
-}
