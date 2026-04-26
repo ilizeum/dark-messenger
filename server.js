@@ -606,7 +606,7 @@ app.get("/api/health", async (req, res) => {
 
     res.json({
       success: true,
-      message: "Dark Messenger server is working",
+      message: "Callibri server is working",
       database: "postgres",
       passwords: "bcrypt",
       realtime: "online_typing",
@@ -1922,6 +1922,6 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 8080;
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log("Dark Messenger server started");
+  console.log("Callibri server started");
   console.log("Server started on port", PORT);
 });

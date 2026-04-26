@@ -275,7 +275,7 @@ function updateUnreadTitle() {
   const totalGroups = Object.values(unreadGroups).reduce((sum, value) => sum + value, 0);
   const total = totalDirect + totalGroups;
 
-  document.title = total > 0 ? `(${total}) Dark Messenger` : "Dark Messenger";
+  document.title = total > 0 ? `(${total}) Callibri` : "Callibri";
 }
 
 async function setupWindowsNotifications() {
