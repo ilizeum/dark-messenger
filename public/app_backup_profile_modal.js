@@ -24,8 +24,6 @@ let notificationPermissionRequested = false;
 let typingTimer = null;
 let isTypingNow = false;
 
-let profileAvatarDraft = "";
-
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 
 const auth = document.getElementById("auth");
@@ -68,8 +66,6 @@ let voiceBtn = null;
 let profileAvatarBtn = null;
 let profileBtn = null;
 let groupActionsBox = null;
-let profileModal = null;
-let profileModalAvatarInput = null;
 
 function normalizeUsername(username) {
   return String(username || "")
@@ -514,13 +510,13 @@ function setupProfileUI() {
   profileAvatarBtn = document.createElement("button");
   profileAvatarBtn.id = "profileAvatarBtn";
   profileAvatarBtn.type = "button";
-  profileAvatarBtn.title = "Профиль";
+  profileAvatarBtn.title = "Аватар";
 
   profileBtn = document.createElement("button");
   profileBtn.id = "profileBtn";
   profileBtn.type = "button";
   profileBtn.textContent = "Профиль";
-  profileBtn.title = "Открыть профиль";
+  profileBtn.title = "Сменить аватарку";
 
   profileBtn.style.marginLeft = "auto";
   profileBtn.style.background = "#243044";
@@ -534,6 +530,12 @@ function setupProfileUI() {
     logoutBtn.style.marginLeft = "6px";
   }
 
+  avatarInput = document.createElement("input");
+  avatarInput.id = "avatarInput";
+  avatarInput.type = "file";
+  avatarInput.accept = "image/*";
+  avatarInput.style.display = "none";
+
   profile.prepend(profileAvatarBtn);
 
   if (logoutBtn) {
@@ -542,244 +544,19 @@ function setupProfileUI() {
     profile.appendChild(profileBtn);
   }
 
-  profileAvatarBtn.addEventListener("click", openProfileModal);
-  profileBtn.addEventListener("click", openProfileModal);
+  document.body.appendChild(avatarInput);
 
-  createProfileModal();
+  profileAvatarBtn.addEventListener("click", () => {
+    avatarInput.click();
+  });
+
+  profileBtn.addEventListener("click", () => {
+    avatarInput.click();
+  });
+
+  avatarInput.addEventListener("change", handleAvatarChange);
+
   renderMyAvatar();
-}
-
-function createProfileModal() {
-  if (document.getElementById("profileModal")) return;
-
-  profileModal = document.createElement("div");
-  profileModal.id = "profileModal";
-  profileModal.className = "modal hidden";
-
-  profileModal.innerHTML = `
-    <div class="modal-card" style="max-width:460px;">
-      <h2>Профиль</h2>
-      <p>Здесь можно изменить аватарку, имя и @username.</p>
-
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
-        <button id="profileModalAvatarBtn" type="button" style="
-          width:74px;
-          height:74px;
-          border-radius:50%;
-          background:linear-gradient(135deg,#22d3ee,#2563eb);
-          color:white;
-          font-size:28px;
-          font-weight:900;
-          overflow:hidden;
-          flex-shrink:0;
-        "></button>
-
-        <div>
-          <button id="profileChangeAvatarBtn" type="button" style="
-            background:#243044;
-            color:white;
-            border-radius:12px;
-            padding:10px 13px;
-            font-weight:800;
-          ">Сменить аватарку</button>
-
-          <button id="profileRemoveAvatarBtn" type="button" style="
-            background:#3a2230;
-            color:#fb7185;
-            border-radius:12px;
-            padding:10px 13px;
-            font-weight:800;
-            margin-left:6px;
-          ">Убрать</button>
-        </div>
-      </div>
-
-      <input id="profileDisplayNameInput" type="text" placeholder="Имя" />
-      <input id="profileUsernameInput" type="text" placeholder="username без @" />
-
-      <div style="color:#94a3b8;font-size:13px;line-height:1.4;margin:-4px 0 12px;">
-        Username: только латиница, цифры и нижнее подчёркивание. От 3 до 24 символов.
-      </div>
-
-      <input id="profileAvatarFileInput" type="file" accept="image/*" style="display:none;" />
-
-      <div id="profileError" style="min-height:20px;color:#fb7185;font-size:14px;margin-bottom:12px;"></div>
-
-      <div class="modal-actions">
-        <button id="cancelProfileBtn" type="button">Отмена</button>
-        <button id="saveProfileBtn" type="button">Сохранить</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(profileModal);
-
-  const cancelProfileBtn = document.getElementById("cancelProfileBtn");
-  const saveProfileBtn = document.getElementById("saveProfileBtn");
-  const profileModalAvatarBtn = document.getElementById("profileModalAvatarBtn");
-  const profileChangeAvatarBtn = document.getElementById("profileChangeAvatarBtn");
-  const profileRemoveAvatarBtn = document.getElementById("profileRemoveAvatarBtn");
-
-  profileModalAvatarInput = document.getElementById("profileAvatarFileInput");
-
-  if (cancelProfileBtn) cancelProfileBtn.addEventListener("click", closeProfileModal);
-  if (saveProfileBtn) saveProfileBtn.addEventListener("click", saveProfile);
-
-  if (profileModalAvatarBtn) {
-    profileModalAvatarBtn.addEventListener("click", () => {
-      profileModalAvatarInput.click();
-    });
-  }
-
-  if (profileChangeAvatarBtn) {
-    profileChangeAvatarBtn.addEventListener("click", () => {
-      profileModalAvatarInput.click();
-    });
-  }
-
-  if (profileRemoveAvatarBtn) {
-    profileRemoveAvatarBtn.addEventListener("click", () => {
-      profileAvatarDraft = "";
-      renderProfileModalAvatar();
-    });
-  }
-
-  if (profileModalAvatarInput) {
-    profileModalAvatarInput.addEventListener("change", handleProfileAvatarDraft);
-  }
-}
-
-function openProfileModal() {
-  if (!currentUser) return;
-
-  createProfileModal();
-
-  const nameInput = document.getElementById("profileDisplayNameInput");
-  const usernameInput = document.getElementById("profileUsernameInput");
-  const error = document.getElementById("profileError");
-
-  profileAvatarDraft = currentUser.avatar || "";
-
-  if (nameInput) nameInput.value = currentUser.displayName || currentUser.username || "";
-  if (usernameInput) usernameInput.value = currentUser.username || "";
-  if (error) error.textContent = "";
-
-  renderProfileModalAvatar();
-
-  if (profileModal) {
-    profileModal.classList.remove("hidden");
-  }
-}
-
-function closeProfileModal() {
-  if (profileModal) {
-    profileModal.classList.add("hidden");
-  }
-
-  if (profileModalAvatarInput) {
-    profileModalAvatarInput.value = "";
-  }
-}
-
-function renderProfileModalAvatar() {
-  const btn = document.getElementById("profileModalAvatarBtn");
-
-  if (!btn || !currentUser) return;
-
-  if (profileAvatarDraft) {
-    btn.innerHTML = `<img src="${profileAvatarDraft}" alt="avatar" style="width:100%;height:100%;object-fit:cover;">`;
-  } else {
-    btn.textContent = (currentUser.displayName || currentUser.username || "?")[0].toUpperCase();
-  }
-}
-
-async function handleProfileAvatarDraft(event) {
-  const file = event.target.files && event.target.files[0];
-
-  if (!file) return;
-
-  if (!file.type.startsWith("image/")) {
-    alert("Выбери изображение");
-    event.target.value = "";
-    return;
-  }
-
-  if (file.size > MAX_FILE_SIZE) {
-    alert("Файл слишком большой. Максимум 8 МБ.");
-    event.target.value = "";
-    return;
-  }
-
-  try {
-    profileAvatarDraft = await fileToDataUrl(file);
-    renderProfileModalAvatar();
-  } catch (error) {
-    alert("Не удалось загрузить аватарку");
-  } finally {
-    event.target.value = "";
-  }
-}
-
-async function saveProfile() {
-  if (!currentUser) return;
-
-  const nameInput = document.getElementById("profileDisplayNameInput");
-  const usernameInput = document.getElementById("profileUsernameInput");
-  const error = document.getElementById("profileError");
-
-  const oldUsername = currentUser.username;
-  const displayName = nameInput ? nameInput.value.trim() : "";
-  const newUsername = usernameInput ? normalizeUsername(usernameInput.value) : "";
-
-  if (error) error.textContent = "";
-
-  if (!displayName) {
-    if (error) error.textContent = "Введите имя";
-    return;
-  }
-
-  if (!newUsername) {
-    if (error) error.textContent = "Введите username";
-    return;
-  }
-
-  try {
-    const data = await request("/api/profile", {
-      method: "PUT",
-      body: JSON.stringify({
-        oldUsername,
-        newUsername,
-        displayName,
-        avatar: profileAvatarDraft || ""
-      })
-    });
-
-    updateSavedUser(data.user);
-
-    if (meName) meName.textContent = currentUser.displayName || currentUser.username;
-    if (meLogin) meLogin.textContent = "@" + currentUser.username;
-
-    renderMyAvatar();
-
-    socket.emit("user_online", {
-      username: currentUser.username
-    });
-
-    selectedUser = null;
-    selectedGroup = null;
-    selectedChatType = null;
-    messagesCache = [];
-
-    await loadRecentChats();
-    await loadGroups();
-
-    renderEmptyChat();
-    closeProfileModal();
-
-    alert("Профиль обновлён");
-  } catch (err) {
-    if (error) error.textContent = err.message;
-  }
 }
 
 function renderMyAvatar() {
@@ -789,6 +566,46 @@ function renderMyAvatar() {
     profileAvatarBtn.innerHTML = `<img src="${currentUser.avatar}" alt="avatar">`;
   } else {
     profileAvatarBtn.textContent = (currentUser.displayName || currentUser.username || "?")[0].toUpperCase();
+  }
+}
+
+async function handleAvatarChange(event) {
+  const file = event.target.files && event.target.files[0];
+
+  if (!file) return;
+
+  if (!file.type.startsWith("image/")) {
+    alert("Выбери изображение");
+    return;
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    alert("Файл слишком большой. Максимум 8 МБ.");
+    return;
+  }
+
+  try {
+    const avatar = await fileToDataUrl(file);
+
+    const data = await request("/api/avatar", {
+      method: "POST",
+      body: JSON.stringify({
+        username: currentUser.username,
+        avatar
+      })
+    });
+
+    updateSavedUser(data.user);
+    renderMyAvatar();
+
+    if (meName) meName.textContent = currentUser.displayName || currentUser.username;
+    if (meLogin) meLogin.textContent = "@" + currentUser.username;
+
+    alert("Аватар обновлён");
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    event.target.value = "";
   }
 }
 
@@ -1802,77 +1619,6 @@ socket.on("message_deleted", (data) => {
 
   renderMessages();
   loadRecentChats();
-});
-
-socket.on("profile_updated", (data) => {
-  if (!data || !data.user) return;
-
-  const oldUsername = normalizeUsername(data.oldUsername);
-  const user = data.user;
-
-  if (currentUser && oldUsername === currentUser.username) {
-    updateSavedUser(user);
-
-    if (meName) meName.textContent = currentUser.displayName || currentUser.username;
-    if (meLogin) meLogin.textContent = "@" + currentUser.username;
-
-    renderMyAvatar();
-
-    socket.emit("user_online", {
-      username: currentUser.username
-    });
-  }
-
-  recentChatsCache = recentChatsCache.map((chat) => {
-    if (chat.username === oldUsername || chat.username === user.username) {
-      return {
-        ...chat,
-        id: user.id,
-        displayName: user.displayName,
-        username: user.username,
-        avatar: user.avatar
-      };
-    }
-
-    return chat;
-  });
-
-  usersCache = usersCache.map((item) => {
-    if (item.username === oldUsername || item.username === user.username) {
-      return {
-        ...item,
-        id: user.id,
-        displayName: user.displayName,
-        username: user.username,
-        avatar: user.avatar
-      };
-    }
-
-    return item;
-  });
-
-  if (selectedUser && (selectedUser.username === oldUsername || selectedUser.username === user.username)) {
-    selectedUser = {
-      ...selectedUser,
-      id: user.id,
-      displayName: user.displayName,
-      username: user.username,
-      avatar: user.avatar
-    };
-
-    if (chatName) chatName.textContent = selectedUser.displayName || selectedUser.username;
-
-    if (chatAvatar) {
-      if (selectedUser.avatar) {
-        chatAvatar.innerHTML = `<img src="${selectedUser.avatar}" alt="avatar">`;
-      } else {
-        chatAvatar.textContent = (selectedUser.displayName || selectedUser.username)[0] || "?";
-      }
-    }
-  }
-
-  renderRecentChats();
-  renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
 });
 
 socket.on("user_status", (data) => {
