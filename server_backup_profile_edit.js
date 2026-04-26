@@ -167,30 +167,6 @@ function isUserOnline(username) {
   return onlineUsers.has(normalizeUsername(username));
 }
 
-function moveOnlineUser(oldUsername, newUsername) {
-  const oldClean = normalizeUsername(oldUsername);
-  const newClean = normalizeUsername(newUsername);
-
-  if (!oldClean || !newClean || oldClean === newClean) return;
-
-  const oldSockets = onlineUsers.get(oldClean);
-
-  if (!oldSockets) return;
-
-  onlineUsers.delete(oldClean);
-  onlineUsers.set(newClean, oldSockets);
-
-  io.emit("user_status", {
-    username: oldClean,
-    online: false
-  });
-
-  io.emit("user_status", {
-    username: newClean,
-    online: true
-  });
-}
-
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -333,33 +309,6 @@ async function saveMessage(message) {
   return result.rows[0];
 }
 
-async function updateDirectChatIdsForUsername(client, username) {
-  const cleanUsername = normalizeUsername(username);
-
-  const result = await client.query(
-    `
-    SELECT id, from_username, to_username
-    FROM messages
-    WHERE type = 'direct'
-      AND (from_username = $1 OR to_username = $1)
-    `,
-    [cleanUsername]
-  );
-
-  for (const message of result.rows) {
-    const newChatId = getDirectChatId(message.from_username, message.to_username);
-
-    await client.query(
-      `
-      UPDATE messages
-      SET chat_id = $1
-      WHERE id = $2
-      `,
-      [newChatId, message.id]
-    );
-  }
-}
-
 initDB().catch((error) => {
   console.error("Database init error:", error);
 });
@@ -375,8 +324,7 @@ app.get("/api/health", async (req, res) => {
       passwords: "bcrypt",
       realtime: "online_typing",
       avatars: "enabled",
-      deleteMessages: "enabled",
-      profileEdit: "enabled"
+      deleteMessages: "enabled"
     });
   } catch (error) {
     console.error("Health error:", error);
@@ -510,177 +458,6 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-app.put("/api/profile", async (req, res) => {
-  const client = await pool.connect();
-
-  try {
-    const oldUsername = normalizeUsername(req.body.oldUsername || req.body.username);
-    const newUsername = normalizeUsername(req.body.newUsername || req.body.username);
-    const displayName = String(req.body.displayName || "").trim();
-    const avatar = String(req.body.avatar || "");
-
-    if (!oldUsername) {
-      return res.status(400).json({
-        success: false,
-        error: "Не указан текущий пользователь"
-      });
-    }
-
-    if (!newUsername) {
-      return res.status(400).json({
-        success: false,
-        error: "Введите username"
-      });
-    }
-
-    if (!displayName) {
-      return res.status(400).json({
-        success: false,
-        error: "Введите имя"
-      });
-    }
-
-    if (!/^[a-z0-9_]{3,24}$/.test(newUsername)) {
-      return res.status(400).json({
-        success: false,
-        error: "Username должен быть 3-24 символа: латиница, цифры или _"
-      });
-    }
-
-    if (
-      avatar &&
-      (!avatar.startsWith("data:image/") || avatar.length > MAX_MEDIA_LENGTH)
-    ) {
-      return res.status(400).json({
-        success: false,
-        error: "Неверный формат аватарки"
-      });
-    }
-
-    await client.query("BEGIN");
-
-    const userResult = await client.query(
-      "SELECT * FROM users WHERE username = $1",
-      [oldUsername]
-    );
-
-    const user = userResult.rows[0];
-
-    if (!user) {
-      await client.query("ROLLBACK");
-
-      return res.status(404).json({
-        success: false,
-        error: "Пользователь не найден"
-      });
-    }
-
-    if (oldUsername !== newUsername) {
-      const existsResult = await client.query(
-        "SELECT username FROM users WHERE username = $1",
-        [newUsername]
-      );
-
-      if (existsResult.rows[0]) {
-        await client.query("ROLLBACK");
-
-        return res.status(400).json({
-          success: false,
-          error: "Такой username уже занят"
-        });
-      }
-    }
-
-    const updatedUserResult = await client.query(
-      `
-      UPDATE users
-      SET username = $1,
-          display_name = $2,
-          avatar = $3
-      WHERE username = $4
-      RETURNING *
-      `,
-      [newUsername, displayName, avatar, oldUsername]
-    );
-
-    await client.query(
-      `
-      UPDATE messages
-      SET from_username = $1
-      WHERE from_username = $2
-      `,
-      [newUsername, oldUsername]
-    );
-
-    await client.query(
-      `
-      UPDATE messages
-      SET to_username = $1
-      WHERE to_username = $2
-      `,
-      [newUsername, oldUsername]
-    );
-
-    await client.query(
-      `
-      UPDATE messages
-      SET username = $1,
-          display_name = $2,
-          avatar = $3
-      WHERE username = $4
-      `,
-      [newUsername, displayName, avatar, oldUsername]
-    );
-
-    await client.query(
-      `
-      UPDATE groups
-      SET owner = $1
-      WHERE owner = $2
-      `,
-      [newUsername, oldUsername]
-    );
-
-    await client.query(
-      `
-      UPDATE groups
-      SET members = array_replace(members, $1, $2)
-      WHERE $1 = ANY(members)
-      `,
-      [oldUsername, newUsername]
-    );
-
-    await updateDirectChatIdsForUsername(client, newUsername);
-
-    await client.query("COMMIT");
-
-    const updatedUser = publicUser(updatedUserResult.rows[0]);
-
-    moveOnlineUser(oldUsername, newUsername);
-
-    io.emit("profile_updated", {
-      oldUsername,
-      user: updatedUser
-    });
-
-    res.json({
-      success: true,
-      user: updatedUser
-    });
-  } catch (error) {
-    await client.query("ROLLBACK");
-
-    console.error("Profile update error:", error);
-
-    res.status(500).json({
-      success: false,
-      error: "Ошибка обновления профиля"
-    });
-  } finally {
-    client.release();
-  }
-});
-
 app.post("/api/avatar", async (req, res) => {
   try {
     const username = normalizeUsername(req.body.username);
@@ -720,16 +497,9 @@ app.post("/api/avatar", async (req, res) => {
       });
     }
 
-    const updatedUser = publicUser(result.rows[0]);
-
-    io.emit("profile_updated", {
-      oldUsername: username,
-      user: updatedUser
-    });
-
     res.json({
       success: true,
-      user: updatedUser
+      user: publicUser(result.rows[0])
     });
   } catch (error) {
     console.error("Avatar error:", error);
