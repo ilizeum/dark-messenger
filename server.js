@@ -658,9 +658,6 @@ async function updateDirectChatIdsForUsername(client, username) {
   }
 }
 
-initDB().catch((error) => {
-  console.error("Database init error:", error);
-});
 
 app.get("/api/health", async (req, res) => {
   try {
@@ -1806,7 +1803,19 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 8080;
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log("Callibri server started");
-  console.log("Server started on port", PORT);
-});
+async function startServer() {
+  try {
+    await initDB();
+
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log("Callibri server started");
+      console.log("Server started on port", PORT);
+    });
+  } catch (error) {
+    console.error("Fatal server start error:", error);
+    process.exit(1);
+  }
+}
+
+startServer();
+
