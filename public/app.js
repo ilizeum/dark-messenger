@@ -31,13 +31,42 @@ let visualizerAnimationFrame = null;
 
 let liveWaveformBars = [];
 let finalVoiceBlob = null;
-let finalVoiceMimeType = "audio/webm";
 
 let notificationPermissionRequested = false;
 let typingTimer = null;
 let isTypingNow = false;
 
 let profileAvatarDraft = "";
+
+let profileAvatarBtn = null;
+let settingsBtn = null;
+let groupActionsBox = null;
+
+let recentChatsBox = null;
+let groupsBox = null;
+let createGroupBtn = null;
+let groupModal = null;
+
+let avatarInput = null;
+let fileInput = null;
+let attachBtn = null;
+let voiceBtn = null;
+
+let recordingPanel = null;
+let recordingTimer = null;
+let recordingVisualizer = null;
+let recordingCancelBtn = null;
+let recordingSendBtn = null;
+
+let settingsModal = null;
+let settingsActiveSection = "profile";
+let profileModalAvatarInput = null;
+
+let settingsMicTestStream = null;
+let settingsMicTestContext = null;
+let settingsMicTestAnalyser = null;
+let settingsMicTestDataArray = null;
+let settingsMicTestFrame = null;
 
 const voicePlayers = new Map();
 
@@ -71,39 +100,18 @@ const messagesBox = document.getElementById("messages");
 const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 
-let recentChatsBox = null;
-let groupsBox = null;
-let createGroupBtn = null;
-let groupModal = null;
+function getDefaultSettings() {
+  return {
+    selectedMicId: "",
+    notificationSoundsEnabled: true,
+    notificationVolume: 0.8,
+    voicePlaybackVolume: 1,
+    favoritesText: "",
+    loginDeviceInfo: null
+  };
+}
 
-let avatarInput = null;
-let fileInput = null;
-let attachBtn = null;
-let voiceBtn = null;
-let profileAvatarBtn = null;
-let profileBtn = null;
-let groupActionsBox = null;
-let profileModal = null;
-let profileModalAvatarInput = null;
-
-let recordingPanel = null;
-let recordingTimer = null;
-let recordingVisualizer = null;
-let recordingCancelBtn = null;
-let recordingSendBtn = null;
-
-/* =========================================================
-   MESSAGE MENU / REPLY / EDIT STATE
-   ========================================================= */
-
-let contextSelectedMessage = null;
-let replyToMessage = null;
-let editingMessage = null;
-
-let messageContextMenu = null;
-let replyPanel = null;
-let editPanel = null;
-let replyPanelText = null;
+let appSettings = getDefaultSettings();
 
 function normalizeUsername(username) {
   return String(username || "")
@@ -150,39 +158,33 @@ function saveUser(user) {
 
   sessionStorage.removeItem("darkMessengerUser");
   localStorage.removeItem("darkMessengerUser");
-  sessionStorage.removeItem("callibriUser");
-  localStorage.removeItem("callibriUser");
 
   if (remember) {
-    localStorage.setItem("callibriUser", JSON.stringify(user));
+    localStorage.setItem("darkMessengerUser", JSON.stringify(user));
   } else {
-    sessionStorage.setItem("callibriUser", JSON.stringify(user));
+    sessionStorage.setItem("darkMessengerUser", JSON.stringify(user));
   }
 }
 
 function updateSavedUser(user) {
   currentUser = user;
 
-  const hasLocal =
-    Boolean(localStorage.getItem("callibriUser")) ||
-    Boolean(localStorage.getItem("darkMessengerUser"));
+  const hasLocal = Boolean(localStorage.getItem("darkMessengerUser"));
 
   sessionStorage.removeItem("darkMessengerUser");
   localStorage.removeItem("darkMessengerUser");
-  sessionStorage.removeItem("callibriUser");
-  localStorage.removeItem("callibriUser");
 
   if (hasLocal) {
-    localStorage.setItem("callibriUser", JSON.stringify(user));
+    localStorage.setItem("darkMessengerUser", JSON.stringify(user));
   } else {
-    sessionStorage.setItem("callibriUser", JSON.stringify(user));
+    sessionStorage.setItem("darkMessengerUser", JSON.stringify(user));
   }
 }
 
 function loadSavedUser() {
   try {
-    const localUser = localStorage.getItem("callibriUser") || localStorage.getItem("darkMessengerUser");
-    const sessionUser = sessionStorage.getItem("callibriUser") || sessionStorage.getItem("darkMessengerUser");
+    const localUser = localStorage.getItem("darkMessengerUser");
+    const sessionUser = sessionStorage.getItem("darkMessengerUser");
 
     if (localUser) {
       if (rememberMeInput) rememberMeInput.checked = true;
@@ -200,15 +202,129 @@ function loadSavedUser() {
   }
 }
 
+function getSettingsStorageKey() {
+  if (!currentUser || !currentUser.username) return null;
+  return `callibri_settings_${currentUser.username}`;
+}
+
+function loadAppSettings() {
+  const defaults = getDefaultSettings();
+  const key = getSettingsStorageKey();
+
+  if (!key) {
+    appSettings = defaults;
+    return;
+  }
+
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : {};
+    appSettings = {
+      ...defaults,
+      ...(parsed || {})
+    };
+  } catch {
+    appSettings = defaults;
+  }
+}
+
+function saveAppSettings(oldUsername = "") {
+  const key = getSettingsStorageKey();
+  if (!key) return;
+
+  try {
+    if (oldUsername && oldUsername !== currentUser.username) {
+      localStorage.removeItem(`callibri_settings_${oldUsername}`);
+    }
+
+    localStorage.setItem(key, JSON.stringify(appSettings));
+  } catch (error) {
+    console.log("Save settings error:", error);
+  }
+}
+
+function detectBrowserName() {
+  const ua = navigator.userAgent || "";
+
+  if (/Electron/i.test(ua)) return "Electron";
+  if (/Edg/i.test(ua)) return "Microsoft Edge";
+  if (/OPR|Opera/i.test(ua)) return "Opera";
+  if (/Firefox/i.test(ua)) return "Mozilla Firefox";
+  if (/Chrome/i.test(ua)) return "Google Chrome";
+  if (/Safari/i.test(ua)) return "Safari";
+
+  return "Неизвестный браузер";
+}
+
+function detectOSName() {
+  const ua = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+
+  if (/Win/i.test(platform) || /Windows/i.test(ua)) return "Windows";
+  if (/Mac/i.test(platform) || /Macintosh/i.test(ua)) return "macOS";
+  if (/Linux/i.test(platform) || /Linux/i.test(ua)) return "Linux";
+  if (/Android/i.test(ua)) return "Android";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iOS";
+
+  return platform || "Неизвестная ОС";
+}
+
+function buildLoginDeviceInfo() {
+  return {
+    app: /Electron/i.test(navigator.userAgent || "") ? "Callibri Desktop" : "Callibri Web",
+    browser: detectBrowserName(),
+    os: detectOSName(),
+    platform: navigator.platform || "Неизвестно",
+    language: navigator.language || "Неизвестно",
+    screen: `${window.screen.width} × ${window.screen.height}`,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Неизвестно",
+    savedAt: new Date().toISOString()
+  };
+}
+
+function ensureLoginDeviceInfo() {
+  if (!appSettings.loginDeviceInfo) {
+    appSettings.loginDeviceInfo = buildLoginDeviceInfo();
+    saveAppSettings();
+  }
+}
+
+function formatDateTime(value) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleString("ru-RU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function closeSettingsModal() {
+  stopSettingsMicTest();
+
+  if (settingsModal) {
+    settingsModal.classList.add("hidden");
+  }
+
+  if (profileModalAvatarInput) {
+    profileModalAvatarInput.value = "";
+  }
+}
+
 function logout() {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
+  closeSettingsModal();
 
   localStorage.removeItem("darkMessengerUser");
   sessionStorage.removeItem("darkMessengerUser");
-  localStorage.removeItem("callibriUser");
-  sessionStorage.removeItem("callibriUser");
 
   currentUser = null;
   selectedUser = null;
@@ -224,6 +340,8 @@ function logout() {
   onlineUsers = {};
   typingUsers = {};
 
+  appSettings = getDefaultSettings();
+
   updateUnreadTitle();
 
   if (rememberMeInput) rememberMeInput.checked = false;
@@ -233,9 +351,10 @@ function logout() {
 
   if (messageInput) messageInput.disabled = true;
   if (sendBtn) sendBtn.disabled = true;
+  if (attachBtn) attachBtn.disabled = true;
+  if (voiceBtn) voiceBtn.disabled = true;
 
   hideGroupActions();
-  cancelMessageModes();
 }
 
 async function register() {
@@ -260,6 +379,9 @@ async function register() {
 
     currentUser = data.user;
     saveUser(currentUser);
+    loadAppSettings();
+    appSettings.loginDeviceInfo = buildLoginDeviceInfo();
+    saveAppSettings();
     startApp();
   } catch (error) {
     showError(error.message);
@@ -287,6 +409,9 @@ async function login() {
 
     currentUser = data.user;
     saveUser(currentUser);
+    loadAppSettings();
+    appSettings.loginDeviceInfo = buildLoginDeviceInfo();
+    saveAppSettings();
     startApp();
   } catch (error) {
     showError(error.message);
@@ -317,6 +442,37 @@ async function setupWindowsNotifications() {
   }
 }
 
+function playNotificationSound() {
+  if (!appSettings.notificationSoundsEnabled) return;
+
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+
+    gainNode.gain.value = Math.max(0, Math.min(1, Number(appSettings.notificationVolume || 0.8))) * 0.06;
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    oscillator.start();
+
+    setTimeout(() => {
+      oscillator.stop();
+      ctx.close().catch(() => {});
+    }, 140);
+  } catch (error) {
+    console.log("Play notification sound error:", error);
+  }
+}
+
 function makeNotificationText(message) {
   if (!message) return "Новое сообщение";
 
@@ -341,8 +497,12 @@ function showWindowsNotification(title, body, avatar) {
     const notification = new Notification(title, {
       body,
       icon: avatar || undefined,
-      silent: false
+      silent: true
     });
+
+    if (appSettings.notificationSoundsEnabled) {
+      playNotificationSound();
+    }
 
     notification.onclick = () => {
       window.focus();
@@ -535,8 +695,6 @@ function handleTypingInput() {
     return;
   }
 
-  if (editingMessage) return;
-
   emitTypingStart();
 
   clearTimeout(typingTimer);
@@ -551,193 +709,865 @@ function clearTypingState() {
   updateChatStatusText();
 }
 
+function injectEnhancedSettingsStyles() {
+  if (document.getElementById("callibriSettingsStyles")) return;
+
+  const style = document.createElement("style");
+  style.id = "callibriSettingsStyles";
+  style.textContent = `
+    .callibri-settings-btn{
+      width:44px;
+      height:44px;
+      border-radius:14px;
+      margin-left:auto;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(135deg, rgba(25,74,126,.92), rgba(16,184,166,.78));
+      color:#ecfeff;
+      font-size:20px;
+      font-weight:900;
+      box-shadow:0 12px 28px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.20);
+      transition:transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+    }
+
+    .callibri-settings-btn:hover{
+      transform:translateY(-1px);
+      box-shadow:0 14px 30px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.22);
+    }
+
+    .callibri-avatar-btn{
+      width:54px;
+      height:54px;
+      border-radius:18px;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(135deg,#0d4ed8,#14b8a6);
+      color:#fff;
+      font-size:24px;
+      font-weight:900;
+      box-shadow:0 10px 24px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.20);
+      flex-shrink:0;
+    }
+
+    .callibri-avatar-btn img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+
+    .settings-shell{
+      width:min(96vw,980px);
+      max-width:980px;
+      min-height:620px;
+      background:linear-gradient(180deg, rgba(7,37,67,.98), rgba(10,72,86,.98));
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:26px;
+      overflow:hidden;
+      box-shadow:0 30px 80px rgba(0,0,0,.38);
+      color:#e2e8f0;
+    }
+
+    .settings-head{
+      padding:18px 22px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background:linear-gradient(135deg, rgba(14,116,144,.28), rgba(16,185,129,.12));
+    }
+
+    .settings-head h2{
+      margin:0;
+      font-size:24px;
+      font-weight:900;
+      color:#f8fafc;
+    }
+
+    .settings-head p{
+      margin:4px 0 0;
+      color:#a5f3fc;
+      font-size:13px;
+    }
+
+    .settings-close-btn{
+      width:42px;
+      height:42px;
+      border-radius:14px;
+      font-size:22px;
+      color:#e2e8f0;
+      background:rgba(255,255,255,.08);
+    }
+
+    .settings-layout{
+      display:flex;
+      min-height:560px;
+    }
+
+    .settings-sidebar{
+      width:240px;
+      flex-shrink:0;
+      border-right:1px solid rgba(255,255,255,.08);
+      padding:16px;
+      background:rgba(2, 17, 34, .26);
+    }
+
+    .settings-nav{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .settings-nav-btn{
+      border-radius:16px;
+      padding:12px 14px;
+      text-align:left;
+      background:rgba(255,255,255,.04);
+      color:#cbd5e1;
+      font-weight:800;
+      font-size:14px;
+      transition:all .18s ease;
+      border:1px solid transparent;
+    }
+
+    .settings-nav-btn.active{
+      background:linear-gradient(135deg, rgba(14,116,144,.62), rgba(16,185,129,.34));
+      color:#fff;
+      border-color:rgba(125,211,252,.24);
+      box-shadow:0 10px 24px rgba(0,0,0,.18);
+    }
+
+    .settings-nav-btn small{
+      display:block;
+      font-weight:500;
+      font-size:12px;
+      margin-top:4px;
+      opacity:.8;
+    }
+
+    .settings-content{
+      flex:1;
+      padding:22px;
+      overflow:auto;
+    }
+
+    .settings-panel{
+      display:none;
+    }
+
+    .settings-panel.active{
+      display:block;
+    }
+
+    .settings-title{
+      margin:0 0 8px;
+      font-size:22px;
+      color:#fff;
+      font-weight:900;
+    }
+
+    .settings-subtitle{
+      margin:0 0 18px;
+      color:#9bd8e6;
+      font-size:14px;
+      line-height:1.5;
+    }
+
+    .settings-card{
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.07);
+      border-radius:20px;
+      padding:18px;
+      margin-bottom:16px;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+    }
+
+    .settings-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+      gap:12px;
+    }
+
+    .settings-value-card{
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.05);
+      border-radius:16px;
+      padding:14px;
+    }
+
+    .settings-value-card label{
+      display:block;
+      color:#8fb6c0;
+      font-size:12px;
+      margin-bottom:6px;
+    }
+
+    .settings-value-card div{
+      color:#f8fafc;
+      font-weight:800;
+      line-height:1.35;
+      word-break:break-word;
+    }
+
+    .settings-field{
+      margin-bottom:14px;
+    }
+
+    .settings-field label{
+      display:block;
+      margin-bottom:8px;
+      color:#d9f99d;
+      font-size:13px;
+      font-weight:800;
+    }
+
+    .settings-field input[type="text"],
+    .settings-field textarea,
+    .settings-field select{
+      width:100%;
+      box-sizing:border-box;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(2, 6, 23, .45);
+      color:#e2e8f0;
+      outline:none;
+      font-size:14px;
+    }
+
+    .settings-field textarea{
+      min-height:240px;
+      resize:vertical;
+      line-height:1.55;
+    }
+
+    .settings-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:8px;
+    }
+
+    .settings-primary-btn,
+    .settings-secondary-btn,
+    .settings-danger-btn{
+      height:42px;
+      padding:0 16px;
+      border-radius:14px;
+      font-weight:800;
+      color:#fff;
+      transition:transform .16s ease, opacity .16s ease;
+    }
+
+    .settings-primary-btn:hover,
+    .settings-secondary-btn:hover,
+    .settings-danger-btn:hover{
+      transform:translateY(-1px);
+    }
+
+    .settings-primary-btn{
+      background:linear-gradient(135deg, #0ea5e9, #10b981);
+    }
+
+    .settings-secondary-btn{
+      background:rgba(255,255,255,.08);
+      color:#e2e8f0;
+    }
+
+    .settings-danger-btn{
+      background:linear-gradient(135deg, rgba(190,24,93,.88), rgba(153,27,27,.95));
+    }
+
+    .settings-profile-top{
+      display:flex;
+      align-items:center;
+      gap:16px;
+      margin-bottom:18px;
+      flex-wrap:wrap;
+    }
+
+    .settings-profile-avatar{
+      width:84px;
+      height:84px;
+      border-radius:24px;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(135deg,#2563eb,#10b981);
+      color:#fff;
+      font-size:32px;
+      font-weight:900;
+      flex-shrink:0;
+      box-shadow:0 14px 34px rgba(0,0,0,.24);
+    }
+
+    .settings-profile-avatar img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+
+    .settings-status{
+      min-height:20px;
+      margin-top:10px;
+      font-size:13px;
+      color:#86efac;
+    }
+
+    .settings-status.error{
+      color:#fda4af;
+    }
+
+    .settings-range-row{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-top:8px;
+    }
+
+    .settings-range-row input[type="range"]{
+      flex:1;
+    }
+
+    .settings-range-value{
+      width:56px;
+      text-align:right;
+      color:#fff;
+      font-weight:800;
+    }
+
+    .settings-toggle-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:12px 14px;
+      border-radius:16px;
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.06);
+      margin-bottom:14px;
+    }
+
+    .settings-toggle-row b{
+      color:#fff;
+      display:block;
+      margin-bottom:4px;
+    }
+
+    .settings-toggle-row span{
+      color:#94a3b8;
+      font-size:13px;
+    }
+
+    .settings-toggle-row input[type="checkbox"]{
+      width:18px;
+      height:18px;
+    }
+
+    .settings-meter{
+      width:100%;
+      height:14px;
+      border-radius:999px;
+      background:rgba(255,255,255,.08);
+      overflow:hidden;
+      margin-top:12px;
+      border:1px solid rgba(255,255,255,.06);
+    }
+
+    .settings-meter-fill{
+      width:0%;
+      height:100%;
+      background:linear-gradient(90deg, #0ea5e9, #22c55e);
+      transition:width .08s linear;
+    }
+
+    .settings-footer{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      padding:16px 22px 22px;
+      border-top:1px solid rgba(255,255,255,.08);
+      background:rgba(2, 17, 34, .18);
+    }
+
+    .settings-footer-info{
+      color:#94a3b8;
+      font-size:12px;
+      line-height:1.5;
+    }
+
+    .settings-mini-note{
+      margin-top:8px;
+      color:#8fd3e0;
+      font-size:12px;
+      line-height:1.5;
+    }
+
+    @media (max-width: 900px){
+      .settings-layout{
+        flex-direction:column;
+      }
+
+      .settings-sidebar{
+        width:100%;
+        border-right:none;
+        border-bottom:1px solid rgba(255,255,255,.08);
+      }
+
+      .settings-nav{
+        display:grid;
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 620px){
+      .settings-nav{
+        grid-template-columns:1fr;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function setupProfileUI() {
-  if (!meName || document.getElementById("profileAvatarBtn")) return;
+  injectEnhancedSettingsStyles();
+
+  if (!meName) return;
 
   const profile = meName.closest(".profile");
 
   if (!profile) return;
 
-  profileAvatarBtn = document.createElement("button");
-  profileAvatarBtn.id = "profileAvatarBtn";
-  profileAvatarBtn.type = "button";
-  profileAvatarBtn.title = "Профиль";
-
-  profileBtn = document.createElement("button");
-  profileBtn.id = "profileBtn";
-  profileBtn.type = "button";
-  profileBtn.textContent = "Профиль";
-  profileBtn.title = "Открыть профиль";
-
-  profileBtn.style.marginLeft = "auto";
-  profileBtn.style.background = "#243044";
-  profileBtn.style.color = "#cbd5e1";
-  profileBtn.style.padding = "9px 12px";
-  profileBtn.style.borderRadius = "12px";
-  profileBtn.style.fontWeight = "700";
-  profileBtn.style.whiteSpace = "nowrap";
-
-  if (logoutBtn) {
-    logoutBtn.style.marginLeft = "6px";
+  if (!profileAvatarBtn) {
+    profileAvatarBtn = document.createElement("button");
+    profileAvatarBtn.id = "profileAvatarBtn";
+    profileAvatarBtn.type = "button";
+    profileAvatarBtn.className = "callibri-avatar-btn";
+    profileAvatarBtn.title = "Профиль и настройки";
+    profileAvatarBtn.addEventListener("click", openSettingsModal);
+    profile.prepend(profileAvatarBtn);
   }
 
-  profile.prepend(profileAvatarBtn);
-
-  if (logoutBtn) {
-    profile.insertBefore(profileBtn, logoutBtn);
-  } else {
-    profile.appendChild(profileBtn);
+  if (!settingsBtn) {
+    settingsBtn = document.createElement("button");
+    settingsBtn.id = "settingsBtn";
+    settingsBtn.type = "button";
+    settingsBtn.className = "callibri-settings-btn";
+    settingsBtn.title = "Настройки";
+    settingsBtn.textContent = "⚙";
+    settingsBtn.addEventListener("click", openSettingsModal);
+    profile.appendChild(settingsBtn);
   }
 
-  profileAvatarBtn.addEventListener("click", openProfileModal);
-  profileBtn.addEventListener("click", openProfileModal);
+  if (logoutBtn) {
+    logoutBtn.style.display = "none";
+  }
 
-  createProfileModal();
+  createSettingsModal();
   renderMyAvatar();
 }
 
-function createProfileModal() {
-  if (document.getElementById("profileModal")) return;
+function createSettingsModal() {
+  if (document.getElementById("settingsModal")) {
+    settingsModal = document.getElementById("settingsModal");
+    return;
+  }
 
-  profileModal = document.createElement("div");
-  profileModal.id = "profileModal";
-  profileModal.className = "modal hidden";
+  settingsModal = document.createElement("div");
+  settingsModal.id = "settingsModal";
+  settingsModal.className = "modal hidden";
 
-  profileModal.innerHTML = `
-    <div class="modal-card" style="max-width:460px;">
-      <h2>Профиль</h2>
-      <p>Здесь можно изменить аватарку, имя и @username.</p>
-
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
-        <button id="profileModalAvatarBtn" type="button" style="
-          width:74px;
-          height:74px;
-          border-radius:50%;
-          background:linear-gradient(135deg,#22d3ee,#2563eb);
-          color:white;
-          font-size:28px;
-          font-weight:900;
-          overflow:hidden;
-          flex-shrink:0;
-        "></button>
-
+  settingsModal.innerHTML = `
+    <div class="settings-shell">
+      <div class="settings-head">
         <div>
-          <button id="profileChangeAvatarBtn" type="button" style="
-            background:#243044;
-            color:white;
-            border-radius:12px;
-            padding:10px 13px;
-            font-weight:800;
-          ">Сменить аватарку</button>
-
-          <button id="profileRemoveAvatarBtn" type="button" style="
-            background:#3a2230;
-            color:#fb7185;
-            border-radius:12px;
-            padding:10px 13px;
-            font-weight:800;
-            margin-left:6px;
-          ">Убрать</button>
+          <h2>Настройки Callibri</h2>
+          <p>Профиль, микрофон, устройство входа, избранное и уведомления — всё в одном месте.</p>
         </div>
+        <button id="settingsCloseBtn" type="button" class="settings-close-btn">×</button>
       </div>
 
-      <input id="profileDisplayNameInput" type="text" placeholder="Имя" />
-      <input id="profileUsernameInput" type="text" placeholder="username без @" />
+      <div class="settings-layout">
+        <aside class="settings-sidebar">
+          <div class="settings-nav">
+            <button type="button" class="settings-nav-btn active" data-settings-section-btn="profile">
+              Профиль
+              <small>Имя, username, аватарка</small>
+            </button>
 
-      <div style="color:#94a3b8;font-size:13px;line-height:1.4;margin:-4px 0 12px;">
-        Username: только латиница, цифры и нижнее подчёркивание. От 3 до 24 символов.
+            <button type="button" class="settings-nav-btn" data-settings-section-btn="microphone">
+              Микрофон
+              <small>Выбор устройства записи</small>
+            </button>
+
+            <button type="button" class="settings-nav-btn" data-settings-section-btn="device">
+              Устройство входа
+              <small>Информация о текущем устройстве</small>
+            </button>
+
+            <button type="button" class="settings-nav-btn" data-settings-section-btn="favorites">
+              Избранное
+              <small>Личные заметки и важные данные</small>
+            </button>
+
+            <button type="button" class="settings-nav-btn" data-settings-section-btn="sounds">
+              Уведомления и звук
+              <small>Громкость и звуки уведомлений</small>
+            </button>
+          </div>
+        </aside>
+
+        <section class="settings-content">
+          <div class="settings-panel active" data-settings-panel="profile">
+            <h3 class="settings-title">Профиль</h3>
+            <p class="settings-subtitle">Измени имя, username и аватарку. Всё обновится в интерфейсе мессенджера.</p>
+
+            <div class="settings-card">
+              <div class="settings-profile-top">
+                <div id="settingsProfileAvatar" class="settings-profile-avatar">?</div>
+
+                <div style="display:flex;flex-wrap:wrap;gap:10px;">
+                  <button id="settingsChangeAvatarBtn" type="button" class="settings-secondary-btn">Сменить аватарку</button>
+                  <button id="settingsRemoveAvatarBtn" type="button" class="settings-secondary-btn">Убрать аватарку</button>
+                </div>
+              </div>
+
+              <div class="settings-field">
+                <label for="settingsDisplayNameInput">Имя</label>
+                <input id="settingsDisplayNameInput" type="text" placeholder="Введите имя" />
+              </div>
+
+              <div class="settings-field">
+                <label for="settingsUsernameInput">Username</label>
+                <input id="settingsUsernameInput" type="text" placeholder="username без @" />
+                <div class="settings-mini-note">
+                  Username: латиница, цифры и нижнее подчёркивание. От 3 до 24 символов.
+                </div>
+              </div>
+
+              <input id="settingsAvatarFileInput" type="file" accept="image/*" style="display:none;" />
+
+              <div id="settingsProfileState" class="settings-status"></div>
+
+              <div class="settings-actions">
+                <button id="settingsSaveProfileBtn" type="button" class="settings-primary-btn">Сохранить профиль</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-settings-panel="microphone">
+            <h3 class="settings-title">Настройка микрофона</h3>
+            <p class="settings-subtitle">Выбери устройство записи. Эта настройка влияет на новые голосовые сообщения.</p>
+
+            <div class="settings-card">
+              <div class="settings-field">
+                <label for="settingsMicSelect">Микрофон</label>
+                <select id="settingsMicSelect"></select>
+              </div>
+
+              <div class="settings-actions">
+                <button id="settingsRefreshMicsBtn" type="button" class="settings-secondary-btn">Обновить список</button>
+                <button id="settingsTestMicBtn" type="button" class="settings-secondary-btn">Проверить микрофон</button>
+                <button id="settingsSaveMicBtn" type="button" class="settings-primary-btn">Сохранить выбор</button>
+              </div>
+
+              <div class="settings-meter">
+                <div id="settingsMicMeterFill" class="settings-meter-fill"></div>
+              </div>
+
+              <div class="settings-mini-note">
+                Рекомендуется использовать основной микрофон с включёнными: шумоподавлением, эхоподавлением и автоусилением.
+              </div>
+
+              <div id="settingsMicState" class="settings-status"></div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-grid">
+                <div class="settings-value-card">
+                  <label>Кодек записи</label>
+                  <div>Opus / WebM</div>
+                </div>
+                <div class="settings-value-card">
+                  <label>Битрейт</label>
+                  <div>128 kbps</div>
+                </div>
+                <div class="settings-value-card">
+                  <label>Шумоподавление</label>
+                  <div>Включено</div>
+                </div>
+                <div class="settings-value-card">
+                  <label>Эхоподавление</label>
+                  <div>Включено</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-settings-panel="device">
+            <h3 class="settings-title">Устройство, с которого выполнен вход</h3>
+            <p class="settings-subtitle">Здесь отображается информация о текущем устройстве, браузере или desktop-приложении.</p>
+
+            <div class="settings-card">
+              <div class="settings-grid">
+                <div class="settings-value-card">
+                  <label>Приложение</label>
+                  <div id="deviceInfoApp">—</div>
+                </div>
+                <div class="settings-value-card">
+                  <label>Браузер / оболочка</label>
+                  <div id="deviceInfoBrowser">—</div>
+                </div>
+                <div class="settings-value-card">
+                  <label>Операционная система</label>
+                  <div id="deviceInfoOS">—</div>
+                </div>
+                <div class="settings-value-card">
+                  <label>Платформа</label>
+                  <div id="deviceInfoPlatform">—</div>
+                </div>
+                <div class="settings-value-card">
+                  <label>Язык</label>
+                  <div id="deviceInfoLanguage">—</div>
+                </div>
+                <div class="settings-value-card">
+                  <label>Разрешение экрана</label>
+                  <div id="deviceInfoScreen">—</div>
+                </div>
+                <div class="settings-value-card">
+                  <label>Часовой пояс</label>
+                  <div id="deviceInfoTimezone">—</div>
+                </div>
+                <div class="settings-value-card">
+                  <label>Время входа</label>
+                  <div id="deviceInfoSavedAt">—</div>
+                </div>
+              </div>
+
+              <div class="settings-actions">
+                <button id="settingsRefreshDeviceBtn" type="button" class="settings-secondary-btn">Обновить информацию</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-settings-panel="favorites">
+            <h3 class="settings-title">Избранное</h3>
+            <p class="settings-subtitle">Личное пространство для заметок, ссылок, кодов, напоминаний и другой важной информации, как в Telegram.</p>
+
+            <div class="settings-card">
+              <div class="settings-field">
+                <label for="settingsFavoritesTextarea">Ваше избранное</label>
+                <textarea id="settingsFavoritesTextarea" placeholder="Например:
+• важные ссылки
+• пароли без чувствительных данных
+• заметки
+• коды
+• планы
+• шаблоны сообщений"></textarea>
+              </div>
+
+              <div class="settings-mini-note">
+                Сейчас избранное хранится локально на этом устройстве, в браузере/приложении.
+              </div>
+
+              <div id="settingsFavoritesState" class="settings-status"></div>
+
+              <div class="settings-actions">
+                <button id="settingsSaveFavoritesBtn" type="button" class="settings-primary-btn">Сохранить избранное</button>
+                <button id="settingsClearFavoritesBtn" type="button" class="settings-secondary-btn">Очистить</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-settings-panel="sounds">
+            <h3 class="settings-title">Уведомления и звук</h3>
+            <p class="settings-subtitle">Настрой звуки уведомлений и громкость воспроизведения голосовых сообщений.</p>
+
+            <div class="settings-card">
+              <div class="settings-toggle-row">
+                <div>
+                  <b>Звуки уведомлений</b>
+                  <span>Воспроизводить короткий звук при новых сообщениях</span>
+                </div>
+                <input id="settingsNotificationSoundToggle" type="checkbox" />
+              </div>
+
+              <div class="settings-field">
+                <label for="settingsNotificationVolume">Громкость уведомлений</label>
+                <div class="settings-range-row">
+                  <input id="settingsNotificationVolume" type="range" min="0" max="100" step="1" />
+                  <div id="settingsNotificationVolumeValue" class="settings-range-value">80%</div>
+                </div>
+              </div>
+
+              <div class="settings-field">
+                <label for="settingsVoicePlaybackVolume">Громкость голосовых сообщений</label>
+                <div class="settings-range-row">
+                  <input id="settingsVoicePlaybackVolume" type="range" min="0" max="100" step="1" />
+                  <div id="settingsVoicePlaybackVolumeValue" class="settings-range-value">100%</div>
+                </div>
+              </div>
+
+              <div id="settingsSoundState" class="settings-status"></div>
+
+              <div class="settings-actions">
+                <button id="settingsTestSoundBtn" type="button" class="settings-secondary-btn">Проверить звук</button>
+                <button id="settingsSaveSoundBtn" type="button" class="settings-primary-btn">Сохранить настройки</button>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
-      <input id="profileAvatarFileInput" type="file" accept="image/*" style="display:none;" />
+      <div class="settings-footer">
+        <div class="settings-footer-info">
+          Callibri · Панель настроек<br>
+          Всё управление аккаунтом теперь собрано в одной шестерёнке.
+        </div>
 
-      <div id="profileError" style="min-height:20px;color:#fb7185;font-size:14px;margin-bottom:12px;"></div>
-
-      <div class="modal-actions">
-        <button id="cancelProfileBtn" type="button">Отмена</button>
-        <button id="saveProfileBtn" type="button">Сохранить</button>
+        <div class="settings-actions" style="margin-top:0;">
+          <button id="settingsLogoutBtn" type="button" class="settings-danger-btn">Выйти из аккаунта</button>
+          <button id="settingsDoneBtn" type="button" class="settings-primary-btn">Готово</button>
+        </div>
       </div>
     </div>
   `;
 
-  document.body.appendChild(profileModal);
+  document.body.appendChild(settingsModal);
 
-  const cancelProfileBtn = document.getElementById("cancelProfileBtn");
-  const saveProfileBtn = document.getElementById("saveProfileBtn");
-  const profileModalAvatarBtn = document.getElementById("profileModalAvatarBtn");
-  const profileChangeAvatarBtn = document.getElementById("profileChangeAvatarBtn");
-  const profileRemoveAvatarBtn = document.getElementById("profileRemoveAvatarBtn");
+  document.getElementById("settingsCloseBtn").addEventListener("click", closeSettingsModal);
+  document.getElementById("settingsDoneBtn").addEventListener("click", closeSettingsModal);
+  document.getElementById("settingsLogoutBtn").addEventListener("click", () => {
+    closeSettingsModal();
+    logout();
+  });
 
-  profileModalAvatarInput = document.getElementById("profileAvatarFileInput");
+  settingsModal.addEventListener("click", (event) => {
+    if (event.target === settingsModal) {
+      closeSettingsModal();
+    }
+  });
 
-  if (cancelProfileBtn) cancelProfileBtn.addEventListener("click", closeProfileModal);
-  if (saveProfileBtn) saveProfileBtn.addEventListener("click", saveProfile);
-
-  if (profileModalAvatarBtn) {
-    profileModalAvatarBtn.addEventListener("click", () => {
-      profileModalAvatarInput.click();
+  document.querySelectorAll("[data-settings-section-btn]").forEach((button) => {
+    button.addEventListener("click", () => {
+      switchSettingsSection(button.dataset.settingsSectionBtn);
     });
+  });
+
+  document.getElementById("settingsSaveProfileBtn").addEventListener("click", saveProfile);
+  document.getElementById("settingsChangeAvatarBtn").addEventListener("click", () => {
+    profileModalAvatarInput.click();
+  });
+  document.getElementById("settingsRemoveAvatarBtn").addEventListener("click", () => {
+    profileAvatarDraft = "";
+    renderSettingsProfileAvatar();
+  });
+
+  profileModalAvatarInput = document.getElementById("settingsAvatarFileInput");
+  profileModalAvatarInput.addEventListener("change", handleProfileAvatarDraft);
+
+  document.getElementById("settingsRefreshMicsBtn").addEventListener("click", populateMicrophoneDevices);
+  document.getElementById("settingsTestMicBtn").addEventListener("click", toggleSettingsMicTest);
+  document.getElementById("settingsSaveMicBtn").addEventListener("click", saveMicSettings);
+
+  document.getElementById("settingsRefreshDeviceBtn").addEventListener("click", refreshDeviceInfo);
+
+  document.getElementById("settingsSaveFavoritesBtn").addEventListener("click", saveFavoritesSettings);
+  document.getElementById("settingsClearFavoritesBtn").addEventListener("click", clearFavoritesSettings);
+
+  document.getElementById("settingsNotificationVolume").addEventListener("input", updateSoundRangeLabels);
+  document.getElementById("settingsVoicePlaybackVolume").addEventListener("input", updateSoundRangeLabels);
+  document.getElementById("settingsTestSoundBtn").addEventListener("click", playNotificationSound);
+  document.getElementById("settingsSaveSoundBtn").addEventListener("click", saveSoundSettings);
+}
+
+function switchSettingsSection(section) {
+  settingsActiveSection = section || "profile";
+
+  document.querySelectorAll("[data-settings-section-btn]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.settingsSectionBtn === settingsActiveSection);
+  });
+
+  document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.settingsPanel === settingsActiveSection);
+  });
+
+  if (settingsActiveSection !== "microphone") {
+    stopSettingsMicTest();
   }
 
-  if (profileChangeAvatarBtn) {
-    profileChangeAvatarBtn.addEventListener("click", () => {
-      profileModalAvatarInput.click();
-    });
+  if (settingsActiveSection === "profile") {
+    renderSettingsProfileSection();
   }
 
-  if (profileRemoveAvatarBtn) {
-    profileRemoveAvatarBtn.addEventListener("click", () => {
-      profileAvatarDraft = "";
-      renderProfileModalAvatar();
-    });
+  if (settingsActiveSection === "microphone") {
+    populateMicrophoneDevices();
   }
 
-  if (profileModalAvatarInput) {
-    profileModalAvatarInput.addEventListener("change", handleProfileAvatarDraft);
+  if (settingsActiveSection === "device") {
+    renderDeviceInfo();
+  }
+
+  if (settingsActiveSection === "favorites") {
+    renderFavoritesSection();
+  }
+
+  if (settingsActiveSection === "sounds") {
+    renderSoundSection();
   }
 }
 
-function openProfileModal() {
+function openSettingsModal() {
   if (!currentUser) return;
 
-  createProfileModal();
-
-  const nameInput = document.getElementById("profileDisplayNameInput");
-  const usernameInput = document.getElementById("profileUsernameInput");
-  const error = document.getElementById("profileError");
+  createSettingsModal();
+  loadAppSettings();
+  ensureLoginDeviceInfo();
 
   profileAvatarDraft = currentUser.avatar || "";
 
-  if (nameInput) nameInput.value = currentUser.displayName || currentUser.username || "";
-  if (usernameInput) usernameInput.value = currentUser.username || "";
-  if (error) error.textContent = "";
+  renderSettingsProfileSection();
+  renderDeviceInfo();
+  renderFavoritesSection();
+  renderSoundSection();
 
-  renderProfileModalAvatar();
-
-  if (profileModal) {
-    profileModal.classList.remove("hidden");
-  }
+  settingsModal.classList.remove("hidden");
+  switchSettingsSection(settingsActiveSection || "profile");
 }
 
-function closeProfileModal() {
-  if (profileModal) {
-    profileModal.classList.add("hidden");
-  }
+function renderSettingsProfileAvatar() {
+  const avatarBox = document.getElementById("settingsProfileAvatar");
 
-  if (profileModalAvatarInput) {
-    profileModalAvatarInput.value = "";
-  }
-}
-
-function renderProfileModalAvatar() {
-  const btn = document.getElementById("profileModalAvatarBtn");
-
-  if (!btn || !currentUser) return;
+  if (!avatarBox || !currentUser) return;
 
   if (profileAvatarDraft) {
-    btn.innerHTML = `<img src="${profileAvatarDraft}" alt="avatar" style="width:100%;height:100%;object-fit:cover;">`;
+    avatarBox.innerHTML = `<img src="${profileAvatarDraft}" alt="avatar">`;
   } else {
-    btn.textContent = (currentUser.displayName || currentUser.username || "?")[0].toUpperCase();
+    avatarBox.textContent = (currentUser.displayName || currentUser.username || "?")[0].toUpperCase();
   }
+}
+
+function renderSettingsProfileSection() {
+  if (!currentUser) return;
+
+  const nameInput = document.getElementById("settingsDisplayNameInput");
+  const usernameInput = document.getElementById("settingsUsernameInput");
+  const state = document.getElementById("settingsProfileState");
+
+  if (nameInput) nameInput.value = currentUser.displayName || currentUser.username || "";
+  if (usernameInput) usernameInput.value = currentUser.username || "";
+  if (state) {
+    state.textContent = "";
+    state.classList.remove("error");
+  }
+
+  renderSettingsProfileAvatar();
 }
 
 async function handleProfileAvatarDraft(event) {
@@ -759,7 +1589,7 @@ async function handleProfileAvatarDraft(event) {
 
   try {
     profileAvatarDraft = await fileToDataUrl(file);
-    renderProfileModalAvatar();
+    renderSettingsProfileAvatar();
   } catch (error) {
     alert("Не удалось загрузить аватарку");
   } finally {
@@ -770,23 +1600,32 @@ async function handleProfileAvatarDraft(event) {
 async function saveProfile() {
   if (!currentUser) return;
 
-  const nameInput = document.getElementById("profileDisplayNameInput");
-  const usernameInput = document.getElementById("profileUsernameInput");
-  const error = document.getElementById("profileError");
+  const state = document.getElementById("settingsProfileState");
+  const nameInput = document.getElementById("settingsDisplayNameInput");
+  const usernameInput = document.getElementById("settingsUsernameInput");
 
   const oldUsername = currentUser.username;
   const displayName = nameInput ? nameInput.value.trim() : "";
   const newUsername = usernameInput ? normalizeUsername(usernameInput.value) : "";
 
-  if (error) error.textContent = "";
+  if (state) {
+    state.textContent = "";
+    state.classList.remove("error");
+  }
 
   if (!displayName) {
-    if (error) error.textContent = "Введите имя";
+    if (state) {
+      state.textContent = "Введите имя";
+      state.classList.add("error");
+    }
     return;
   }
 
   if (!newUsername) {
-    if (error) error.textContent = "Введите username";
+    if (state) {
+      state.textContent = "Введите username";
+      state.classList.add("error");
+    }
     return;
   }
 
@@ -801,7 +1640,19 @@ async function saveProfile() {
       })
     });
 
+    const oldSettingsSnapshot = { ...appSettings };
+
     updateSavedUser(data.user);
+
+    appSettings = {
+      ...oldSettingsSnapshot
+    };
+
+    if (appSettings.loginDeviceInfo) {
+      appSettings.loginDeviceInfo.savedAt = new Date().toISOString();
+    }
+
+    saveAppSettings(oldUsername);
 
     if (meName) meName.textContent = currentUser.displayName || currentUser.username;
     if (meLogin) meLogin.textContent = "@" + currentUser.username;
@@ -821,11 +1672,18 @@ async function saveProfile() {
     await loadGroups();
 
     renderEmptyChat();
-    closeProfileModal();
+    renderSettingsProfileSection();
+    renderDeviceInfo();
 
-    alert("Профиль обновлён");
+    if (state) {
+      state.textContent = "Профиль обновлён";
+      state.classList.remove("error");
+    }
   } catch (err) {
-    if (error) error.textContent = err.message;
+    if (state) {
+      state.textContent = err.message;
+      state.classList.add("error");
+    }
   }
 }
 
@@ -836,6 +1694,319 @@ function renderMyAvatar() {
     profileAvatarBtn.innerHTML = `<img src="${currentUser.avatar}" alt="avatar">`;
   } else {
     profileAvatarBtn.textContent = (currentUser.displayName || currentUser.username || "?")[0].toUpperCase();
+  }
+}
+
+async function populateMicrophoneDevices() {
+  const select = document.getElementById("settingsMicSelect");
+  const state = document.getElementById("settingsMicState");
+
+  if (!select) return;
+
+  if (state) {
+    state.textContent = "";
+    state.classList.remove("error");
+  }
+
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const temp = await navigator.mediaDevices.getUserMedia({ audio: true });
+        temp.getTracks().forEach((track) => track.stop());
+      } catch {}
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const microphones = devices.filter((device) => device.kind === "audioinput");
+
+    select.innerHTML = "";
+
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = "Системный микрофон по умолчанию";
+    select.appendChild(defaultOption);
+
+    microphones.forEach((device, index) => {
+      const option = document.createElement("option");
+      option.value = device.deviceId;
+      option.textContent = device.label || `Микрофон ${index + 1}`;
+      select.appendChild(option);
+    });
+
+    select.value = appSettings.selectedMicId || "";
+  } catch (error) {
+    console.error(error);
+
+    select.innerHTML = `<option value="">Не удалось получить список устройств</option>`;
+
+    if (state) {
+      state.textContent = "Не удалось получить список микрофонов";
+      state.classList.add("error");
+    }
+  }
+}
+
+function saveMicSettings() {
+  const select = document.getElementById("settingsMicSelect");
+  const state = document.getElementById("settingsMicState");
+
+  if (!select) return;
+
+  appSettings.selectedMicId = select.value || "";
+  saveAppSettings();
+
+  if (state) {
+    state.textContent = "Выбор микрофона сохранён";
+    state.classList.remove("error");
+  }
+}
+
+function stopSettingsMicTest() {
+  if (settingsMicTestFrame) {
+    cancelAnimationFrame(settingsMicTestFrame);
+    settingsMicTestFrame = null;
+  }
+
+  if (settingsMicTestStream) {
+    settingsMicTestStream.getTracks().forEach((track) => track.stop());
+    settingsMicTestStream = null;
+  }
+
+  if (settingsMicTestContext) {
+    settingsMicTestContext.close().catch(() => {});
+    settingsMicTestContext = null;
+  }
+
+  settingsMicTestAnalyser = null;
+  settingsMicTestDataArray = null;
+
+  const meter = document.getElementById("settingsMicMeterFill");
+  const btn = document.getElementById("settingsTestMicBtn");
+
+  if (meter) meter.style.width = "0%";
+  if (btn) btn.textContent = "Проверить микрофон";
+}
+
+async function toggleSettingsMicTest() {
+  const btn = document.getElementById("settingsTestMicBtn");
+  const state = document.getElementById("settingsMicState");
+  const meter = document.getElementById("settingsMicMeterFill");
+
+  if (settingsMicTestStream) {
+    stopSettingsMicTest();
+
+    if (state) {
+      state.textContent = "Проверка микрофона остановлена";
+      state.classList.remove("error");
+    }
+
+    return;
+  }
+
+  try {
+    const select = document.getElementById("settingsMicSelect");
+    const selectedMicId = select ? select.value : "";
+
+    const constraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      channelCount: 1
+    };
+
+    if (selectedMicId) {
+      constraints.deviceId = { exact: selectedMicId };
+    }
+
+    settingsMicTestStream = await navigator.mediaDevices.getUserMedia({
+      audio: constraints
+    });
+
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    settingsMicTestContext = new AudioCtx();
+
+    const source = settingsMicTestContext.createMediaStreamSource(settingsMicTestStream);
+    settingsMicTestAnalyser = settingsMicTestContext.createAnalyser();
+    settingsMicTestAnalyser.fftSize = 256;
+    source.connect(settingsMicTestAnalyser);
+
+    const length = settingsMicTestAnalyser.frequencyBinCount;
+    settingsMicTestDataArray = new Uint8Array(length);
+
+    if (btn) btn.textContent = "Остановить проверку";
+
+    if (state) {
+      state.textContent = "Говори в микрофон — индикатор ниже покажет уровень";
+      state.classList.remove("error");
+    }
+
+    function drawMicLevel() {
+      if (!settingsMicTestAnalyser || !settingsMicTestDataArray) return;
+
+      settingsMicTestAnalyser.getByteFrequencyData(settingsMicTestDataArray);
+
+      let sum = 0;
+      for (let i = 0; i < settingsMicTestDataArray.length; i++) {
+        sum += settingsMicTestDataArray[i];
+      }
+
+      const average = sum / settingsMicTestDataArray.length;
+      const level = Math.max(0, Math.min(100, Math.round((average / 180) * 100)));
+
+      if (meter) {
+        meter.style.width = `${level}%`;
+      }
+
+      settingsMicTestFrame = requestAnimationFrame(drawMicLevel);
+    }
+
+    drawMicLevel();
+  } catch (error) {
+    console.error(error);
+
+    stopSettingsMicTest();
+
+    if (state) {
+      state.textContent = "Не удалось запустить проверку микрофона";
+      state.classList.add("error");
+    }
+  }
+}
+
+function refreshDeviceInfo() {
+  appSettings.loginDeviceInfo = buildLoginDeviceInfo();
+  saveAppSettings();
+  renderDeviceInfo();
+}
+
+function renderDeviceInfo() {
+  const info = appSettings.loginDeviceInfo || buildLoginDeviceInfo();
+
+  const map = {
+    deviceInfoApp: info.app,
+    deviceInfoBrowser: info.browser,
+    deviceInfoOS: info.os,
+    deviceInfoPlatform: info.platform,
+    deviceInfoLanguage: info.language,
+    deviceInfoScreen: info.screen,
+    deviceInfoTimezone: info.timezone,
+    deviceInfoSavedAt: formatDateTime(info.savedAt)
+  };
+
+  Object.entries(map).forEach(([id, value]) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.textContent = value || "—";
+    }
+  });
+}
+
+function renderFavoritesSection() {
+  const textarea = document.getElementById("settingsFavoritesTextarea");
+  const state = document.getElementById("settingsFavoritesState");
+
+  if (textarea) {
+    textarea.value = appSettings.favoritesText || "";
+  }
+
+  if (state) {
+    state.textContent = "";
+    state.classList.remove("error");
+  }
+}
+
+function saveFavoritesSettings() {
+  const textarea = document.getElementById("settingsFavoritesTextarea");
+  const state = document.getElementById("settingsFavoritesState");
+
+  appSettings.favoritesText = textarea ? textarea.value : "";
+  saveAppSettings();
+
+  if (state) {
+    state.textContent = "Избранное сохранено";
+    state.classList.remove("error");
+  }
+}
+
+function clearFavoritesSettings() {
+  const textarea = document.getElementById("settingsFavoritesTextarea");
+  const state = document.getElementById("settingsFavoritesState");
+
+  if (textarea) textarea.value = "";
+  appSettings.favoritesText = "";
+  saveAppSettings();
+
+  if (state) {
+    state.textContent = "Избранное очищено";
+    state.classList.remove("error");
+  }
+}
+
+function updateSoundRangeLabels() {
+  const notificationRange = document.getElementById("settingsNotificationVolume");
+  const voiceRange = document.getElementById("settingsVoicePlaybackVolume");
+  const notificationValue = document.getElementById("settingsNotificationVolumeValue");
+  const voiceValue = document.getElementById("settingsVoicePlaybackVolumeValue");
+
+  if (notificationRange && notificationValue) {
+    notificationValue.textContent = `${notificationRange.value}%`;
+  }
+
+  if (voiceRange && voiceValue) {
+    voiceValue.textContent = `${voiceRange.value}%`;
+  }
+}
+
+function renderSoundSection() {
+  const toggle = document.getElementById("settingsNotificationSoundToggle");
+  const notificationRange = document.getElementById("settingsNotificationVolume");
+  const voiceRange = document.getElementById("settingsVoicePlaybackVolume");
+  const state = document.getElementById("settingsSoundState");
+
+  if (toggle) {
+    toggle.checked = Boolean(appSettings.notificationSoundsEnabled);
+  }
+
+  if (notificationRange) {
+    notificationRange.value = String(Math.round((appSettings.notificationVolume || 0) * 100));
+  }
+
+  if (voiceRange) {
+    voiceRange.value = String(Math.round((appSettings.voicePlaybackVolume || 0) * 100));
+  }
+
+  updateSoundRangeLabels();
+
+  if (state) {
+    state.textContent = "";
+    state.classList.remove("error");
+  }
+}
+
+function applyVoiceVolumeToPlayers() {
+  for (const [, player] of voicePlayers.entries()) {
+    try {
+      player.setVolume(Number(appSettings.voicePlaybackVolume || 1));
+    } catch {}
+  }
+}
+
+function saveSoundSettings() {
+  const toggle = document.getElementById("settingsNotificationSoundToggle");
+  const notificationRange = document.getElementById("settingsNotificationVolume");
+  const voiceRange = document.getElementById("settingsVoicePlaybackVolume");
+  const state = document.getElementById("settingsSoundState");
+
+  appSettings.notificationSoundsEnabled = Boolean(toggle && toggle.checked);
+  appSettings.notificationVolume = Math.max(0, Math.min(1, Number(notificationRange ? notificationRange.value : 80) / 100));
+  appSettings.voicePlaybackVolume = Math.max(0, Math.min(1, Number(voiceRange ? voiceRange.value : 100) / 100));
+
+  saveAppSettings();
+  applyVoiceVolumeToPlayers();
+
+  if (state) {
+    state.textContent = "Настройки звука сохранены";
+    state.classList.remove("error");
   }
 }
 
@@ -1228,7 +2399,6 @@ function closeRecordingPanel() {
   if (recordingVisualizer) recordingVisualizer.innerHTML = "";
 
   finalVoiceBlob = null;
-  finalVoiceMimeType = "audio/webm";
   liveWaveformBars = [];
 }
 
@@ -1344,23 +2514,36 @@ function normalizeWaveformBars(bars, targetCount = 96) {
   return result;
 }
 
-/* =========================================================
-   HIGH QUALITY VOICE RECORDING
-   ========================================================= */
+function buildRecordingAudioConstraints(useExactDevice = true) {
+  const audio = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1,
+    sampleRate: 48000
+  };
 
-function getBestAudioMimeType() {
-  const types = [
-    "audio/webm;codecs=opus",
-    "audio/ogg;codecs=opus",
-    "audio/webm",
-    "audio/ogg"
-  ];
-
-  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) {
-    return "";
+  if (useExactDevice && appSettings.selectedMicId) {
+    audio.deviceId = { exact: appSettings.selectedMicId };
   }
 
-  return types.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+  return audio;
+}
+
+async function getRecordingStream() {
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: buildRecordingAudioConstraints(true)
+    });
+  } catch (error) {
+    if (appSettings.selectedMicId) {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: buildRecordingAudioConstraints(false)
+      });
+    }
+
+    throw error;
+  }
 }
 
 async function toggleVoiceRecording() {
@@ -1377,36 +2560,29 @@ async function toggleVoiceRecording() {
   }
 
   try {
-    recordingStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        channelCount: 1,
-        sampleRate: 48000,
-        sampleSize: 16
-      }
-    });
+    recordingStream = await getRecordingStream();
 
     recordedChunks = [];
     finalVoiceBlob = null;
     liveWaveformBars = [];
 
-    const selectedMimeType = getBestAudioMimeType();
+    let recorderOptions = {};
 
-    const recorderOptions = {
-      audioBitsPerSecond: 128000
-    };
-
-    if (selectedMimeType) {
-      recorderOptions.mimeType = selectedMimeType;
+    if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+      recorderOptions = {
+        mimeType: "audio/webm;codecs=opus",
+        audioBitsPerSecond: 128000
+      };
+    } else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported("audio/webm")) {
+      recorderOptions = {
+        mimeType: "audio/webm",
+        audioBitsPerSecond: 128000
+      };
     }
 
     mediaRecorder = new MediaRecorder(recordingStream, recorderOptions);
 
-    audioContext = new (window.AudioContext || window.webkitAudioContext)({
-      sampleRate: 48000
-    });
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
     const source = audioContext.createMediaStreamSource(recordingStream);
     analyserNode = audioContext.createAnalyser();
@@ -1420,21 +2596,18 @@ async function toggleVoiceRecording() {
     };
 
     mediaRecorder.onstop = () => {
-      const finalType = selectedMimeType || "audio/webm";
-
       const blob = new Blob(recordedChunks, {
-        type: finalType
+        type: "audio/webm"
       });
 
       finalVoiceBlob = blob;
-      finalVoiceMimeType = finalType;
 
       if (recordingSendBtn) {
         recordingSendBtn.disabled = !blob.size;
       }
     };
 
-    mediaRecorder.start(250);
+    mediaRecorder.start();
     isRecording = true;
 
     openRecordingPanel();
@@ -1448,8 +2621,8 @@ async function toggleVoiceRecording() {
       voiceBtn.disabled = false;
     }
   } catch (error) {
-    console.error("Voice recording error:", error);
-    alert("Разреши доступ к микрофону. Если звук плохой — проверь, что выбран не Bluetooth Hands-Free микрофон.");
+    console.error(error);
+    alert("Разреши доступ к микрофону.");
     cancelVoiceRecording();
   }
 }
@@ -1505,7 +2678,6 @@ function cancelVoiceRecording() {
 
   recordedChunks = [];
   finalVoiceBlob = null;
-  finalVoiceMimeType = "audio/webm";
   liveWaveformBars = [];
   isRecording = false;
 
@@ -1533,42 +2705,55 @@ async function sendRecordedVoice() {
     const elapsed = Math.max(1000, Date.now() - recordingStartTime);
     const waveform = normalizeWaveformBars(liveWaveformBars, 96);
 
-    let fileName = "voice.webm";
-
-    if ((finalVoiceBlob.type || finalVoiceMimeType).includes("ogg")) {
-      fileName = "voice.ogg";
-    }
-
     sendMediaMessage({
       type: "audio",
       url,
-      name: fileName,
+      name: "voice.webm",
       isVoice: true,
       durationMs: elapsed,
-      waveform,
-      mimeType: finalVoiceBlob.type || finalVoiceMimeType || "audio/webm",
-      quality: "high"
+      waveform
     });
 
     closeRecordingPanel();
   } catch (error) {
-    console.error("Send voice error:", error);
     alert("Не удалось отправить голосовое");
   }
 }
 
-/* =========================================================
-   APP START / CHATS
-   ========================================================= */
+function sendMediaMessage(media) {
+  stopTyping();
+
+  if (!canSendNow()) return;
+
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("send_message", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      text: "",
+      media
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("send_group_message", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      text: "",
+      media
+    });
+  }
+}
 
 async function startApp() {
   if (!currentUser) return;
+
+  loadAppSettings();
+  ensureLoginDeviceInfo();
 
   setupProfileUI();
   setupGroupUI();
   setupGroupActionsUI();
   setupMessageTools();
-  setupTelegramMessageMenu();
   setupWindowsNotifications();
 
   if (auth) auth.classList.add("hidden");
@@ -1838,7 +3023,6 @@ function renderEmptyChat() {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
-  cancelMessageModes();
 
   selectedUser = null;
   selectedGroup = null;
@@ -1882,7 +3066,6 @@ async function openChat(user) {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
-  cancelMessageModes();
 
   selectedUser = user;
   selectedGroup = null;
@@ -1947,7 +3130,6 @@ async function openGroup(group) {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
-  cancelMessageModes();
 
   selectedGroup = group;
   selectedUser = null;
@@ -2000,10 +3182,6 @@ async function openGroup(group) {
   }
 }
 
-/* =========================================================
-   SEND MESSAGE / MEDIA
-   ========================================================= */
-
 function sendMessage() {
   if (!currentUser) return;
 
@@ -2013,31 +3191,11 @@ function sendMessage() {
 
   stopTyping();
 
-  if (editingMessage) {
-    socket.emit("edit_message", {
-      messageId: editingMessage.id,
-      me: currentUser.username,
-      username: currentUser.username,
-      text
-    });
-
-    if (messageInput) {
-      messageInput.value = "";
-      messageInput.focus();
-    }
-
-    hideEditPanel();
-    return;
-  }
-
-  const replyTo = buildReplyPayload();
-
   if (selectedChatType === "direct" && selectedUser) {
     socket.emit("send_message", {
       from: currentUser.username,
       to: selectedUser.username,
-      text,
-      replyTo
+      text
     });
   }
 
@@ -2045,8 +3203,7 @@ function sendMessage() {
     socket.emit("send_group_message", {
       from: currentUser.username,
       groupId: selectedGroup.id,
-      text,
-      replyTo
+      text
     });
   }
 
@@ -2054,38 +3211,6 @@ function sendMessage() {
     messageInput.value = "";
     messageInput.focus();
   }
-
-  hideReplyPanel();
-}
-
-function sendMediaMessage(media) {
-  stopTyping();
-
-  if (!canSendNow()) return;
-
-  const replyTo = buildReplyPayload();
-
-  if (selectedChatType === "direct" && selectedUser) {
-    socket.emit("send_message", {
-      from: currentUser.username,
-      to: selectedUser.username,
-      text: "",
-      media,
-      replyTo
-    });
-  }
-
-  if (selectedChatType === "group" && selectedGroup) {
-    socket.emit("send_group_message", {
-      from: currentUser.username,
-      groupId: selectedGroup.id,
-      text: "",
-      media,
-      replyTo
-    });
-  }
-
-  hideReplyPanel();
 }
 
 async function deleteMessage(messageId) {
@@ -2098,19 +3223,13 @@ async function deleteMessage(messageId) {
   try {
     destroyVoicePlayer(messageId);
 
-    socket.emit("delete_message", {
-      messageId,
-      me: currentUser.username,
-      username: currentUser.username
+    await request(`/api/messages/${encodeURIComponent(messageId)}?me=${encodeURIComponent(currentUser.username)}`, {
+      method: "DELETE"
     });
   } catch (error) {
     alert(error.message);
   }
 }
-
-/* =========================================================
-   VOICE PLAYERS
-   ========================================================= */
 
 function destroyVoicePlayer(messageId) {
   const id = String(messageId);
@@ -2189,11 +3308,13 @@ function renderVoiceCard(media, message, mine, canDelete) {
       </div>
 
       <div class="voice-card__footer">
-        <span></span>
-        <span class="voice-card__clock">
-          ${escapeHtml(clockText)}
-          ${message.edited ? `<span class="message-edited">изменено</span>` : ""}
-        </span>
+        ${
+          canDelete
+            ? `<button class="delete-message-btn voice-card__delete" data-id="${escapeHtml(id)}" title="Удалить сообщение">🗑</button>`
+            : `<span></span>`
+        }
+
+        <span class="voice-card__clock">${escapeHtml(clockText)}</span>
       </div>
     </div>
   `;
@@ -2252,6 +3373,10 @@ function initVoicePlayer(message) {
     } else if (media.durationMs) {
       durationEl.textContent = formatRecordingTime(media.durationMs);
     }
+
+    try {
+      player.setVolume(Number(appSettings.voicePlaybackVolume || 1));
+    } catch {}
   });
 
   player.on("play", () => {
@@ -2324,541 +3449,7 @@ function renderMedia(media, message, mine, canDelete) {
   return "";
 }
 
-/* =========================================================
-   TELEGRAM-LIKE MESSAGE MENU
-   ========================================================= */
-
-function setupTelegramMessageMenu() {
-  setupTelegramMenuStyles();
-  createMessageContextMenu();
-  createReplyAndEditPanels();
-}
-
-function setupTelegramMenuStyles() {
-  if (document.getElementById("telegramMessageMenuStyles")) return;
-
-  const style = document.createElement("style");
-  style.id = "telegramMessageMenuStyles";
-
-  style.textContent = `
-    .telegram-message-menu {
-      position: fixed;
-      z-index: 999999;
-      width: 220px;
-      padding: 7px;
-      border-radius: 16px;
-      background: rgba(15, 23, 42, 0.96);
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
-      backdrop-filter: blur(18px);
-      animation: telegramMenuShow 0.12s ease-out;
-    }
-
-    .telegram-message-menu.hidden {
-      display: none;
-    }
-
-    .telegram-message-menu button {
-      width: 100%;
-      height: 40px;
-      border: none;
-      outline: none;
-      background: transparent;
-      color: #e5e7eb;
-      border-radius: 11px;
-      padding: 0 11px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 11px;
-      font-size: 14px;
-      font-weight: 700;
-      text-align: left;
-      transition: background 0.15s ease, color 0.15s ease;
-    }
-
-    .telegram-message-menu button:hover {
-      background: rgba(148, 163, 184, 0.13);
-    }
-
-    .telegram-message-menu button.danger {
-      color: #fb7185;
-    }
-
-    .telegram-message-menu button.danger:hover {
-      background: rgba(251, 113, 133, 0.14);
-    }
-
-    .telegram-message-menu-icon {
-      width: 22px;
-      text-align: center;
-      font-size: 15px;
-    }
-
-    @keyframes telegramMenuShow {
-      from {
-        opacity: 0;
-        transform: scale(0.96) translateY(-4px);
-      }
-
-      to {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-      }
-    }
-
-    .dm-reply-panel,
-    .dm-edit-panel {
-      margin: 8px 0 10px;
-      padding: 10px 12px;
-      border-radius: 16px;
-      background: rgba(15, 23, 42, 0.92);
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .dm-reply-panel.hidden,
-    .dm-edit-panel.hidden {
-      display: none;
-    }
-
-    .dm-reply-line,
-    .dm-edit-line {
-      width: 3px;
-      align-self: stretch;
-      min-height: 36px;
-      border-radius: 999px;
-      flex: 0 0 auto;
-    }
-
-    .dm-reply-line {
-      background: #22d3ee;
-    }
-
-    .dm-edit-line {
-      background: #f59e0b;
-    }
-
-    .dm-panel-content {
-      min-width: 0;
-      flex: 1;
-    }
-
-    .dm-panel-title {
-      font-size: 12px;
-      font-weight: 900;
-      margin-bottom: 3px;
-    }
-
-    .dm-reply-panel .dm-panel-title {
-      color: #67e8f9;
-    }
-
-    .dm-edit-panel .dm-panel-title {
-      color: #fbbf24;
-    }
-
-    .dm-panel-text {
-      color: #cbd5e1;
-      font-size: 13px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .dm-panel-close {
-      width: 30px;
-      height: 30px;
-      border: none;
-      border-radius: 50%;
-      background: rgba(148, 163, 184, 0.13);
-      color: white;
-      cursor: pointer;
-      font-size: 20px;
-      line-height: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex: 0 0 auto;
-    }
-
-    .dm-panel-close:hover {
-      background: rgba(148, 163, 184, 0.22);
-    }
-
-    .message {
-      position: relative;
-    }
-
-    .message-reply-preview {
-      margin-bottom: 8px;
-      padding: 7px 9px;
-      border-radius: 11px;
-      border-left: 3px solid #22d3ee;
-      background: rgba(34, 211, 238, 0.12);
-      overflow: hidden;
-    }
-
-    .message.mine .message-reply-preview {
-      border-left-color: rgba(255, 255, 255, 0.85);
-      background: rgba(255, 255, 255, 0.13);
-    }
-
-    .message-reply-author {
-      font-size: 12px;
-      font-weight: 900;
-      color: #67e8f9;
-      margin-bottom: 2px;
-    }
-
-    .message.mine .message-reply-author {
-      color: rgba(255, 255, 255, 0.82);
-    }
-
-    .message-reply-text {
-      font-size: 12px;
-      color: rgba(226, 232, 240, 0.78);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .message-edited {
-      opacity: 0.72;
-      font-size: 11px;
-      margin-left: 6px;
-    }
-  `;
-
-  document.head.appendChild(style);
-}
-
-function createMessageContextMenu() {
-  if (document.getElementById("telegramMessageContextMenu")) {
-    messageContextMenu = document.getElementById("telegramMessageContextMenu");
-    return;
-  }
-
-  messageContextMenu = document.createElement("div");
-  messageContextMenu.id = "telegramMessageContextMenu";
-  messageContextMenu.className = "telegram-message-menu hidden";
-
-  messageContextMenu.innerHTML = `
-    <button id="telegramReplyBtn" type="button">
-      <span class="telegram-message-menu-icon">↩</span>
-      Ответить
-    </button>
-
-    <button id="telegramEditBtn" type="button">
-      <span class="telegram-message-menu-icon">✎</span>
-      Редактировать
-    </button>
-
-    <button id="telegramDeleteBtn" type="button" class="danger">
-      <span class="telegram-message-menu-icon">🗑</span>
-      Удалить
-    </button>
-  `;
-
-  document.body.appendChild(messageContextMenu);
-
-  const replyBtn = document.getElementById("telegramReplyBtn");
-  const editBtn = document.getElementById("telegramEditBtn");
-  const deleteBtn = document.getElementById("telegramDeleteBtn");
-
-  if (replyBtn) {
-    replyBtn.addEventListener("click", () => {
-      if (!contextSelectedMessage) return;
-
-      replyToMessage = {
-        id: contextSelectedMessage.id,
-        text: contextSelectedMessage.text,
-        username: contextSelectedMessage.username,
-        displayName: contextSelectedMessage.displayName
-      };
-
-      hideEditPanel();
-      showReplyPanel(replyToMessage);
-      hideMessageContextMenu();
-
-      if (messageInput) {
-        messageInput.focus();
-      }
-    });
-  }
-
-  if (editBtn) {
-    editBtn.addEventListener("click", () => {
-      if (!contextSelectedMessage) return;
-      if (!contextSelectedMessage.mine) return;
-
-      editingMessage = {
-        id: contextSelectedMessage.id,
-        text: contextSelectedMessage.text
-      };
-
-      hideReplyPanel();
-      showEditPanel();
-
-      if (messageInput) {
-        messageInput.value = contextSelectedMessage.text;
-        messageInput.focus();
-        messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
-      }
-
-      if (sendBtn) {
-        sendBtn.textContent = "Сохранить";
-      }
-
-      hideMessageContextMenu();
-    });
-  }
-
-  if (deleteBtn) {
-    deleteBtn.addEventListener("click", () => {
-      if (!contextSelectedMessage) return;
-      if (!contextSelectedMessage.mine) return;
-
-      deleteMessage(contextSelectedMessage.id);
-      hideMessageContextMenu();
-    });
-  }
-
-  document.addEventListener("click", (event) => {
-    if (!event.target.closest("#telegramMessageContextMenu")) {
-      hideMessageContextMenu();
-    }
-  });
-
-  window.addEventListener("resize", hideMessageContextMenu);
-  window.addEventListener("scroll", hideMessageContextMenu);
-}
-
-function createReplyAndEditPanels() {
-  if (!sendBtn || !sendBtn.parentElement) return;
-
-  const inputBox = sendBtn.parentElement;
-  const parent = inputBox.parentElement;
-
-  if (!parent) return;
-
-  if (!document.getElementById("dmReplyPanel")) {
-    replyPanel = document.createElement("div");
-    replyPanel.id = "dmReplyPanel";
-    replyPanel.className = "dm-reply-panel hidden";
-
-    replyPanel.innerHTML = `
-      <div class="dm-reply-line"></div>
-
-      <div class="dm-panel-content">
-        <div class="dm-panel-title">Ответ на сообщение</div>
-        <div id="dmReplyPanelText" class="dm-panel-text"></div>
-      </div>
-
-      <button id="dmCancelReplyBtn" class="dm-panel-close" type="button">×</button>
-    `;
-
-    parent.insertBefore(replyPanel, inputBox);
-
-    replyPanelText = document.getElementById("dmReplyPanelText");
-
-    const cancelReplyBtn = document.getElementById("dmCancelReplyBtn");
-
-    if (cancelReplyBtn) {
-      cancelReplyBtn.addEventListener("click", () => {
-        hideReplyPanel();
-
-        if (messageInput) {
-          messageInput.focus();
-        }
-      });
-    }
-  } else {
-    replyPanel = document.getElementById("dmReplyPanel");
-    replyPanelText = document.getElementById("dmReplyPanelText");
-  }
-
-  if (!document.getElementById("dmEditPanel")) {
-    editPanel = document.createElement("div");
-    editPanel.id = "dmEditPanel";
-    editPanel.className = "dm-edit-panel hidden";
-
-    editPanel.innerHTML = `
-      <div class="dm-edit-line"></div>
-
-      <div class="dm-panel-content">
-        <div class="dm-panel-title">Редактирование сообщения</div>
-        <div class="dm-panel-text">Измени текст и нажми «Сохранить»</div>
-      </div>
-
-      <button id="dmCancelEditBtn" class="dm-panel-close" type="button">×</button>
-    `;
-
-    parent.insertBefore(editPanel, inputBox);
-
-    const cancelEditBtn = document.getElementById("dmCancelEditBtn");
-
-    if (cancelEditBtn) {
-      cancelEditBtn.addEventListener("click", () => {
-        hideEditPanel();
-
-        if (messageInput) {
-          messageInput.value = "";
-          messageInput.focus();
-        }
-      });
-    }
-  } else {
-    editPanel = document.getElementById("dmEditPanel");
-  }
-}
-
-function showReplyPanel(message) {
-  createReplyAndEditPanels();
-
-  if (!replyPanel || !replyPanelText) return;
-
-  replyPanelText.textContent = message.text || "Медиа";
-  replyPanel.classList.remove("hidden");
-}
-
-function hideReplyPanel() {
-  replyToMessage = null;
-
-  if (replyPanel) {
-    replyPanel.classList.add("hidden");
-  }
-
-  if (replyPanelText) {
-    replyPanelText.textContent = "";
-  }
-}
-
-function showEditPanel() {
-  createReplyAndEditPanels();
-
-  if (editPanel) {
-    editPanel.classList.remove("hidden");
-  }
-
-  if (sendBtn) {
-    sendBtn.textContent = "Сохранить";
-  }
-}
-
-function hideEditPanel() {
-  editingMessage = null;
-
-  if (editPanel) {
-    editPanel.classList.add("hidden");
-  }
-
-  if (sendBtn) {
-    sendBtn.textContent = "Отправить";
-  }
-}
-
-function cancelMessageModes() {
-  hideReplyPanel();
-  hideEditPanel();
-  hideMessageContextMenu();
-}
-
-function openMessageContextMenu(event, message) {
-  setupTelegramMessageMenu();
-
-  contextSelectedMessage = message;
-
-  if (!messageContextMenu) return;
-
-  const editBtn = document.getElementById("telegramEditBtn");
-  const deleteBtn = document.getElementById("telegramDeleteBtn");
-
-  if (message.mine) {
-    if (editBtn) editBtn.style.display = "flex";
-    if (deleteBtn) deleteBtn.style.display = "flex";
-  } else {
-    if (editBtn) editBtn.style.display = "none";
-    if (deleteBtn) deleteBtn.style.display = "none";
-  }
-
-  messageContextMenu.classList.remove("hidden");
-
-  const rect = messageContextMenu.getBoundingClientRect();
-
-  let x = event.clientX;
-  let y = event.clientY;
-
-  if (x + rect.width > window.innerWidth) {
-    x = window.innerWidth - rect.width - 10;
-  }
-
-  if (y + rect.height > window.innerHeight) {
-    y = window.innerHeight - rect.height - 10;
-  }
-
-  messageContextMenu.style.left = x + "px";
-  messageContextMenu.style.top = y + "px";
-}
-
-function hideMessageContextMenu() {
-  if (messageContextMenu) {
-    messageContextMenu.classList.add("hidden");
-  }
-}
-
-function getMessageTextForAction(message) {
-  if (!message) return "";
-
-  const text = message.text || message.message || "";
-
-  if (text) return String(text);
-
-  if (message.media) {
-    if (message.media.type === "image") return "Фото";
-    if (message.media.type === "video") return "Видео";
-    if (message.media.type === "audio") return "Голосовое сообщение";
-  }
-
-  return "Сообщение";
-}
-
-function buildReplyPayload() {
-  if (!replyToMessage) return null;
-
-  return {
-    id: String(replyToMessage.id || ""),
-    text: String(replyToMessage.text || "").slice(0, 500),
-    username: normalizeUsername(replyToMessage.username || ""),
-    displayName: String(replyToMessage.displayName || "").trim()
-  };
-}
-
-function getReplyFromMessage(message) {
-  return message.replyTo || message.reply_to || null;
-}
-
-function renderReplyPreview(message) {
-  const reply = getReplyFromMessage(message);
-
-  if (!reply) return "";
-
-  const author = reply.displayName || reply.display_name || reply.authorName || reply.username || "Сообщение";
-  const text = reply.text || reply.message || "Медиа";
-
-  return `
-    <div class="message-reply-preview">
-      <div class="message-reply-author">${escapeHtml(author)}</div>
-      <div class="message-reply-text">${escapeHtml(text)}</div>
-    </div>
-  `;
-}
-
 function renderMessages() {
-  setupTelegramMessageMenu();
-
   if (!messagesBox) return;
 
   destroyAllVoicePlayers();
@@ -2872,48 +3463,45 @@ function renderMessages() {
 
   messagesCache.forEach((message) => {
     const mine = message.from === currentUser.username || message.username === currentUser.username;
-    const canEditOrDelete = mine && message.id;
+    const canDelete = mine && selectedChatType === "direct" && message.id;
     const isAudio = message.media && message.media.type === "audio";
 
     const bubble = document.createElement("div");
     bubble.className = mine ? "message mine" : "message";
 
-    bubble.dataset.messageId = String(message.id || "");
-    bubble.dataset.messageMine = mine ? "true" : "false";
-
     const text = message.text || message.message || "";
-    const mediaHtml = renderMedia(message.media, message, mine, false);
-    const replyHtml = renderReplyPreview(message);
+    const mediaHtml = renderMedia(message.media, message, mine, canDelete);
 
     bubble.innerHTML = `
       <div class="message-name">${escapeHtml(message.displayName || message.username || "")}</div>
-      ${replyHtml}
       ${mediaHtml}
       ${text ? `<div class="message-text">${escapeHtml(text)}</div>` : ""}
+      ${!isAudio ? `<div class="message-time">${formatTime(message.created_at)}</div>` : ""}
       ${
-        !isAudio
-          ? `
-            <div class="message-time">
-              ${formatTime(message.created_at)}
-              ${message.edited ? `<span class="message-edited">изменено</span>` : ""}
-            </div>
-          `
+        canDelete && !isAudio
+          ? `<button class="delete-message-btn" data-id="${escapeHtml(message.id)}" title="Удалить сообщение">Удалить</button>`
           : ""
       }
     `;
 
-    bubble.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
+    const deleteBtn = bubble.querySelector(".delete-message-btn");
 
-      openMessageContextMenu(event, {
-        id: String(message.id || ""),
-        text: getMessageTextForAction(message),
-        username: message.username || message.from || "",
-        displayName: message.displayName || message.username || "",
-        mine: canEditOrDelete,
-        message
+    if (deleteBtn && !deleteBtn.classList.contains("voice-card__delete")) {
+      deleteBtn.style.marginTop = "7px";
+      deleteBtn.style.background = "rgba(127, 29, 29, 0.65)";
+      deleteBtn.style.color = "white";
+      deleteBtn.style.borderRadius = "10px";
+      deleteBtn.style.padding = "5px 9px";
+      deleteBtn.style.fontSize = "11px";
+      deleteBtn.style.fontWeight = "700";
+    }
+
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        deleteMessage(deleteBtn.dataset.id);
       });
-    });
+    }
 
     messagesBox.appendChild(bubble);
 
@@ -2924,10 +3512,6 @@ function renderMessages() {
 
   messagesBox.scrollTop = messagesBox.scrollHeight;
 }
-
-/* =========================================================
-   SOCKET HELPERS
-   ========================================================= */
 
 function shouldShowIncomingDirect(message) {
   if (!currentUser || !selectedUser || selectedChatType !== "direct") return false;
@@ -2944,79 +3528,23 @@ function shouldShowIncomingDirect(message) {
 function shouldShowIncomingGroup(message) {
   if (!currentUser || !selectedGroup || selectedChatType !== "group") return false;
 
-  return String(message.groupId) === String(selectedGroup.id);
+  return message.groupId === selectedGroup.id;
 }
-
-function handleMessageEdited(data) {
-  if (!data) return;
-
-  const id = String(data.id || data.messageId || "");
-
-  if (!id) return;
-
-  messagesCache = messagesCache.map((message) => {
-    if (String(message.id) !== id) return message;
-
-    return {
-      ...message,
-      text: data.text || data.message || message.text || "",
-      message: data.text || data.message || message.message || "",
-      edited: true,
-      updatedAt: data.updatedAt || data.updated_at || new Date().toISOString()
-    };
-  });
-
-  renderMessages();
-  loadRecentChats();
-}
-
-function handleMessageDeleted(data) {
-  if (!data) return;
-
-  const id = String(data.id || data.messageId || "");
-
-  if (!id) return;
-
-  destroyVoicePlayer(id);
-
-  messagesCache = messagesCache.filter((message) => String(message.id) !== id);
-
-  if (contextSelectedMessage && String(contextSelectedMessage.id) === id) {
-    contextSelectedMessage = null;
-  }
-
-  if (replyToMessage && String(replyToMessage.id) === id) {
-    hideReplyPanel();
-  }
-
-  if (editingMessage && String(editingMessage.id) === id) {
-    hideEditPanel();
-  }
-
-  renderMessages();
-  loadRecentChats();
-}
-
-/* =========================================================
-   SOCKET EVENTS
-   ========================================================= */
 
 socket.on("load_messages", (messages) => {
   messagesCache = Array.isArray(messages) ? messages : [];
   renderMessages();
 });
 
-socket.on("message_deleted", handleMessageDeleted);
-socket.on("message-deleted", handleMessageDeleted);
-socket.on("group_message_deleted", handleMessageDeleted);
+socket.on("message_deleted", (data) => {
+  if (!data || !data.id) return;
 
-socket.on("message_edited", handleMessageEdited);
-socket.on("message-edited", handleMessageEdited);
-socket.on("group_message_edited", handleMessageEdited);
+  destroyVoicePlayer(data.id);
 
-socket.on("message_error", (data) => {
-  if (!data) return;
-  alert(data.error || "Ошибка сообщения");
+  messagesCache = messagesCache.filter((message) => String(message.id) !== String(data.id));
+
+  renderMessages();
+  loadRecentChats();
 });
 
 socket.on("profile_updated", (data) => {
@@ -3026,7 +3554,15 @@ socket.on("profile_updated", (data) => {
   const user = data.user;
 
   if (currentUser && oldUsername === currentUser.username) {
+    const oldSettingsSnapshot = { ...appSettings };
+
     updateSavedUser(user);
+
+    appSettings = {
+      ...oldSettingsSnapshot
+    };
+
+    saveAppSettings(oldUsername);
 
     if (meName) meName.textContent = currentUser.displayName || currentUser.username;
     if (meLogin) meLogin.textContent = "@" + currentUser.username;
@@ -3307,10 +3843,6 @@ socket.on("group_deleted", (data) => {
   updateUnreadTitle();
 });
 
-/* =========================================================
-   UTILS
-   ========================================================= */
-
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -3355,10 +3887,6 @@ function formatTime(value) {
   });
 }
 
-/* =========================================================
-   EVENTS
-   ========================================================= */
-
 if (loginBtn) loginBtn.addEventListener("click", login);
 if (registerBtn) registerBtn.addEventListener("click", register);
 if (logoutBtn) logoutBtn.addEventListener("click", logout);
@@ -3390,11 +3918,6 @@ if (messageInput) {
       event.preventDefault();
       sendMessage();
     }
-
-    if (event.key === "Escape") {
-      cancelMessageModes();
-      messageInput.value = "";
-    }
   });
 
   messageInput.addEventListener("blur", () => {
@@ -3408,13 +3931,8 @@ window.addEventListener("beforeunload", () => {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
+  stopSettingsMicTest();
 });
-
-/* =========================================================
-   START
-   ========================================================= */
-
-setupTelegramMessageMenu();
 
 const savedUser = loadSavedUser();
 
