@@ -3940,3 +3940,140 @@ if (savedUser) {
   currentUser = savedUser;
   startApp();
 }
+
+/* =========================================================
+   CALLIBRI — HUMMINGBIRD NOTIFICATION SOUND
+   ВСТАВИТЬ В САМЫЙ НИЗ public/app.js
+   ========================================================= */
+
+let callibriNotificationSoundCooldown = false;
+
+function playNotificationSound() {
+  if (!appSettings || !appSettings.notificationSoundsEnabled) return;
+
+  if (callibriNotificationSoundCooldown) return;
+
+  callibriNotificationSoundCooldown = true;
+
+  setTimeout(() => {
+    callibriNotificationSoundCooldown = false;
+  }, 650);
+
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+
+    const volume = Math.max(
+      0,
+      Math.min(1, Number(appSettings.notificationVolume || 0.8))
+    );
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    masterGain.gain.exponentialRampToValueAtTime(0.16 * volume, ctx.currentTime + 0.035);
+    masterGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.55);
+    masterGain.connect(ctx.destination);
+
+    const reverbDelay = ctx.createDelay();
+    reverbDelay.delayTime.value = 0.085;
+
+    const reverbGain = ctx.createGain();
+    reverbGain.gain.value = 0.16 * volume;
+
+    reverbDelay.connect(reverbGain);
+    reverbGain.connect(ctx.destination);
+
+    function createChirp(startTime, startFreq, endFreq, duration, gainValue) {
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      oscillator.type = "sine";
+
+      oscillator.frequency.setValueAtTime(startFreq, startTime);
+      oscillator.frequency.exponentialRampToValueAtTime(endFreq, startTime + duration);
+
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime((startFreq + endFreq) / 2, startTime);
+      filter.Q.value = 6;
+
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(gainValue * volume, startTime + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+      oscillator.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain);
+      gain.connect(reverbDelay);
+
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration + 0.03);
+    }
+
+    function createSoftWingFlutter(startTime) {
+      const flutterGain = ctx.createGain();
+      flutterGain.gain.setValueAtTime(0.0001, startTime);
+      flutterGain.gain.exponentialRampToValueAtTime(0.045 * volume, startTime + 0.025);
+      flutterGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.38);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = "highpass";
+      filter.frequency.value = 900;
+
+      const bufferSize = ctx.sampleRate * 0.42;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < bufferSize; i++) {
+        const t = i / ctx.sampleRate;
+        const flutter = Math.sin(2 * Math.PI * 42 * t) * 0.5 + 0.5;
+        data[i] = (Math.random() * 2 - 1) * flutter * 0.25;
+      }
+
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      noise.connect(filter);
+      filter.connect(flutterGain);
+      flutterGain.connect(masterGain);
+
+      noise.start(startTime);
+      noise.stop(startTime + 0.42);
+    }
+
+    const now = ctx.currentTime;
+
+    createSoftWingFlutter(now);
+
+    createChirp(now + 0.015, 1850, 2650, 0.105, 0.13);
+    createChirp(now + 0.125, 2300, 3400, 0.095, 0.105);
+    createChirp(now + 0.245, 1750, 2850, 0.13, 0.09);
+
+    const sparkle = ctx.createOscillator();
+    const sparkleGain = ctx.createGain();
+
+    sparkle.type = "triangle";
+    sparkle.frequency.setValueAtTime(4200, now + 0.34);
+    sparkle.frequency.exponentialRampToValueAtTime(5200, now + 0.48);
+
+    sparkleGain.gain.setValueAtTime(0.0001, now + 0.34);
+    sparkleGain.gain.exponentialRampToValueAtTime(0.045 * volume, now + 0.37);
+    sparkleGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.52);
+
+    sparkle.connect(sparkleGain);
+    sparkleGain.connect(masterGain);
+    sparkleGain.connect(reverbDelay);
+
+    sparkle.start(now + 0.34);
+    sparkle.stop(now + 0.55);
+
+    setTimeout(() => {
+      ctx.close().catch(() => {});
+    }, 900);
+  } catch (error) {
+    console.log("Callibri notification sound error:", error);
+  }
+}
