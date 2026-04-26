@@ -83,26 +83,11 @@ function cleanMedia(media) {
   if (!url.startsWith("data:")) return null;
   if (url.length > MAX_MEDIA_LENGTH) return null;
 
-  const clean = {
+  return {
     type,
     url,
     name
   };
-
-  if (type === "audio") {
-    clean.isVoice = Boolean(media.isVoice);
-    clean.durationMs = Number(media.durationMs || 0);
-    clean.mimeType = String(media.mimeType || "");
-    clean.quality = String(media.quality || "");
-
-    if (Array.isArray(media.waveform)) {
-      clean.waveform = media.waveform
-        .slice(0, 160)
-        .map((value) => Math.max(1, Math.min(60, Number(value) || 8)));
-    }
-  }
-
-  return clean;
 }
 
 function cleanReplyTo(replyTo) {
@@ -111,12 +96,7 @@ function cleanReplyTo(replyTo) {
   const id = String(replyTo.id || "").trim();
   const text = String(replyTo.text || replyTo.message || "").trim();
   const username = normalizeUsername(replyTo.username || replyTo.from || "");
-  const displayName = String(
-    replyTo.displayName ||
-      replyTo.display_name ||
-      replyTo.authorName ||
-      ""
-  ).trim();
+  const displayName = String(replyTo.displayName || replyTo.display_name || replyTo.authorName || "").trim();
 
   if (!id && !text) return null;
 
@@ -270,27 +250,34 @@ async function initDB() {
       media JSONB,
       reply_to JSONB,
       edited BOOLEAN DEFAULT FALSE,
-      is_read BOOLEAN DEFAULT FALSE,
-      read_at TIMESTAMPTZ,
       updated_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
 
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT ''`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media JSONB`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to JSONB`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ`);
-  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
+  await pool.query(`
+    ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT ''
+  `);
 
   await pool.query(`
-    UPDATE messages
-    SET is_read = TRUE,
-        read_at = COALESCE(read_at, created_at)
-    WHERE type = 'group'
-      AND COALESCE(is_read, FALSE) = FALSE
+    ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS media JSONB
+  `);
+
+  await pool.query(`
+    ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS reply_to JSONB
+  `);
+
+  await pool.query(`
+    ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS edited BOOLEAN DEFAULT FALSE
+  `);
+
+  await pool.query(`
+    ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
   `);
 
   console.log("PostgreSQL tables are ready");
@@ -307,8 +294,9 @@ async function findUser(username) {
   return result.rows[0] || null;
 }
 
-function selectMessageSql() {
-  return `
+async function getMessagesByChatId(chatId) {
+  const result = await pool.query(
+    `
     SELECT
       id::text AS id,
       type,
@@ -324,18 +312,9 @@ function selectMessageSql() {
       media,
       reply_to AS "replyTo",
       edited,
-      is_read AS "isRead",
-      read_at AS "readAt",
       updated_at AS "updatedAt",
       created_at
     FROM messages
-  `;
-}
-
-async function getMessagesByChatId(chatId) {
-  const result = await pool.query(
-    `
-    ${selectMessageSql()}
     WHERE chat_id = $1
     ORDER BY id ASC
     `,
@@ -345,21 +324,7 @@ async function getMessagesByChatId(chatId) {
   return result.rows;
 }
 
-async function getMessageById(messageId) {
-  const result = await pool.query(
-    `
-    ${selectMessageSql()}
-    WHERE id = $1
-    `,
-    [messageId]
-  );
-
-  return result.rows[0] || null;
-}
-
 async function saveMessage(message) {
-  const initialIsRead = message.type === "group";
-
   const result = await pool.query(
     `
     INSERT INTO messages (
@@ -374,11 +339,9 @@ async function saveMessage(message) {
       text,
       media,
       reply_to,
-      edited,
-      is_read,
-      read_at
+      edited
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
     RETURNING
       id::text AS id,
       type,
@@ -394,8 +357,6 @@ async function saveMessage(message) {
       media,
       reply_to AS "replyTo",
       edited,
-      is_read AS "isRead",
-      read_at AS "readAt",
       updated_at AS "updatedAt",
       created_at
     `,
@@ -411,13 +372,67 @@ async function saveMessage(message) {
       message.text || "",
       message.media || null,
       message.replyTo || null,
-      false,
-      initialIsRead,
-      initialIsRead ? new Date() : null
+      false
     ]
   );
 
   return result.rows[0];
+}
+
+async function updateDirectChatIdsForUsername(client, username) {
+  const cleanUsername = normalizeUsername(username);
+
+  const result = await client.query(
+    `
+    SELECT id, from_username, to_username
+    FROM messages
+    WHERE type = 'direct'
+      AND (from_username = $1 OR to_username = $1)
+    `,
+    [cleanUsername]
+  );
+
+  for (const message of result.rows) {
+    const newChatId = getDirectChatId(message.from_username, message.to_username);
+
+    await client.query(
+      `
+      UPDATE messages
+      SET chat_id = $1
+      WHERE id = $2
+      `,
+      [newChatId, message.id]
+    );
+  }
+}
+
+async function getMessageById(messageId) {
+  const result = await pool.query(
+    `
+    SELECT
+      id::text AS id,
+      type,
+      chat_id AS "chatId",
+      group_id AS "groupId",
+      from_username AS "from",
+      to_username AS "to",
+      username,
+      display_name AS "displayName",
+      avatar,
+      text,
+      text AS message,
+      media,
+      reply_to AS "replyTo",
+      edited,
+      updated_at AS "updatedAt",
+      created_at
+    FROM messages
+    WHERE id = $1
+    `,
+    [messageId]
+  );
+
+  return result.rows[0] || null;
 }
 
 async function editMessage({ messageId, me, text }) {
@@ -472,8 +487,6 @@ async function editMessage({ messageId, me, text }) {
       media,
       reply_to AS "replyTo",
       edited,
-      is_read AS "isRead",
-      read_at AS "readAt",
       updated_at AS "updatedAt",
       created_at
     `,
@@ -515,66 +528,18 @@ async function deleteMessageById({ messageId, me }) {
     };
   }
 
-  await pool.query(`DELETE FROM messages WHERE id = $1`, [messageId]);
+  await pool.query(
+    `
+    DELETE FROM messages
+    WHERE id = $1
+    `,
+    [messageId]
+  );
 
   return {
     success: true,
     message
   };
-}
-
-async function markDirectMessagesAsRead(me, withUser) {
-  const reader = normalizeUsername(me);
-  const otherUser = normalizeUsername(withUser);
-
-  if (!reader || !otherUser) {
-    return {
-      chatId: "",
-      rows: []
-    };
-  }
-
-  const chatId = getDirectChatId(reader, otherUser);
-
-  const result = await pool.query(
-    `
-    UPDATE messages
-    SET is_read = TRUE,
-        read_at = NOW()
-    WHERE type = 'direct'
-      AND chat_id = $1
-      AND to_username = $2
-      AND from_username = $3
-      AND COALESCE(is_read, FALSE) = FALSE
-    RETURNING
-      id::text AS id,
-      chat_id AS "chatId",
-      from_username AS "from",
-      to_username AS "to",
-      read_at AS "readAt"
-    `,
-    [chatId, reader, otherUser]
-  );
-
-  return {
-    chatId,
-    rows: result.rows
-  };
-}
-
-function emitMessagesRead(chatId, reader, otherUser, rows) {
-  if (!rows || !rows.length) return;
-
-  const payload = {
-    chatId,
-    reader,
-    ids: rows.map((row) => String(row.id)),
-    readAt: rows[0].readAt || new Date().toISOString()
-  };
-
-  io.to(`user:${reader}`).emit("messages_read", payload);
-  io.to(`user:${otherUser}`).emit("messages_read", payload);
-  io.to(`chat:${chatId}`).emit("messages_read", payload);
 }
 
 function emitEditedMessage(message) {
@@ -631,33 +596,6 @@ function emitDeletedMessage(message) {
   }
 }
 
-async function updateDirectChatIdsForUsername(client, username) {
-  const cleanUsername = normalizeUsername(username);
-
-  const result = await client.query(
-    `
-    SELECT id, from_username, to_username
-    FROM messages
-    WHERE type = 'direct'
-      AND (from_username = $1 OR to_username = $1)
-    `,
-    [cleanUsername]
-  );
-
-  for (const message of result.rows) {
-    const newChatId = getDirectChatId(message.from_username, message.to_username);
-
-    await client.query(
-      `
-      UPDATE messages
-      SET chat_id = $1
-      WHERE id = $2
-      `,
-      [newChatId, message.id]
-    );
-  }
-}
-
 initDB().catch((error) => {
   console.error("Database init error:", error);
 });
@@ -676,7 +614,6 @@ app.get("/api/health", async (req, res) => {
       deleteMessages: "enabled",
       editMessages: "enabled",
       replyMessages: "enabled",
-      readReceipts: "enabled",
       profileEdit: "enabled"
     });
   } catch (error) {
@@ -904,8 +841,24 @@ app.put("/api/profile", async (req, res) => {
       [newUsername, displayName, avatar, oldUsername]
     );
 
-    await client.query(`UPDATE messages SET from_username = $1 WHERE from_username = $2`, [newUsername, oldUsername]);
-    await client.query(`UPDATE messages SET to_username = $1 WHERE to_username = $2`, [newUsername, oldUsername]);
+    await client.query(
+      `
+      UPDATE messages
+      SET from_username = $1
+      WHERE from_username = $2
+      `,
+      [newUsername, oldUsername]
+    );
+
+    await client.query(
+      `
+      UPDATE messages
+      SET to_username = $1
+      WHERE to_username = $2
+      `,
+      [newUsername, oldUsername]
+    );
+
     await client.query(
       `
       UPDATE messages
@@ -916,7 +869,16 @@ app.put("/api/profile", async (req, res) => {
       `,
       [newUsername, displayName, avatar, oldUsername]
     );
-    await client.query(`UPDATE groups SET owner = $1 WHERE owner = $2`, [newUsername, oldUsername]);
+
+    await client.query(
+      `
+      UPDATE groups
+      SET owner = $1
+      WHERE owner = $2
+      `,
+      [newUsername, oldUsername]
+    );
+
     await client.query(
       `
       UPDATE groups
@@ -1095,8 +1057,7 @@ app.get("/api/chats", async (req, res) => {
         u.avatar,
         m.text AS last_message_text,
         m.media AS last_message_media,
-        m.created_at AS last_message_at,
-        m.is_read AS last_message_is_read
+        m.created_at AS last_message_at
       FROM direct_chats dc
       JOIN users u ON u.username = dc.other_username
       JOIN messages m ON m.id = dc.last_message_id
@@ -1110,8 +1071,7 @@ app.get("/api/chats", async (req, res) => {
       online: isUserOnline(row.username),
       lastMessageText: row.last_message_text || "",
       lastMessageMedia: row.last_message_media || null,
-      lastMessageAt: row.last_message_at,
-      lastMessageIsRead: Boolean(row.last_message_is_read)
+      lastMessageAt: row.last_message_at
     }));
 
     res.json({
@@ -1147,9 +1107,6 @@ app.get("/api/messages", async (req, res) => {
       success: true,
       messages
     });
-
-    const readResult = await markDirectMessagesAsRead(me, withUser);
-    emitMessagesRead(chatId, me, withUser, readResult.rows);
   } catch (error) {
     console.error("Messages error:", error);
 
@@ -1241,7 +1198,10 @@ app.get("/api/groups", async (req, res) => {
     const me = normalizeUsername(req.query.me);
 
     if (!me) {
-      return res.status(400).json({ success: false, error: "Не указан пользователь" });
+      return res.status(400).json({
+        success: false,
+        error: "Не указан пользователь"
+      });
     }
 
     const result = await pool.query(
@@ -1254,10 +1214,17 @@ app.get("/api/groups", async (req, res) => {
       [me]
     );
 
-    res.json({ success: true, groups: result.rows.map(publicGroup) });
+    res.json({
+      success: true,
+      groups: result.rows.map(publicGroup)
+    });
   } catch (error) {
     console.error("Groups error:", error);
-    res.status(500).json({ success: false, error: "Ошибка загрузки групп" });
+
+    res.status(500).json({
+      success: false,
+      error: "Ошибка загрузки групп"
+    });
   }
 });
 
@@ -1268,13 +1235,19 @@ app.post("/api/groups", async (req, res) => {
     const membersRaw = Array.isArray(req.body.members) ? req.body.members : [];
 
     if (!owner || !name) {
-      return res.status(400).json({ success: false, error: "Введите название группы" });
+      return res.status(400).json({
+        success: false,
+        error: "Введите название группы"
+      });
     }
 
     const ownerUser = await findUser(owner);
 
     if (!ownerUser) {
-      return res.status(404).json({ success: false, error: "Создатель группы не найден" });
+      return res.status(404).json({
+        success: false,
+        error: "Создатель группы не найден"
+      });
     }
 
     const normalizedMembers = membersRaw.map(normalizeUsername).filter(Boolean);
@@ -1291,7 +1264,9 @@ app.post("/api/groups", async (req, res) => {
     if (missingUsers.length) {
       return res.status(400).json({
         success: false,
-        error: `Пользователи не найдены: ${missingUsers.map((u) => "@" + u).join(", ")}`
+        error: `Пользователи не найдены: ${missingUsers
+          .map((u) => "@" + u)
+          .join(", ")}`
       });
     }
 
@@ -1304,10 +1279,17 @@ app.post("/api/groups", async (req, res) => {
       [name, owner, members]
     );
 
-    res.json({ success: true, group: publicGroup(result.rows[0]) });
+    res.json({
+      success: true,
+      group: publicGroup(result.rows[0])
+    });
   } catch (error) {
     console.error("Create group error:", error);
-    res.status(500).json({ success: false, error: "Ошибка создания группы" });
+
+    res.status(500).json({
+      success: false,
+      error: "Ошибка создания группы"
+    });
   }
 });
 
@@ -1317,15 +1299,25 @@ app.post("/api/groups/:id/invite", async (req, res) => {
     const me = normalizeUsername(req.body.me);
     const membersRaw = Array.isArray(req.body.members) ? req.body.members : [];
 
-    const groupResult = await pool.query("SELECT * FROM groups WHERE id = $1", [groupId]);
+    const groupResult = await pool.query(
+      "SELECT * FROM groups WHERE id = $1",
+      [groupId]
+    );
+
     const group = groupResult.rows[0];
 
     if (!group) {
-      return res.status(404).json({ success: false, error: "Группа не найдена" });
+      return res.status(404).json({
+        success: false,
+        error: "Группа не найдена"
+      });
     }
 
     if (!(group.members || []).includes(me)) {
-      return res.status(403).json({ success: false, error: "Вы не участник этой группы" });
+      return res.status(403).json({
+        success: false,
+        error: "Вы не участник этой группы"
+      });
     }
 
     const newMembers = membersRaw.map(normalizeUsername).filter(Boolean);
@@ -1341,7 +1333,9 @@ app.post("/api/groups/:id/invite", async (req, res) => {
     if (missingUsers.length) {
       return res.status(400).json({
         success: false,
-        error: `Пользователи не найдены: ${missingUsers.map((u) => "@" + u).join(", ")}`
+        error: `Пользователи не найдены: ${missingUsers
+          .map((u) => "@" + u)
+          .join(", ")}`
       });
     }
 
@@ -1361,10 +1355,17 @@ app.post("/api/groups/:id/invite", async (req, res) => {
 
     io.to(`chat:${getGroupChatId(groupId)}`).emit("group_updated", updatedGroup);
 
-    res.json({ success: true, group: updatedGroup });
+    res.json({
+      success: true,
+      group: updatedGroup
+    });
   } catch (error) {
     console.error("Invite group error:", error);
-    res.status(500).json({ success: false, error: "Ошибка добавления участников" });
+
+    res.status(500).json({
+      success: false,
+      error: "Ошибка добавления участников"
+    });
   }
 });
 
@@ -1374,18 +1375,31 @@ app.post("/api/groups/:id/leave", async (req, res) => {
     const me = normalizeUsername(req.body.me);
 
     if (!me) {
-      return res.status(400).json({ success: false, error: "Не указан пользователь" });
+      return res.status(400).json({
+        success: false,
+        error: "Не указан пользователь"
+      });
     }
 
-    const groupResult = await pool.query("SELECT * FROM groups WHERE id = $1", [groupId]);
+    const groupResult = await pool.query(
+      "SELECT * FROM groups WHERE id = $1",
+      [groupId]
+    );
+
     const group = groupResult.rows[0];
 
     if (!group) {
-      return res.status(404).json({ success: false, error: "Группа не найдена" });
+      return res.status(404).json({
+        success: false,
+        error: "Группа не найдена"
+      });
     }
 
     if (!(group.members || []).includes(me)) {
-      return res.status(403).json({ success: false, error: "Вы не участник этой группы" });
+      return res.status(403).json({
+        success: false,
+        error: "Вы не участник этой группы"
+      });
     }
 
     const newMembers = (group.members || []).filter((member) => member !== me);
@@ -1395,9 +1409,15 @@ app.post("/api/groups/:id/leave", async (req, res) => {
       await pool.query("DELETE FROM messages WHERE chat_id = $1", [chatId]);
       await pool.query("DELETE FROM groups WHERE id = $1", [groupId]);
 
-      io.to(`chat:${chatId}`).emit("group_deleted", { groupId: String(groupId) });
+      io.to(`chat:${chatId}`).emit("group_deleted", {
+        groupId: String(groupId)
+      });
 
-      res.json({ success: true, deleted: true });
+      res.json({
+        success: true,
+        deleted: true
+      });
+
       return;
     }
 
@@ -1420,12 +1440,22 @@ app.post("/api/groups/:id/leave", async (req, res) => {
     const updatedGroup = publicGroup(updateResult.rows[0]);
 
     io.to(`chat:${chatId}`).emit("group_updated", updatedGroup);
-    io.to(`user:${me}`).emit("group_left", { groupId: String(groupId) });
+    io.to(`user:${me}`).emit("group_left", {
+      groupId: String(groupId)
+    });
 
-    res.json({ success: true, deleted: false, group: updatedGroup });
+    res.json({
+      success: true,
+      deleted: false,
+      group: updatedGroup
+    });
   } catch (error) {
     console.error("Leave group error:", error);
-    res.status(500).json({ success: false, error: "Ошибка выхода из группы" });
+
+    res.status(500).json({
+      success: false,
+      error: "Ошибка выхода из группы"
+    });
   }
 });
 
@@ -1435,18 +1465,31 @@ app.delete("/api/groups/:id", async (req, res) => {
     const me = normalizeUsername(req.query.me || req.body.me);
 
     if (!me) {
-      return res.status(400).json({ success: false, error: "Не указан пользователь" });
+      return res.status(400).json({
+        success: false,
+        error: "Не указан пользователь"
+      });
     }
 
-    const groupResult = await pool.query("SELECT * FROM groups WHERE id = $1", [groupId]);
+    const groupResult = await pool.query(
+      "SELECT * FROM groups WHERE id = $1",
+      [groupId]
+    );
+
     const group = groupResult.rows[0];
 
     if (!group) {
-      return res.status(404).json({ success: false, error: "Группа не найдена" });
+      return res.status(404).json({
+        success: false,
+        error: "Группа не найдена"
+      });
     }
 
     if (group.owner !== me) {
-      return res.status(403).json({ success: false, error: "Удалить группу может только создатель" });
+      return res.status(403).json({
+        success: false,
+        error: "Удалить группу может только создатель"
+      });
     }
 
     const chatId = getGroupChatId(groupId);
@@ -1454,16 +1497,27 @@ app.delete("/api/groups/:id", async (req, res) => {
     await pool.query("DELETE FROM messages WHERE chat_id = $1", [chatId]);
     await pool.query("DELETE FROM groups WHERE id = $1", [groupId]);
 
-    io.to(`chat:${chatId}`).emit("group_deleted", { groupId: String(groupId) });
-
-    (group.members || []).forEach((member) => {
-      io.to(`user:${member}`).emit("group_deleted", { groupId: String(groupId) });
+    io.to(`chat:${chatId}`).emit("group_deleted", {
+      groupId: String(groupId)
     });
 
-    res.json({ success: true, deleted: true });
+    (group.members || []).forEach((member) => {
+      io.to(`user:${member}`).emit("group_deleted", {
+        groupId: String(groupId)
+      });
+    });
+
+    res.json({
+      success: true,
+      deleted: true
+    });
   } catch (error) {
     console.error("Delete group error:", error);
-    res.status(500).json({ success: false, error: "Ошибка удаления группы" });
+
+    res.status(500).json({
+      success: false,
+      error: "Ошибка удаления группы"
+    });
   }
 });
 
@@ -1472,24 +1526,41 @@ app.get("/api/groups/:id/messages", async (req, res) => {
     const groupId = String(req.params.id);
     const me = normalizeUsername(req.query.me);
 
-    const groupResult = await pool.query("SELECT * FROM groups WHERE id = $1", [groupId]);
+    const groupResult = await pool.query(
+      "SELECT * FROM groups WHERE id = $1",
+      [groupId]
+    );
+
     const group = groupResult.rows[0];
 
     if (!group) {
-      return res.status(404).json({ success: false, error: "Группа не найдена" });
+      return res.status(404).json({
+        success: false,
+        error: "Группа не найдена"
+      });
     }
 
     if (!(group.members || []).includes(me)) {
-      return res.status(403).json({ success: false, error: "Вы не участник этой группы" });
+      return res.status(403).json({
+        success: false,
+        error: "Вы не участник этой группы"
+      });
     }
 
     const chatId = getGroupChatId(groupId);
     const messages = await getMessagesByChatId(chatId);
 
-    res.json({ success: true, messages });
+    res.json({
+      success: true,
+      messages
+    });
   } catch (error) {
     console.error("Group messages error:", error);
-    res.status(500).json({ success: false, error: "Ошибка загрузки сообщений группы" });
+
+    res.status(500).json({
+      success: false,
+      error: "Ошибка загрузки сообщений группы"
+    });
   }
 });
 
@@ -1498,10 +1569,12 @@ io.on("connection", (socket) => {
 
   socket.on("user_online", (data) => {
     const username = normalizeUsername(data && data.username);
+
     if (!username) return;
 
     socket.username = username;
     socket.join(`user:${username}`);
+
     setUserOnline(username, socket.id);
 
     console.log("Online:", username);
@@ -1509,6 +1582,7 @@ io.on("connection", (socket) => {
 
   socket.on("check_user_status", (data) => {
     const username = normalizeUsername(data && data.username);
+
     if (!username) return;
 
     socket.emit("user_status", {
@@ -1578,31 +1652,15 @@ io.on("connection", (socket) => {
       socket.join(`chat:${chatId}`);
 
       const messages = await getMessagesByChatId(chatId);
+
       socket.emit("load_messages", messages);
 
       socket.emit("user_status", {
         username: withUser,
         online: isUserOnline(withUser)
       });
-
-      const readResult = await markDirectMessagesAsRead(me, withUser);
-      emitMessagesRead(chatId, me, withUser, readResult.rows);
     } catch (error) {
       console.error("Open chat error:", error);
-    }
-  });
-
-  socket.on("mark_messages_read", async (data) => {
-    try {
-      const me = normalizeUsername(data && data.me);
-      const withUser = normalizeUsername(data && data.with);
-
-      if (!me || !withUser) return;
-
-      const readResult = await markDirectMessagesAsRead(me, withUser);
-      emitMessagesRead(readResult.chatId, me, withUser, readResult.rows);
-    } catch (error) {
-      console.error("Mark messages read error:", error);
     }
   });
 
@@ -1611,15 +1669,21 @@ io.on("connection", (socket) => {
       const me = normalizeUsername(data && data.me);
       const groupId = String((data && data.groupId) || "");
 
-      const groupResult = await pool.query("SELECT * FROM groups WHERE id = $1", [groupId]);
+      const groupResult = await pool.query(
+        "SELECT * FROM groups WHERE id = $1",
+        [groupId]
+      );
+
       const group = groupResult.rows[0];
 
       if (!group || !(group.members || []).includes(me)) return;
 
       const chatId = getGroupChatId(groupId);
+
       socket.join(`chat:${chatId}`);
 
       const messages = await getMessagesByChatId(chatId);
+
       socket.emit("load_messages", messages);
     } catch (error) {
       console.error("Open group error:", error);
@@ -1681,7 +1745,12 @@ io.on("connection", (socket) => {
       if (!from || !groupId || (!text && !media)) return;
 
       const sender = await findUser(from);
-      const groupResult = await pool.query("SELECT * FROM groups WHERE id = $1", [groupId]);
+
+      const groupResult = await pool.query(
+        "SELECT * FROM groups WHERE id = $1",
+        [groupId]
+      );
+
       const group = groupResult.rows[0];
 
       if (!sender || !group || !(group.members || []).includes(from)) return;
@@ -1723,17 +1792,29 @@ io.on("connection", (socket) => {
       const me = normalizeUsername(data && (data.me || data.from || data.username));
       const text = String((data && (data.text || data.message)) || "").trim();
 
-      const result = await editMessage({ messageId, me, text });
+      const result = await editMessage({
+        messageId,
+        me,
+        text
+      });
 
       if (!result.success) {
-        socket.emit("message_error", { action: "edit", error: result.error });
+        socket.emit("message_error", {
+          action: "edit",
+          error: result.error
+        });
+
         return;
       }
 
       emitEditedMessage(result.message);
     } catch (error) {
       console.error("Socket edit message error:", error);
-      socket.emit("message_error", { action: "edit", error: "Ошибка редактирования сообщения" });
+
+      socket.emit("message_error", {
+        action: "edit",
+        error: "Ошибка редактирования сообщения"
+      });
     }
   });
 
@@ -1743,17 +1824,29 @@ io.on("connection", (socket) => {
       const me = normalizeUsername(data && (data.me || data.from || data.username));
       const text = String((data && (data.text || data.message)) || "").trim();
 
-      const result = await editMessage({ messageId, me, text });
+      const result = await editMessage({
+        messageId,
+        me,
+        text
+      });
 
       if (!result.success) {
-        socket.emit("message_error", { action: "edit", error: result.error });
+        socket.emit("message_error", {
+          action: "edit",
+          error: result.error
+        });
+
         return;
       }
 
       emitEditedMessage(result.message);
     } catch (error) {
       console.error("Socket edit-message error:", error);
-      socket.emit("message_error", { action: "edit", error: "Ошибка редактирования сообщения" });
+
+      socket.emit("message_error", {
+        action: "edit",
+        error: "Ошибка редактирования сообщения"
+      });
     }
   });
 
@@ -1762,17 +1855,28 @@ io.on("connection", (socket) => {
       const messageId = String((data && (data.messageId || data.id)) || "");
       const me = normalizeUsername(data && (data.me || data.from || data.username));
 
-      const result = await deleteMessageById({ messageId, me });
+      const result = await deleteMessageById({
+        messageId,
+        me
+      });
 
       if (!result.success) {
-        socket.emit("message_error", { action: "delete", error: result.error });
+        socket.emit("message_error", {
+          action: "delete",
+          error: result.error
+        });
+
         return;
       }
 
       emitDeletedMessage(result.message);
     } catch (error) {
       console.error("Socket delete message error:", error);
-      socket.emit("message_error", { action: "delete", error: "Ошибка удаления сообщения" });
+
+      socket.emit("message_error", {
+        action: "delete",
+        error: "Ошибка удаления сообщения"
+      });
     }
   });
 
@@ -1781,17 +1885,28 @@ io.on("connection", (socket) => {
       const messageId = String((data && (data.messageId || data.id)) || "");
       const me = normalizeUsername(data && (data.me || data.from || data.username));
 
-      const result = await deleteMessageById({ messageId, me });
+      const result = await deleteMessageById({
+        messageId,
+        me
+      });
 
       if (!result.success) {
-        socket.emit("message_error", { action: "delete", error: result.error });
+        socket.emit("message_error", {
+          action: "delete",
+          error: result.error
+        });
+
         return;
       }
 
       emitDeletedMessage(result.message);
     } catch (error) {
       console.error("Socket delete-message error:", error);
-      socket.emit("message_error", { action: "delete", error: "Ошибка удаления сообщения" });
+
+      socket.emit("message_error", {
+        action: "delete",
+        error: "Ошибка удаления сообщения"
+      });
     }
   });
 
