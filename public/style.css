@@ -2825,3 +2825,79 @@ form,
     min-width: 46px !important;
   }
 }
+
+/* =========================================================
+   CALLIBRI — READ RECEIPTS
+   ========================================================= */
+
+.message-meta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #9fb3c8;
+}
+
+.message-meta .message-time {
+  margin: 0;
+}
+
+.message-status {
+  position: relative;
+  display: inline-flex;
+  width: 18px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.message-status.compact {
+  transform: scale(0.95);
+  transform-origin: center;
+}
+
+.message-status__check {
+  position: absolute;
+  top: -1px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 900;
+  user-select: none;
+}
+
+.message-status__check.first {
+  left: 0;
+}
+
+.message-status__check.second {
+  left: 6px;
+}
+
+.message-status.unread .message-status__check {
+  color: #93a8bc;
+}
+
+.message-status.read .message-status__check {
+  color: #5fd2ff;
+  text-shadow: 0 0 8px rgba(95, 210, 255, 0.28);
+}
+
+.voice-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-card__footer-left,
+.voice-card__footer-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.voice-card__clock {
+  color: #9fb3c8;
+  font-size: 12px;
+}

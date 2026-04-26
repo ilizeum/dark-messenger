@@ -3263,6 +3263,42 @@ function stopOtherVoicePlayers(exceptId) {
 }
 
 function createFallbackWaveformHtml(waveform) {
+function isMessageRead(message) {
+  return Boolean(message && (message.isRead === true || message.is_read === true));
+}
+
+function renderMessageStatus(message, mine, compact = false) {
+  if (!mine || !message) return "";
+
+  const isDirectMessage =
+    String(message.type || "") === "direct" ||
+    Boolean(message.to);
+
+  if (!isDirectMessage) return "";
+
+  const read = isMessageRead(message);
+
+  return `
+    <span
+      class="message-status ${read ? "read" : "unread"} ${compact ? "compact" : ""}"
+      title="${read ? "Прочитано" : "Не прочитано"}"
+    >
+      <span class="message-status__check first">✓</span>
+      <span class="message-status__check second">✓</span>
+    </span>
+  `;
+}
+
+function markCurrentDirectMessagesAsRead() {
+  if (!currentUser) return;
+  if (selectedChatType !== "direct") return;
+  if (!selectedUser) return;
+
+  socket.emit("mark_messages_read", {
+    me: currentUser.username,
+    with: selectedUser.username
+  });
+}
   const bars = Array.isArray(waveform) && waveform.length
     ? waveform
     : Array.from({ length: 60 }, (_, index) => 8 + ((index * 7) % 20));
@@ -3282,6 +3318,7 @@ function renderVoiceCard(media, message, mine, canDelete) {
   const durationText = media.durationMs ? formatRecordingTime(media.durationMs) : "00:00";
   const clockText = formatTime(message.created_at);
   const fallbackWave = createFallbackWaveformHtml(media.waveform);
+  const statusHtml = renderMessageStatus(message, mine, true);
 
   return `
     <div class="voice-card" data-voice-id="${escapeHtml(id)}" data-audio-url="${escapeHtml(audioUrl)}">
@@ -3308,13 +3345,18 @@ function renderVoiceCard(media, message, mine, canDelete) {
       </div>
 
       <div class="voice-card__footer">
-        ${
-          canDelete
-            ? `<button class="delete-message-btn voice-card__delete" data-id="${escapeHtml(id)}" title="Удалить сообщение">🗑</button>`
-            : `<span></span>`
-        }
+        <div class="voice-card__footer-left">
+          ${
+            canDelete
+              ? `<button class="delete-message-btn voice-card__delete" data-id="${escapeHtml(id)}" title="Удалить сообщение">🗑</button>`
+              : `<span></span>`
+          }
+        </div>
 
-        <span class="voice-card__clock">${escapeHtml(clockText)}</span>
+        <div class="voice-card__footer-right">
+          <span class="voice-card__clock">${escapeHtml(clockText)}</span>
+          ${statusHtml}
+        </div>
       </div>
     </div>
   `;
@@ -3471,12 +3513,22 @@ function renderMessages() {
 
     const text = message.text || message.message || "";
     const mediaHtml = renderMedia(message.media, message, mine, canDelete);
+    const statusHtml = renderMessageStatus(message, mine);
 
     bubble.innerHTML = `
       <div class="message-name">${escapeHtml(message.displayName || message.username || "")}</div>
       ${mediaHtml}
       ${text ? `<div class="message-text">${escapeHtml(text)}</div>` : ""}
-      ${!isAudio ? `<div class="message-time">${formatTime(message.created_at)}</div>` : ""}
+      ${
+        !isAudio
+          ? `
+            <div class="message-meta">
+              <span class="message-time">${formatTime(message.created_at)}</span>
+              ${statusHtml}
+            </div>
+          `
+          : ""
+      }
       ${
         canDelete && !isAudio
           ? `<button class="delete-message-btn" data-id="${escapeHtml(message.id)}" title="Удалить сообщение">Удалить</button>`
@@ -3534,9 +3586,45 @@ function shouldShowIncomingGroup(message) {
 socket.on("load_messages", (messages) => {
   messagesCache = Array.isArray(messages) ? messages : [];
   renderMessages();
+
+  if (selectedChatType === "direct" && selectedUser) {
+    markCurrentDirectMessagesAsRead();
+  }
 });
 
 socket.on("message_deleted", (data) => {
+socket.on("messages_read", (data) => {
+  if (!data || !data.chatId) return;
+
+  const ids = Array.isArray(data.ids) ? data.ids.map(String) : [];
+  let changed = false;
+
+  messagesCache = messagesCache.map((message) => {
+    const sameChat = String(message.chatId || "") === String(data.chatId);
+    const messageId = String(message.id || "");
+    const mine = normalizeUsername(message.from || message.username) === currentUser.username;
+
+    if (!sameChat || !mine) {
+      return message;
+    }
+
+    if (ids.length && !ids.includes(messageId)) {
+      return message;
+    }
+
+    changed = true;
+
+    return {
+      ...message,
+      isRead: true,
+      readAt: data.readAt || message.readAt || new Date().toISOString()
+    };
+  });
+
+  if (changed) {
+    renderMessages();
+  }
+});
   if (!data || !data.id) return;
 
   destroyVoicePlayer(data.id);
@@ -3746,7 +3834,7 @@ socket.on("new_message", (message) => {
     return;
   }
 
-  if (shouldShowIncomingDirect(message)) {
+    if (shouldShowIncomingDirect(message)) {
     const exists = messagesCache.some((m) => m.id === message.id);
 
     if (!exists) {
@@ -3755,6 +3843,7 @@ socket.on("new_message", (message) => {
     }
 
     unreadDirect[from] = 0;
+    markCurrentDirectMessagesAsRead();
   } else {
     unreadDirect[from] = (unreadDirect[from] || 0) + 1;
   }
