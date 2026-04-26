@@ -1,5 +1,6 @@
 const { app, BrowserWindow } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const path = require("path");
 
 let win;
 
@@ -7,7 +8,12 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1200,
     height: 800,
+    title: "Callibri",
     autoHideMenuBar: true,
+
+    // Иконка приложения
+    icon: path.join(__dirname, "assets", "icon.ico"),
+
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
@@ -24,19 +30,38 @@ app.whenReady().then(() => {
   autoUpdater.checkForUpdates();
 });
 
+// Чтобы приложение нормально открывалось на macOS
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+
+// Чтобы приложение закрывалось на Windows/Linux
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
 
 // 🔥 ОБНОВЛЕНИЯ → отправка в UI
 
 autoUpdater.on("update-available", () => {
-  win.webContents.send("update_available");
+  if (win) {
+    win.webContents.send("update_available");
+  }
 });
 
 autoUpdater.on("download-progress", (progress) => {
-  win.webContents.send("update_progress", Math.round(progress.percent));
+  if (win) {
+    win.webContents.send("update_progress", Math.round(progress.percent));
+  }
 });
 
 autoUpdater.on("update-downloaded", () => {
-  win.webContents.send("update_downloaded");
+  if (win) {
+    win.webContents.send("update_downloaded");
+  }
 
   // автоустановка
   setTimeout(() => {

@@ -1,6 +1,6 @@
 {
-  "name": "Callibri",
-  "version": "2.0.0",
+  "name": "callibri",
+  "version": "2.0.1",
   "description": "Callibri",
   "main": "main.js",
   "author": "titov",
@@ -24,18 +24,20 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.dark.messenger",
-    "productName": "Dark Messenger",
+    "appId": "com.ilizeum.callibri",
+    "productName": "Callibri",
     "directories": {
       "output": "dist"
     },
     "files": [
       "main.js",
       "public/**/*",
+      "assets/**/*",
       "package.json"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -43,6 +45,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
+      "shortcutName": "Callibri",
       "deleteAppDataOnUninstall": false
     },
     "publish": [

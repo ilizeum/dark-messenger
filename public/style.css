@@ -1247,3 +1247,583 @@ textarea {
   font-size: 11px;
   margin-left: 5px;
 }
+
+/* =========================================================
+   CALLIBRI — HUMMINGBIRD COLOR THEME
+   ВСТАВИТЬ В САМЫЙ НИЗ public/style.css
+   ========================================================= */
+
+:root {
+  --cb-bg-main: #07131d;
+  --cb-bg-deep: #0a1c2a;
+  --cb-bg-panel: rgba(12, 28, 40, 0.88);
+  --cb-bg-panel-2: rgba(16, 40, 56, 0.92);
+  --cb-bg-soft: rgba(23, 56, 74, 0.78);
+
+  --cb-blue: #1b63f0;
+  --cb-blue-2: #0f49d7;
+  --cb-cyan: #2eb8ff;
+  --cb-emerald: #18d59e;
+  --cb-emerald-2: #0ea77c;
+  --cb-lime: #9ecf57;
+  --cb-lime-soft: #b8dc78;
+
+  --cb-text: #eef8ff;
+  --cb-text-soft: #a8c0cf;
+  --cb-text-muted: #7d9aab;
+
+  --cb-border: rgba(110, 188, 175, 0.18);
+  --cb-border-strong: rgba(46, 184, 255, 0.25);
+
+  --cb-danger: #ef6b86;
+  --cb-danger-bg: rgba(239, 107, 134, 0.16);
+
+  --cb-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+
+  --cb-gradient-main: linear-gradient(135deg, #0f45d2 0%, #1574ff 28%, #12d7a2 68%, #96cb59 100%);
+  --cb-gradient-soft: linear-gradient(135deg, rgba(27, 99, 240, 0.22), rgba(24, 213, 158, 0.18));
+  --cb-gradient-panel: linear-gradient(180deg, rgba(18, 41, 57, 0.96), rgba(10, 25, 36, 0.96));
+  --cb-gradient-input: linear-gradient(180deg, rgba(16, 39, 54, 0.96), rgba(11, 28, 39, 0.96));
+  --cb-gradient-message: linear-gradient(180deg, rgba(17, 39, 55, 0.95), rgba(11, 28, 40, 0.95));
+  --cb-gradient-message-mine: linear-gradient(135deg, rgba(20, 104, 230, 0.95), rgba(17, 201, 151, 0.95));
+}
+
+/* ===== БАЗА ===== */
+
+html,
+body {
+  background:
+    radial-gradient(circle at top left, rgba(158, 207, 87, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(46, 184, 255, 0.16), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(24, 213, 158, 0.18), transparent 26%),
+    linear-gradient(135deg, #07111a 0%, #0b1d2b 36%, #0f3041 72%, #0d4f57 100%) !important;
+  color: var(--cb-text) !important;
+}
+
+body,
+input,
+textarea,
+button {
+  font-family: Inter, Segoe UI, Arial, sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(45, 185, 255, 0.45) rgba(255, 255, 255, 0.05);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(27, 99, 240, 0.82), rgba(24, 213, 158, 0.82));
+  border-radius: 999px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ===== ГЛАВНЫЕ КОНТЕЙНЕРЫ ===== */
+
+#auth,
+#app,
+.auth-card,
+.sidebar,
+.chat,
+.chat-header,
+.chat-top,
+.chat-input,
+.profile,
+.modal-card {
+  color: var(--cb-text) !important;
+}
+
+.auth-card,
+.sidebar,
+.chat,
+.modal-card,
+.profile {
+  background: var(--cb-gradient-panel) !important;
+  border: 1px solid var(--cb-border) !important;
+  box-shadow: var(--cb-shadow) !important;
+  backdrop-filter: blur(18px);
+}
+
+.sidebar,
+.chat,
+.auth-card,
+.modal-card {
+  border-radius: 22px !important;
+}
+
+.profile,
+.chat-header,
+.chat-input {
+  background: rgba(8, 22, 32, 0.52) !important;
+  border: 1px solid rgba(112, 183, 176, 0.12) !important;
+  border-radius: 18px !important;
+}
+
+/* ===== ЗАГОЛОВКИ / ТЕКСТ ===== */
+
+h1,
+h2,
+h3,
+h4,
+b,
+strong,
+#meName,
+#chatName {
+  color: var(--cb-text) !important;
+}
+
+p,
+span,
+small,
+#meLogin,
+#chatStatus,
+.sidebar-title,
+.user-info span,
+.empty,
+.small-empty {
+  color: var(--cb-text-soft) !important;
+}
+
+.sidebar-title {
+  letter-spacing: 0.4px;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  font-size: 12px !important;
+  opacity: 0.95;
+  margin: 12px 0 8px;
+}
+
+/* ===== INPUT / TEXTAREA ===== */
+
+input,
+textarea,
+#search,
+#messageInput,
+#displayName,
+#username,
+#password,
+#groupNameInput,
+#groupMembersInput,
+#profileDisplayNameInput,
+#profileUsernameInput {
+  background: var(--cb-gradient-input) !important;
+  color: var(--cb-text) !important;
+  border: 1px solid rgba(70, 163, 175, 0.18) !important;
+  border-radius: 16px !important;
+  outline: none !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+input::placeholder,
+textarea::placeholder,
+#search::placeholder,
+#messageInput::placeholder {
+  color: rgba(168, 192, 207, 0.72) !important;
+}
+
+input:focus,
+textarea:focus,
+#search:focus,
+#messageInput:focus,
+#displayName:focus,
+#username:focus,
+#password:focus,
+#groupNameInput:focus,
+#groupMembersInput:focus,
+#profileDisplayNameInput:focus,
+#profileUsernameInput:focus {
+  border-color: rgba(46, 184, 255, 0.42) !important;
+  box-shadow:
+    0 0 0 4px rgba(46, 184, 255, 0.11),
+    0 0 20px rgba(24, 213, 158, 0.08) !important;
+}
+
+/* ===== КНОПКИ ===== */
+
+button {
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease,
+    opacity 0.16s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+#loginBtn,
+#registerBtn,
+#sendBtn,
+#createGroupBtn,
+#profileBtn,
+#profileChangeAvatarBtn,
+#saveProfileBtn,
+#saveGroupBtn,
+#recordingSendBtn {
+  background: var(--cb-gradient-main) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 26px rgba(17, 97, 176, 0.28) !important;
+  font-weight: 800 !important;
+}
+
+#loginBtn:hover,
+#registerBtn:hover,
+#sendBtn:hover,
+#createGroupBtn:hover,
+#profileBtn:hover,
+#profileChangeAvatarBtn:hover,
+#saveProfileBtn:hover,
+#saveGroupBtn:hover,
+#recordingSendBtn:hover {
+  box-shadow: 0 16px 30px rgba(17, 97, 176, 0.38) !important;
+}
+
+#attachBtn,
+#voiceBtn,
+#togglePassword,
+#leaveGroupBtn {
+  background: rgba(16, 47, 64, 0.95) !important;
+  color: var(--cb-text) !important;
+  border: 1px solid rgba(63, 167, 178, 0.22) !important;
+  border-radius: 14px !important;
+}
+
+#attachBtn:hover,
+#voiceBtn:hover,
+#togglePassword:hover,
+#leaveGroupBtn:hover {
+  background: rgba(22, 61, 81, 0.95) !important;
+}
+
+#deleteGroupBtn,
+#profileRemoveAvatarBtn,
+#recordingCancelBtn,
+#cancelGroupBtn,
+#cancelProfileBtn {
+  background: var(--cb-danger-bg) !important;
+  color: #ff9db0 !important;
+  border: 1px solid rgba(239, 107, 134, 0.28) !important;
+  border-radius: 14px !important;
+}
+
+#deleteGroupBtn:hover,
+#profileRemoveAvatarBtn:hover,
+#recordingCancelBtn:hover,
+#cancelGroupBtn:hover,
+#cancelProfileBtn:hover {
+  background: rgba(239, 107, 134, 0.24) !important;
+}
+
+#voiceBtn.recording {
+  background: linear-gradient(135deg, #ef6b86, #ff8b60) !important;
+  color: white !important;
+  box-shadow: 0 10px 22px rgba(239, 107, 134, 0.28) !important;
+}
+
+/* ===== АВАТАРЫ ===== */
+
+.avatar,
+.group-avatar,
+#chatAvatar,
+#profileAvatarBtn,
+#profileModalAvatarBtn {
+  background: var(--cb-gradient-main) !important;
+  color: white !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.18),
+    0 10px 18px rgba(0,0,0,0.22) !important;
+}
+
+.avatar img,
+#chatAvatar img,
+#profileAvatarBtn img,
+#profileModalAvatarBtn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ===== СПИСКИ ЧАТОВ ===== */
+
+#users,
+#recentChats,
+#groups {
+  background: transparent !important;
+}
+
+.user,
+.recent-chat-item,
+.group-item {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid transparent !important;
+  border-radius: 18px !important;
+  margin-bottom: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.user:hover,
+.recent-chat-item:hover,
+.group-item:hover {
+  background: rgba(24, 213, 158, 0.08) !important;
+  border-color: rgba(46, 184, 255, 0.16) !important;
+}
+
+.user.active,
+.recent-chat-item.active,
+.group-item.active {
+  background:
+    linear-gradient(135deg, rgba(27, 99, 240, 0.18), rgba(24, 213, 158, 0.16)) !important;
+  border-color: rgba(46, 184, 255, 0.28) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+
+.user-info b {
+  color: var(--cb-text) !important;
+}
+
+.user-info span {
+  color: var(--cb-text-soft) !important;
+}
+
+/* ===== ОБЛАСТЬ ЧАТА ===== */
+
+#messages {
+  background:
+    linear-gradient(180deg, rgba(10, 24, 35, 0.58), rgba(10, 24, 35, 0.35)),
+    radial-gradient(circle at top right, rgba(27, 99, 240, 0.08), transparent 24%),
+    radial-gradient(circle at bottom left, rgba(24, 213, 158, 0.08), transparent 24%) !important;
+  border-radius: 22px !important;
+  border: 1px solid rgba(109, 177, 171, 0.12) !important;
+  backdrop-filter: blur(12px);
+}
+
+.empty {
+  color: var(--cb-text-soft) !important;
+}
+
+/* ===== СООБЩЕНИЯ ===== */
+
+.message {
+  background: var(--cb-gradient-message) !important;
+  border: 1px solid rgba(95, 151, 171, 0.16) !important;
+  color: var(--cb-text) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.message.mine {
+  background: var(--cb-gradient-message-mine) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: white !important;
+}
+
+.message-name {
+  color: #79dfff !important;
+  font-weight: 800 !important;
+}
+
+.message.mine .message-name {
+  color: rgba(255,255,255,0.86) !important;
+}
+
+.message-text {
+  color: inherit !important;
+}
+
+.message-time {
+  color: rgba(236, 248, 255, 0.72) !important;
+}
+
+.delete-message-btn {
+  background: rgba(239, 107, 134, 0.16) !important;
+  color: #ff9db0 !important;
+  border: 1px solid rgba(239, 107, 134, 0.28) !important;
+  border-radius: 12px !important;
+}
+
+/* ===== ОТВЕТ / РЕДАКТИРОВАНИЕ ===== */
+
+.telegram-message-menu {
+  background: rgba(10, 24, 36, 0.96) !important;
+  border: 1px solid rgba(95, 171, 188, 0.2) !important;
+  box-shadow: 0 22px 60px rgba(0,0,0,0.45) !important;
+}
+
+.telegram-message-menu button {
+  color: var(--cb-text) !important;
+}
+
+.telegram-message-menu button:hover {
+  background: rgba(24, 213, 158, 0.09) !important;
+}
+
+.telegram-message-menu button.danger {
+  color: #ff9db0 !important;
+}
+
+.dm-reply-panel,
+.dm-edit-panel,
+.message-reply-preview {
+  background: rgba(12, 29, 41, 0.9) !important;
+  border: 1px solid rgba(95, 171, 188, 0.18) !important;
+  border-radius: 16px !important;
+}
+
+.dm-reply-line,
+.message-reply-preview {
+  border-left-color: var(--cb-cyan) !important;
+}
+
+.dm-edit-line {
+  background: linear-gradient(180deg, var(--cb-blue), var(--cb-emerald)) !important;
+}
+
+.dm-panel-title,
+.message-reply-author {
+  color: #79dfff !important;
+}
+
+.dm-panel-text,
+.message-reply-text {
+  color: var(--cb-text-soft) !important;
+}
+
+.message-edited {
+  color: rgba(255,255,255,0.72) !important;
+}
+
+/* ===== МЕДИА ===== */
+
+.message-media img,
+.message-media video {
+  border-radius: 16px !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+/* ===== ГОЛОСОВЫЕ ===== */
+
+.recording-panel {
+  background: rgba(10, 26, 37, 0.94) !important;
+  border: 1px solid rgba(95, 171, 188, 0.16) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--cb-shadow) !important;
+}
+
+.recording-dot {
+  background: #ff6f7b !important;
+  box-shadow: 0 0 0 6px rgba(255, 111, 123, 0.18) !important;
+}
+
+.recording-timer {
+  color: var(--cb-text) !important;
+}
+
+.recording-bar,
+.voice-wave-bar {
+  background: linear-gradient(180deg, #2eb8ff, #18d59e) !important;
+  border-radius: 999px !important;
+}
+
+.voice-card {
+  background: rgba(8, 22, 33, 0.25) !important;
+  border-radius: 16px !important;
+}
+
+.voice-card__play {
+  background: var(--cb-gradient-main) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 10px 20px rgba(17, 97, 176, 0.26) !important;
+}
+
+.voice-card__hint,
+.voice-card__clock,
+.voice-card__time,
+.voice-card__slash {
+  color: var(--cb-text-soft) !important;
+}
+
+/* ===== МОДАЛКИ ===== */
+
+.modal {
+  background: rgba(4, 10, 16, 0.55) !important;
+  backdrop-filter: blur(8px);
+}
+
+.modal-card h2,
+.modal-card h3 {
+  color: var(--cb-text) !important;
+}
+
+.modal-card p,
+.modal-card div,
+.modal-card label {
+  color: var(--cb-text-soft) !important;
+}
+
+/* ===== БЕЙДЖИ / МЕЛКИЕ АКЦЕНТЫ ===== */
+
+#authError,
+#groupError,
+#profileError {
+  color: #ff96aa !important;
+}
+
+small,
+.message-time,
+.voice-card__hint,
+.voice-card__clock {
+  opacity: 0.95;
+}
+
+/* ===== НЕМНОГО СВЕЧЕНИЯ ===== */
+
+#sendBtn,
+#loginBtn,
+#registerBtn,
+#profileBtn,
+#createGroupBtn {
+  position: relative;
+  overflow: hidden;
+}
+
+#sendBtn::after,
+#loginBtn::after,
+#registerBtn::after,
+#profileBtn::after,
+#createGroupBtn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.22) 50%, transparent 100%);
+  transform: translateX(-120%);
+  transition: transform 0.55s ease;
+}
+
+#sendBtn:hover::after,
+#loginBtn:hover::after,
+#registerBtn:hover::after,
+#profileBtn:hover::after,
+#createGroupBtn:hover::after {
+  transform: translateX(120%);
+}
