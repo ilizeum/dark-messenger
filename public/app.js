@@ -4872,3 +4872,144 @@ if (savedUser) {
     annotateMessages();
   }, 900);
 })();
+
+/* =========================================================
+   CALLIBRI MOVE SELECT BUTTON TO RIGHT CLICK MENU
+   Перенос "Выбрать" в меню ПКМ
+   ========================================================= */
+
+(function moveMessageSelectToContextMenu() {
+  function injectMoveSelectStyles() {
+    if (document.getElementById("callibriMoveSelectStyles")) return;
+
+    const style = document.createElement("style");
+    style.id = "callibriMoveSelectStyles";
+
+    style.textContent = `
+      #callibriStartSelectBtn {
+        display: none !important;
+      }
+
+      #contextSelectBtn,
+      #messageContextSelectBtn {
+        color: #d9f99d !important;
+      }
+
+      #contextSelectBtn:hover,
+      #messageContextSelectBtn:hover {
+        background: rgba(163, 230, 53, 0.12) !important;
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function removeHeaderSelectButton() {
+    const btn = document.getElementById("callibriStartSelectBtn");
+
+    if (btn) {
+      btn.remove();
+    }
+  }
+
+  function getCurrentContextMessageId() {
+    try {
+      if (typeof contextMessage !== "undefined" && contextMessage) {
+        return String(
+          contextMessage.id ||
+            contextMessage.messageId ||
+            (contextMessage.message && contextMessage.message.id) ||
+            ""
+        );
+      }
+    } catch {}
+
+    return "";
+  }
+
+  function startSelectionFromContextMenu() {
+    const messageId = getCurrentContextMessageId();
+
+    if (!messageId) {
+      alert("Не удалось выбрать сообщение");
+      return;
+    }
+
+    const bubble = document.querySelector(
+      `.message[data-callibri-message-id="${CSS.escape(messageId)}"]`
+    );
+
+    if (!bubble) {
+      alert("Не удалось найти сообщение");
+      return;
+    }
+
+    const fakeClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true
+    });
+
+    bubble.dispatchEvent(fakeClick);
+
+    try {
+      if (typeof hideContextMenu === "function") {
+        hideContextMenu();
+      }
+    } catch {}
+
+    const oldMenu = document.getElementById("messageContextMenu");
+    const newMenu = document.getElementById("callibriContextMenu");
+
+    if (oldMenu) oldMenu.classList.add("hidden");
+    if (newMenu) newMenu.classList.add("hidden");
+  }
+
+  function addSelectButtonToContextMenu() {
+    const newMenu = document.getElementById("callibriContextMenu");
+    const oldMenu = document.getElementById("messageContextMenu");
+
+    if (newMenu && !document.getElementById("contextSelectBtn")) {
+      const btn = document.createElement("button");
+      btn.id = "contextSelectBtn";
+      btn.type = "button";
+      btn.innerHTML = "☑ Выбрать";
+
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        startSelectionFromContextMenu();
+      });
+
+      newMenu.prepend(btn);
+    }
+
+    if (oldMenu && !document.getElementById("messageContextSelectBtn")) {
+      const btn = document.createElement("button");
+      btn.id = "messageContextSelectBtn";
+      btn.type = "button";
+      btn.innerHTML = "<span>☑</span> Выбрать";
+
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        startSelectionFromContextMenu();
+      });
+
+      oldMenu.prepend(btn);
+    }
+  }
+
+  function init() {
+    injectMoveSelectStyles();
+    removeHeaderSelectButton();
+    addSelectButtonToContextMenu();
+  }
+
+  init();
+
+  setInterval(() => {
+    removeHeaderSelectButton();
+    addSelectButtonToContextMenu();
+  }, 700);
+})();
