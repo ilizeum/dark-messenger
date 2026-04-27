@@ -44,8 +44,10 @@
         <span>Не выходить</span>
       </label>
 
-      <button id="loginBtn" type="button">Войти</button>
-      <button id="registerBtn" type="button">Регистрация</button>
+      <div class="auth-actions">
+  <button id="loginBtn" type="button">Войти</button>
+  <button id="registerBtn" type="button">Регистрация</button>
+</div>
 
       <div id="authError"></div>
     </div>
@@ -65,13 +67,22 @@
       </div>
 
       <input
-        id="search"
-        type="text"
-        placeholder="Поиск по @id, например @username"
-        autocomplete="off"
-      />
+  id="search"
+  type="text"
+  placeholder="Поиск по @id, например @username"
+  autocomplete="off"
+/>
 
-      <div id="users"></div>
+<button id="archiveToggleBtn" class="archive-btn" type="button">
+  <div class="archive-icon">🗂</div>
+  <div class="archive-info">
+    <b>Архив</b>
+    <span>Скрытые чаты</span>
+  </div>
+  <div id="archiveCount" class="archive-badge hidden">0</div>
+</button>
+
+<div id="users"></div>
     </aside>
 
     <main class="chat">
