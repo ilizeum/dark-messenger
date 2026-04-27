@@ -4252,3 +4252,623 @@ if (savedUser) {
 
   setInterval(ensureInviteButton, 700);
 })();
+
+/* =========================================================
+   CALLIBRI MESSAGE MULTI SELECT
+   Выделение сообщений как в Telegram
+   ========================================================= */
+
+(function setupCallibriMessageSelection() {
+  const selectedMessageIds = new Set();
+
+  let selectionMode = false;
+  let selectionToolbar = null;
+  let selectAllBtn = null;
+  let copyBtn = null;
+  let deleteBtn = null;
+  let cancelBtn = null;
+  let selectedCountText = null;
+  let longPressTimer = null;
+
+  function injectSelectionStyles() {
+    if (document.getElementById("callibriSelectionStyles")) return;
+
+    const style = document.createElement("style");
+    style.id = "callibriSelectionStyles";
+
+    style.textContent = `
+      .message {
+        user-select: text;
+      }
+
+      .message.callibri-selectable {
+        cursor: pointer;
+      }
+
+      .message.callibri-selection-mode {
+        padding-left: 42px !important;
+      }
+
+      .message.callibri-selected {
+        outline: 2px solid rgba(34, 211, 238, 0.82);
+        box-shadow:
+          0 0 0 5px rgba(34, 211, 238, 0.13),
+          0 16px 34px rgba(0, 0, 0, 0.24) !important;
+      }
+
+      .callibri-select-circle {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid rgba(203, 213, 225, 0.55);
+        background: rgba(2, 12, 24, 0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 14px;
+        font-weight: 950;
+        z-index: 4;
+      }
+
+      .message.callibri-selection-mode .callibri-select-circle {
+        display: flex;
+      }
+
+      .message.callibri-selected .callibri-select-circle {
+        border-color: #67e8f9;
+        background: linear-gradient(135deg, #0ea5e9, #10b981);
+      }
+
+      .message.callibri-selected .callibri-select-circle::before {
+        content: "✓";
+      }
+
+      .callibri-selection-toolbar {
+        position: fixed;
+        left: 50%;
+        top: 18px;
+        transform: translateX(-50%);
+        z-index: 999999;
+        min-height: 58px;
+        max-width: calc(100vw - 28px);
+        padding: 10px;
+        border-radius: 22px;
+        background:
+          radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.16), transparent 40%),
+          linear-gradient(180deg, rgba(15, 42, 61, 0.97), rgba(4, 20, 34, 0.97));
+        border: 1px solid rgba(125, 211, 252, 0.18);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+        backdrop-filter: blur(18px);
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: #e2e8f0;
+      }
+
+      .callibri-selection-toolbar.hidden {
+        display: none;
+      }
+
+      .callibri-selected-count {
+        padding: 0 10px;
+        color: #f8fafc;
+        font-size: 14px;
+        font-weight: 950;
+        white-space: nowrap;
+      }
+
+      .callibri-selection-toolbar button {
+        height: 38px;
+        padding: 0 13px;
+        border: none;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #e2e8f0;
+        font-size: 13px;
+        font-weight: 850;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .callibri-selection-toolbar button:hover {
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .callibri-selection-toolbar button.primary {
+        background: linear-gradient(135deg, #0ea5e9, #10b981);
+        color: white;
+      }
+
+      .callibri-selection-toolbar button.danger {
+        background: rgba(190, 24, 93, 0.22);
+        color: #fecdd3;
+      }
+
+      .callibri-selection-toolbar button.danger:hover {
+        background: rgba(190, 24, 93, 0.34);
+      }
+
+      .callibri-select-hint {
+        position: fixed;
+        left: 50%;
+        bottom: 22px;
+        transform: translateX(-50%);
+        z-index: 999998;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.94);
+        color: #cbd5e1;
+        font-size: 13px;
+        font-weight: 750;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.18s ease;
+      }
+
+      .callibri-select-hint.visible {
+        opacity: 1;
+      }
+
+      @media (max-width: 720px) {
+        .callibri-selection-toolbar {
+          top: 10px;
+          left: 10px;
+          right: 10px;
+          transform: none;
+          overflow-x: auto;
+          justify-content: flex-start;
+        }
+
+        .callibri-selection-toolbar button {
+          padding: 0 11px;
+        }
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function createToolbar() {
+    if (document.getElementById("callibriSelectionToolbar")) {
+      selectionToolbar = document.getElementById("callibriSelectionToolbar");
+      selectedCountText = document.getElementById("callibriSelectedCount");
+      selectAllBtn = document.getElementById("callibriSelectAllBtn");
+      copyBtn = document.getElementById("callibriCopySelectedBtn");
+      deleteBtn = document.getElementById("callibriDeleteSelectedBtn");
+      cancelBtn = document.getElementById("callibriCancelSelectionBtn");
+      return;
+    }
+
+    selectionToolbar = document.createElement("div");
+    selectionToolbar.id = "callibriSelectionToolbar";
+    selectionToolbar.className = "callibri-selection-toolbar hidden";
+
+    selectionToolbar.innerHTML = `
+      <div id="callibriSelectedCount" class="callibri-selected-count">Выбрано: 0</div>
+      <button id="callibriCopySelectedBtn" type="button" class="primary">Копировать</button>
+      <button id="callibriDeleteSelectedBtn" type="button" class="danger">Удалить</button>
+      <button id="callibriSelectAllBtn" type="button">Выбрать все</button>
+      <button id="callibriCancelSelectionBtn" type="button">Отмена</button>
+    `;
+
+    document.body.appendChild(selectionToolbar);
+
+    selectedCountText = document.getElementById("callibriSelectedCount");
+    selectAllBtn = document.getElementById("callibriSelectAllBtn");
+    copyBtn = document.getElementById("callibriCopySelectedBtn");
+    deleteBtn = document.getElementById("callibriDeleteSelectedBtn");
+    cancelBtn = document.getElementById("callibriCancelSelectionBtn");
+
+    selectAllBtn.addEventListener("click", selectAllMessages);
+    copyBtn.addEventListener("click", copySelectedMessages);
+    deleteBtn.addEventListener("click", deleteSelectedMessages);
+    cancelBtn.addEventListener("click", exitSelectionMode);
+  }
+
+  function getMessageIdFromBubble(bubble) {
+    if (!bubble) return "";
+
+    return String(bubble.dataset.callibriMessageId || "");
+  }
+
+  function getMessageById(messageId) {
+    if (!Array.isArray(messagesCache)) return null;
+
+    return messagesCache.find((message) => {
+      return String(message.id || "") === String(messageId || "");
+    }) || null;
+  }
+
+  function isMine(message) {
+    if (!message || !currentUser) return false;
+
+    return (
+      normalizeUsername(message.from || message.username) === currentUser.username ||
+      normalizeUsername(message.username) === currentUser.username
+    );
+  }
+
+  function getMessageTextForCopy(message) {
+    if (!message) return "";
+
+    const author = message.displayName || message.username || message.from || "Пользователь";
+    const text = message.text || message.message || "";
+
+    let body = text;
+
+    if (!body && message.media) {
+      if (message.media.type === "image") body = "[Фото]";
+      else if (message.media.type === "video") body = "[Видео]";
+      else if (message.media.type === "audio") body = "[Голосовое сообщение]";
+      else body = "[Медиа]";
+    }
+
+    const time = message.created_at ? formatTime(message.created_at) : "";
+
+    return `${author}${time ? " • " + time : ""}: ${body}`;
+  }
+
+  function annotateMessages() {
+    if (!messagesBox) return;
+
+    const bubbles = Array.from(messagesBox.querySelectorAll(".message"));
+
+    bubbles.forEach((bubble, index) => {
+      const message = messagesCache[index];
+
+      if (!message || !message.id) return;
+
+      bubble.dataset.callibriMessageId = String(message.id);
+      bubble.classList.add("callibri-selectable");
+
+      if (!bubble.querySelector(".callibri-select-circle")) {
+        const circle = document.createElement("div");
+        circle.className = "callibri-select-circle";
+        bubble.appendChild(circle);
+      }
+
+      bubble.classList.toggle("callibri-selection-mode", selectionMode);
+      bubble.classList.toggle("callibri-selected", selectedMessageIds.has(String(message.id)));
+    });
+  }
+
+  function updateToolbar() {
+    createToolbar();
+
+    const count = selectedMessageIds.size;
+
+    if (selectedCountText) {
+      selectedCountText.textContent = `Выбрано: ${count}`;
+    }
+
+    if (selectionToolbar) {
+      selectionToolbar.classList.toggle("hidden", !selectionMode);
+    }
+
+    if (deleteBtn) {
+      const hasOwnSelected = Array.from(selectedMessageIds).some((id) => {
+        return isMine(getMessageById(id));
+      });
+
+      deleteBtn.disabled = !hasOwnSelected;
+      deleteBtn.style.opacity = hasOwnSelected ? "1" : "0.45";
+    }
+
+    annotateMessages();
+  }
+
+  function enterSelectionMode(messageId) {
+    selectionMode = true;
+
+    if (messageId) {
+      selectedMessageIds.add(String(messageId));
+    }
+
+    updateToolbar();
+    showHint("Нажимай на сообщения, чтобы выделять несколько");
+  }
+
+  function exitSelectionMode() {
+    selectionMode = false;
+    selectedMessageIds.clear();
+    updateToolbar();
+  }
+
+  function toggleMessageSelection(messageId) {
+    const id = String(messageId || "");
+
+    if (!id) return;
+
+    if (selectedMessageIds.has(id)) {
+      selectedMessageIds.delete(id);
+    } else {
+      selectedMessageIds.add(id);
+    }
+
+    if (selectedMessageIds.size === 0) {
+      exitSelectionMode();
+      return;
+    }
+
+    updateToolbar();
+  }
+
+  function selectAllMessages() {
+    if (!Array.isArray(messagesCache)) return;
+
+    messagesCache.forEach((message) => {
+      if (message && message.id) {
+        selectedMessageIds.add(String(message.id));
+      }
+    });
+
+    selectionMode = true;
+    updateToolbar();
+  }
+
+  async function copySelectedMessages() {
+    const selected = Array.from(selectedMessageIds)
+      .map(getMessageById)
+      .filter(Boolean);
+
+    if (!selected.length) return;
+
+    const text = selected.map(getMessageTextForCopy).join("\n");
+
+    try {
+      await navigator.clipboard.writeText(text);
+      showHint("Сообщения скопированы");
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+
+      try {
+        document.execCommand("copy");
+        showHint("Сообщения скопированы");
+      } catch {
+        alert("Не удалось скопировать");
+      }
+
+      textarea.remove();
+    }
+  }
+
+  async function deleteSelectedMessages() {
+    const selectedOwn = Array.from(selectedMessageIds)
+      .map(getMessageById)
+      .filter((message) => message && isMine(message));
+
+    const selectedForeignCount = selectedMessageIds.size - selectedOwn.length;
+
+    if (!selectedOwn.length) {
+      alert("Можно удалить только свои сообщения");
+      return;
+    }
+
+    const text =
+      selectedForeignCount > 0
+        ? `Удалить ${selectedOwn.length} своих сообщений? Чужие сообщения удалены не будут.`
+        : `Удалить выбранные сообщения: ${selectedOwn.length}?`;
+
+    const ok = confirm(text);
+
+    if (!ok) return;
+
+    selectedOwn.forEach((message) => {
+      const messageId = String(message.id);
+
+      try {
+        if (typeof destroyVoicePlayer === "function") {
+          destroyVoicePlayer(messageId);
+        }
+      } catch {}
+
+      if (typeof socket !== "undefined" && socket && socket.emit) {
+        socket.emit("delete_message", {
+          messageId,
+          id: messageId,
+          me: currentUser.username,
+          username: currentUser.username,
+          from: currentUser.username
+        });
+      } else if (typeof request === "function") {
+        request(`/api/messages/${encodeURIComponent(messageId)}?me=${encodeURIComponent(currentUser.username)}`, {
+          method: "DELETE"
+        }).catch((error) => alert(error.message));
+      }
+    });
+
+    exitSelectionMode();
+  }
+
+  function showHint(text) {
+    let hint = document.getElementById("callibriSelectHint");
+
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.id = "callibriSelectHint";
+      hint.className = "callibri-select-hint";
+      document.body.appendChild(hint);
+    }
+
+    hint.textContent = text;
+    hint.classList.add("visible");
+
+    clearTimeout(hint._timer);
+
+    hint._timer = setTimeout(() => {
+      hint.classList.remove("visible");
+    }, 1800);
+  }
+
+  function handleBubbleClick(event) {
+    const bubble = event.target.closest(".message");
+
+    if (!bubble || !messagesBox || !messagesBox.contains(bubble)) return;
+
+    const messageId = getMessageIdFromBubble(bubble);
+
+    if (!messageId) return;
+
+    if (selectionMode) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleMessageSelection(messageId);
+      return;
+    }
+
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      enterSelectionMode(messageId);
+    }
+  }
+
+  function handlePointerDown(event) {
+    const bubble = event.target.closest(".message");
+
+    if (!bubble || !messagesBox || !messagesBox.contains(bubble)) return;
+
+    const messageId = getMessageIdFromBubble(bubble);
+
+    if (!messageId) return;
+
+    clearTimeout(longPressTimer);
+
+    longPressTimer = setTimeout(() => {
+      if (!selectionMode) {
+        enterSelectionMode(messageId);
+      }
+    }, 450);
+  }
+
+  function clearLongPressTimer() {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+
+  function patchRenderMessages() {
+    if (typeof renderMessages !== "function") return;
+    if (renderMessages.__callibriSelectionPatched) return;
+
+    const originalRenderMessages = renderMessages;
+
+    renderMessages = function patchedRenderMessages() {
+      originalRenderMessages();
+
+      if (selectionMode) {
+        const existingIds = new Set(
+          Array.isArray(messagesCache)
+            ? messagesCache.map((message) => String(message.id || "")).filter(Boolean)
+            : []
+        );
+
+        Array.from(selectedMessageIds).forEach((id) => {
+          if (!existingIds.has(id)) {
+            selectedMessageIds.delete(id);
+          }
+        });
+
+        if (selectedMessageIds.size === 0) {
+          selectionMode = false;
+        }
+      }
+
+      annotateMessages();
+      updateToolbar();
+    };
+
+    renderMessages.__callibriSelectionPatched = true;
+  }
+
+  function observeMessages() {
+    if (!messagesBox) return;
+
+    const observer = new MutationObserver(() => {
+      annotateMessages();
+    });
+
+    observer.observe(messagesBox, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  function installSelectionEvents() {
+    if (!messagesBox) return;
+    if (messagesBox.__callibriSelectionEvents) return;
+
+    messagesBox.__callibriSelectionEvents = true;
+
+    messagesBox.addEventListener("click", handleBubbleClick, true);
+    messagesBox.addEventListener("pointerdown", handlePointerDown, true);
+    messagesBox.addEventListener("pointerup", clearLongPressTimer, true);
+    messagesBox.addEventListener("pointermove", clearLongPressTimer, true);
+    messagesBox.addEventListener("pointercancel", clearLongPressTimer, true);
+    messagesBox.addEventListener("mouseleave", clearLongPressTimer, true);
+  }
+
+  function addHeaderSelectButton() {
+    if (!chatStatus || !chatStatus.parentElement) return;
+    if (document.getElementById("callibriStartSelectBtn")) return;
+
+    const btn = document.createElement("button");
+    btn.id = "callibriStartSelectBtn";
+    btn.type = "button";
+    btn.textContent = "Выбрать";
+    btn.title = "Выделить сообщения";
+
+    btn.style.marginTop = "8px";
+    btn.style.height = "32px";
+    btn.style.padding = "0 12px";
+    btn.style.borderRadius = "10px";
+    btn.style.background = "rgba(255,255,255,0.08)";
+    btn.style.color = "#cbd5e1";
+    btn.style.fontWeight = "800";
+
+    btn.addEventListener("click", () => {
+      if (!Array.isArray(messagesCache) || !messagesCache.length) {
+        showHint("В этом чате пока нет сообщений");
+        return;
+      }
+
+      selectionMode = true;
+      updateToolbar();
+      showHint("Нажми на сообщения, которые хочешь выбрать");
+    });
+
+    chatStatus.parentElement.appendChild(btn);
+  }
+
+  function init() {
+    injectSelectionStyles();
+    createToolbar();
+    patchRenderMessages();
+    installSelectionEvents();
+    observeMessages();
+    addHeaderSelectButton();
+    annotateMessages();
+    updateToolbar();
+  }
+
+  init();
+
+  setInterval(() => {
+    patchRenderMessages();
+    installSelectionEvents();
+    addHeaderSelectButton();
+    annotateMessages();
+  }, 900);
+})();
