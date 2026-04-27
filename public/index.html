@@ -6,7 +6,7 @@
 
   <title>Callibri</title>
 
-  <link rel="stylesheet" href="style.css?v=callibri-10" />
+  <link rel="stylesheet" href="style.css?v=callibri-11" />
 </head>
 <body>
   <!-- ВХОД / РЕГИСТРАЦИЯ -->
@@ -23,11 +23,18 @@
       />
 
       <input
-        id="username"
-        type="text"
-        placeholder="Логин, например username"
-        autocomplete="username"
-      />
+  id="username"
+  type="text"
+  placeholder="Логин или телефон"
+  autocomplete="username"
+/>
+
+<input
+  id="phone"
+  type="tel"
+  placeholder="Телефон для регистрации, например +79991234567"
+  autocomplete="tel"
+/>
 
       <div class="password-wrap">
         <input
@@ -115,6 +122,6 @@
 
   <script src="/socket.io/socket.io.js?v=callibri-8"></script>
   <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
-  <script src="app.js?v=callibri-9"></script>
+  <script src="app.js?v=callibri-11"></script>
 </body>
 </html>

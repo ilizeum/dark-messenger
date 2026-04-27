@@ -40,6 +40,39 @@ function normalizeUsername(username) {
     .replace(/^@/, "");
 }
 
+function normalizePhone(phone) {
+  let value = String(phone || "").trim();
+
+  if (!value) return "";
+
+  value = value.replace(/[^\d+]/g, "");
+
+  if (value.startsWith("+")) {
+    value = "+" + value.slice(1).replace(/\D/g, "");
+  } else {
+    value = value.replace(/\D/g, "");
+  }
+
+  if (/^8\d{10}$/.test(value)) {
+    value = "+7" + value.slice(1);
+  } else if (/^7\d{10}$/.test(value)) {
+    value = "+" + value;
+  } else if (/^\d{10}$/.test(value)) {
+    value = "+7" + value;
+  }
+
+  if (!/^\+\d{10,15}$/.test(value)) {
+    return "";
+  }
+
+  return value;
+}
+
+function isPhoneLike(value) {
+  const text = String(value || "").trim();
+  return /^[+\d\s\-()]{10,22}$/.test(text);
+}
+
 function getDirectChatId(userA, userB) {
   const users = [normalizeUsername(userA), normalizeUsername(userB)].sort();
   return `dm:${users[0]}__${users[1]}`;
@@ -56,6 +89,7 @@ function publicUser(user) {
     id: String(user.id),
     displayName: user.display_name,
     username: user.username,
+    phone: user.phone || "",
     avatar: user.avatar || ""
   };
 }
@@ -231,19 +265,31 @@ function moveOnlineUser(oldUsername, newUsername) {
 
 async function initDB() {
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id BIGSERIAL PRIMARY KEY,
-      display_name TEXT NOT NULL,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      avatar TEXT DEFAULT ''
-    )
-  `);
+  CREATE TABLE IF NOT EXISTS users (
+    id BIGSERIAL PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    username TEXT UNIQUE NOT NULL,
+    phone TEXT,
+    password TEXT NOT NULL,
+    avatar TEXT DEFAULT ''
+  )
+`);
 
   await pool.query(`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT ''
   `);
+
+  await pool.query(`
+  ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS phone TEXT
+`);
+
+await pool.query(`
+  CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique_idx
+  ON users (phone)
+  WHERE phone IS NOT NULL AND phone <> ''
+`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS groups (
@@ -301,6 +347,38 @@ async function findUser(username) {
 
   const result = await pool.query(
     "SELECT * FROM users WHERE username = $1",
+    [cleanUsername]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function findUserByLogin(login) {
+  const rawLogin = String(login || "").trim();
+  const cleanUsername = normalizeUsername(rawLogin);
+  const cleanPhone = normalizePhone(rawLogin);
+
+  if (cleanPhone) {
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM users
+      WHERE username = $1 OR phone = $2
+      LIMIT 1
+      `,
+      [cleanUsername, cleanPhone]
+    );
+
+    return result.rows[0] || null;
+  }
+
+  const result = await pool.query(
+    `
+    SELECT *
+    FROM users
+    WHERE username = $1
+    LIMIT 1
+    `,
     [cleanUsername]
   );
 
@@ -698,7 +776,7 @@ app.get("/api/status/:username", (req, res) => {
 
 app.post("/api/register", async (req, res) => {
   try {
-    const { displayName, username, password } = req.body;
+    const { displayName, username, phone, password } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({
@@ -708,12 +786,27 @@ app.post("/api/register", async (req, res) => {
     }
 
     const cleanUsername = normalizeUsername(username);
+    const cleanPhone = phone ? normalizePhone(phone) : "";
     const cleanDisplayName = displayName ? String(displayName).trim() : cleanUsername;
 
     if (!cleanUsername) {
       return res.status(400).json({
         success: false,
         error: "Введите логин"
+      });
+    }
+
+    if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) {
+      return res.status(400).json({
+        success: false,
+        error: "Логин должен быть 3-24 символа: латиница, цифры или _"
+      });
+    }
+
+    if (phone && !cleanPhone) {
+      return res.status(400).json({
+        success: false,
+        error: "Введите телефон в правильном формате"
       });
     }
 
@@ -724,24 +817,38 @@ app.post("/api/register", async (req, res) => {
       });
     }
 
-    const exists = await findUser(cleanUsername);
+    const existsUsername = await findUser(cleanUsername);
 
-    if (exists) {
+    if (existsUsername) {
       return res.status(400).json({
         success: false,
-        error: "Пользователь уже существует"
+        error: "Пользователь с таким логином уже существует"
       });
+    }
+
+    if (cleanPhone) {
+      const existsPhone = await pool.query(
+        "SELECT id FROM users WHERE phone = $1 LIMIT 1",
+        [cleanPhone]
+      );
+
+      if (existsPhone.rows[0]) {
+        return res.status(400).json({
+          success: false,
+          error: "Пользователь с таким телефоном уже существует"
+        });
+      }
     }
 
     const hashedPassword = await hashPassword(password);
 
     const result = await pool.query(
       `
-      INSERT INTO users (display_name, username, password, avatar)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO users (display_name, username, phone, password, avatar)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
       `,
-      [cleanDisplayName, cleanUsername, hashedPassword, ""]
+      [cleanDisplayName, cleanUsername, cleanPhone || null, hashedPassword, ""]
     );
 
     res.json({
@@ -760,37 +867,31 @@ app.post("/api/register", async (req, res) => {
 
 app.post("/api/login", async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const login = String(req.body.username || req.body.login || req.body.phone || "").trim();
+    const { password } = req.body;
 
-    if (!username || !password) {
+    if (!login || !password) {
       return res.status(400).json({
         success: false,
-        error: "Введите логин и пароль"
+        error: "Введите логин/телефон и пароль"
       });
     }
 
-    const cleanUsername = normalizeUsername(username);
-
-    const result = await pool.query(
-      "SELECT * FROM users WHERE username = $1",
-      [cleanUsername]
-    );
-
-    const user = result.rows[0];
+    const user = await findUserByLogin(login);
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: "Неверный логин или пароль"
+        error: "Неверный логин, телефон или пароль"
       });
     }
 
-    const passwordOk = await verifyPassword(password, user.password, cleanUsername);
+    const passwordOk = await verifyPassword(password, user.password, user.username);
 
     if (!passwordOk) {
       return res.status(401).json({
         success: false,
-        error: "Неверный логин или пароль"
+        error: "Неверный логин, телефон или пароль"
       });
     }
 

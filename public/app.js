@@ -48,6 +48,7 @@ const app = document.getElementById("app");
 
 const displayNameInput = document.getElementById("displayName");
 const usernameInput = document.getElementById("username");
+const phoneInput = document.getElementById("phone");
 const passwordInput = document.getElementById("password");
 const togglePasswordBtn = document.getElementById("togglePassword");
 const rememberMeInput = document.getElementById("rememberMe");
@@ -123,7 +124,8 @@ function clearError() {
 function getInputData() {
   return {
     displayName: displayNameInput ? displayNameInput.value.trim() : "",
-    username: usernameInput ? normalizeUsername(usernameInput.value) : "",
+    username: usernameInput ? usernameInput.value.trim() : "",
+    phone: phoneInput ? phoneInput.value.trim() : "",
     password: passwordInput ? passwordInput.value : ""
   };
 }
@@ -241,7 +243,7 @@ function logout() {
 async function register() {
   clearError();
 
-  const { displayName, username, password } = getInputData();
+  const { displayName, username, phone, password } = getInputData();
 
   if (!username || !password) {
     showError("Введите логин и пароль");
@@ -254,6 +256,7 @@ async function register() {
       body: JSON.stringify({
         displayName,
         username,
+        phone,
         password
       })
     });
@@ -272,7 +275,7 @@ async function login() {
   const { username, password } = getInputData();
 
   if (!username || !password) {
-    showError("Введите логин и пароль");
+    showError("Введите логин/телефон и пароль");
     return;
   }
 
