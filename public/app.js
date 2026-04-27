@@ -3424,880 +3424,484 @@ if (savedUser) {
 }
 
 /* =========================================================
-   CALLIBRI SETTINGS GEAR MENU
-   Шестерёнка вместо кнопок "Профиль" и "Выйти"
+   CALLIBRI CLEAN SETTINGS GEAR
+   Аккуратная шестерёнка без огромной аватарки
    ========================================================= */
 
-(function setupCallibriGearSettings() {
-  const SETTINGS_KEY_PREFIX = "callibri_settings_gear_";
-
-  let gearModal = null;
-  let avatarDraft = "";
-  let micDevicesLoaded = false;
-
-  function getCurrentUserSafe() {
-    try {
-      if (typeof currentUser !== "undefined" && currentUser) return currentUser;
-
-      const fromLocal =
-        localStorage.getItem("callibriUser") ||
-        localStorage.getItem("darkMessengerUser") ||
-        sessionStorage.getItem("callibriUser") ||
-        sessionStorage.getItem("darkMessengerUser");
-
-      return fromLocal ? JSON.parse(fromLocal) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function getSettingsKey() {
-    const user = getCurrentUserSafe();
-    return SETTINGS_KEY_PREFIX + (user && user.username ? user.username : "guest");
-  }
-
-  function loadGearSettings() {
-    try {
-      const raw = localStorage.getItem(getSettingsKey());
-
-      return raw
-        ? JSON.parse(raw)
-        : {
-            micId: "",
-            favorites: "",
-            notificationSound: true,
-            notificationVolume: 80,
-            voiceVolume: 100
-          };
-    } catch {
-      return {
-        micId: "",
-        favorites: "",
-        notificationSound: true,
-        notificationVolume: 80,
-        voiceVolume: 100
-      };
-    }
-  }
-
-  function saveGearSettings(settings) {
-    localStorage.setItem(getSettingsKey(), JSON.stringify(settings));
-  }
-
-  function injectGearStyles() {
-    if (document.getElementById("callibriGearStyles")) return;
+(function setupCleanCallibriGear() {
+  function injectCleanGearStyles() {
+    if (document.getElementById("cleanCallibriGearStyles")) return;
 
     const style = document.createElement("style");
-    style.id = "callibriGearStyles";
+    style.id = "cleanCallibriGearStyles";
 
     style.textContent = `
-      .profile {
-        position: relative;
-        gap: 10px;
-      }
-
+      /* Убираем старые кнопки Профиль / Выйти */
       #logoutBtn,
       #profileBtn {
         display: none !important;
       }
 
-      .callibri-gear-btn {
-        width: 46px;
-        height: 46px;
-        margin-left: auto;
-        border: none;
-        border-radius: 16px;
-        background: linear-gradient(135deg, #0ea5e9, #10b981);
-        color: white;
-        font-size: 21px;
-        font-weight: 900;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        box-shadow:
-          0 14px 32px rgba(0, 0, 0, 0.28),
-          inset 0 1px 0 rgba(255,255,255,0.22);
-        transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+      /* На всякий случай удаляем огромную лишнюю аватарку из прошлого кода */
+      #callibriProfileAvatarBtn {
+        display: none !important;
       }
 
-      .callibri-gear-btn:hover {
-        transform: translateY(-1px) rotate(8deg);
-        box-shadow:
-          0 18px 38px rgba(0, 0, 0, 0.34),
-          inset 0 1px 0 rgba(255,255,255,0.28);
+      .profile {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 14px !important;
       }
 
-      .callibri-gear-modal {
+      /* Нормальная маленькая аватарка, которая уже была */
+      #profileAvatarBtn {
+        width: 54px !important;
+        height: 54px !important;
+        min-width: 54px !important;
+        border-radius: 18px !important;
+        overflow: hidden !important;
+        padding: 0 !important;
+        border: 1px solid rgba(125, 211, 252, 0.35) !important;
+        background: linear-gradient(135deg, #0ea5e9, #10b981) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: white !important;
+        font-size: 22px !important;
+        font-weight: 900 !important;
+        flex-shrink: 0 !important;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25) !important;
+      }
+
+      #profileAvatarBtn img {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        display: block !important;
+      }
+
+      /* Аккуратная шестерёнка */
+      #callibriGearBtn {
+        width: 46px !important;
+        height: 46px !important;
+        min-width: 46px !important;
+        border: none !important;
+        border-radius: 16px !important;
+        margin-left: auto !important;
+        background: linear-gradient(135deg, #06b6d4, #10b981) !important;
+        color: white !important;
+        font-size: 21px !important;
+        font-weight: 900 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        box-shadow:
+          0 12px 26px rgba(0, 0, 0, 0.28),
+          inset 0 1px 0 rgba(255, 255, 255, 0.24) !important;
+        transition: transform 0.16s ease, box-shadow 0.16s ease !important;
+      }
+
+      #callibriGearBtn:hover {
+        transform: translateY(-1px) rotate(8deg) !important;
+        box-shadow:
+          0 16px 32px rgba(0, 0, 0, 0.34),
+          inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+      }
+
+      .callibri-clean-settings-modal {
         position: fixed;
         inset: 0;
         z-index: 999999;
         background: rgba(2, 6, 23, 0.72);
-        backdrop-filter: blur(14px);
+        backdrop-filter: blur(12px);
         display: flex;
         align-items: center;
         justify-content: center;
         padding: 20px;
       }
 
-      .callibri-gear-modal.hidden {
+      .callibri-clean-settings-modal.hidden {
         display: none;
       }
 
-      .callibri-settings-card {
-        width: min(96vw, 920px);
-        max-height: 92vh;
-        overflow: hidden;
-        border-radius: 28px;
+      .callibri-clean-settings-card {
+        width: min(94vw, 620px);
+        max-height: 88vh;
+        overflow: auto;
+        border-radius: 24px;
+        padding: 22px;
+        color: #e2e8f0;
         background:
-          radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.18), transparent 34%),
-          radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.16), transparent 34%),
+          radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.2), transparent 34%),
+          radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.18), transparent 34%),
           linear-gradient(180deg, rgba(7, 37, 67, 0.98), rgba(5, 55, 64, 0.98));
         border: 1px solid rgba(255, 255, 255, 0.1);
-        box-shadow: 0 34px 100px rgba(0, 0, 0, 0.55);
-        color: #e2e8f0;
-        display: flex;
-        flex-direction: column;
+        box-shadow: 0 34px 90px rgba(0, 0, 0, 0.55);
       }
 
-      .callibri-settings-header {
-        padding: 20px 22px;
+      .callibri-clean-settings-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 14px;
-        border-bottom: 1px solid rgba(255,255,255,0.08);
+        gap: 12px;
+        margin-bottom: 18px;
       }
 
-      .callibri-settings-header h2 {
+      .callibri-clean-settings-head h2 {
         margin: 0;
         color: #f8fafc;
         font-size: 24px;
-        font-weight: 950;
+        font-weight: 900;
       }
 
-      .callibri-settings-header p {
+      .callibri-clean-settings-head p {
         margin: 4px 0 0;
         color: #a5f3fc;
         font-size: 13px;
       }
 
-      .callibri-settings-close {
+      .callibri-clean-close {
         width: 42px;
         height: 42px;
         border: none;
-        border-radius: 15px;
-        background: rgba(255,255,255,0.08);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.08);
         color: white;
         font-size: 24px;
         cursor: pointer;
       }
 
-      .callibri-settings-body {
-        overflow: auto;
-        padding: 20px 22px;
+      .callibri-clean-section {
+        padding: 15px;
+        margin-top: 12px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.055);
+        border: 1px solid rgba(255, 255, 255, 0.08);
       }
 
-      .callibri-settings-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 16px;
-      }
-
-      .callibri-settings-section {
-        background: rgba(255,255,255,0.055);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 22px;
-        padding: 16px;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-      }
-
-      .callibri-settings-section.full {
-        grid-column: 1 / -1;
-      }
-
-      .callibri-settings-section h3 {
-        margin: 0 0 12px;
+      .callibri-clean-section h3 {
+        margin: 0 0 10px;
         color: #d9f99d;
         font-size: 16px;
-        font-weight: 900;
       }
 
-      .callibri-settings-section label {
-        display: block;
-        margin: 10px 0 6px;
-        color: #9bd8e6;
-        font-size: 13px;
-        font-weight: 800;
-      }
-
-      .callibri-settings-section input[type="text"],
-      .callibri-settings-section select,
-      .callibri-settings-section textarea {
+      .callibri-clean-section input,
+      .callibri-clean-section textarea,
+      .callibri-clean-section select {
         width: 100%;
         box-sizing: border-box;
-        border: 1px solid rgba(255,255,255,0.1);
-        outline: none;
+        margin-top: 8px;
+        padding: 11px 13px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
         background: rgba(2, 6, 23, 0.45);
         color: #e2e8f0;
-        border-radius: 14px;
-        padding: 11px 13px;
-        font-size: 14px;
+        outline: none;
       }
 
-      .callibri-settings-section textarea {
-        min-height: 140px;
+      .callibri-clean-section textarea {
+        min-height: 110px;
         resize: vertical;
-        line-height: 1.5;
       }
 
-      .callibri-settings-actions {
+      .callibri-clean-actions {
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
         margin-top: 12px;
       }
 
-      .callibri-settings-actions button,
-      .callibri-settings-footer button {
+      .callibri-clean-actions button {
         min-height: 40px;
-        padding: 0 15px;
+        padding: 0 14px;
         border: none;
         border-radius: 14px;
         color: white;
-        background: rgba(255,255,255,0.1);
-        font-weight: 850;
+        background: rgba(255, 255, 255, 0.1);
+        font-weight: 800;
         cursor: pointer;
       }
 
-      .callibri-settings-actions button.primary,
-      .callibri-settings-footer button.primary {
+      .callibri-clean-actions .primary {
         background: linear-gradient(135deg, #0ea5e9, #10b981);
       }
 
-      .callibri-settings-actions button.danger,
-      .callibri-settings-footer button.danger {
-        background: linear-gradient(135deg, rgba(190,24,93,0.92), rgba(153,27,27,0.96));
-      }
-
-      .callibri-avatar-preview {
-        width: 76px;
-        height: 76px;
-        border-radius: 24px;
-        overflow: hidden;
-        background: linear-gradient(135deg, #2563eb, #10b981);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 30px;
-        font-weight: 950;
-        box-shadow: 0 16px 34px rgba(0,0,0,0.28);
-        margin-bottom: 10px;
-      }
-
-      .callibri-avatar-preview img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-
-      .callibri-device-info {
-        font-size: 13px;
-        line-height: 1.65;
-        color: #cbd5e1;
-        word-break: break-word;
-      }
-
-      .callibri-range-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .callibri-range-row input {
-        flex: 1;
-      }
-
-      .callibri-range-value {
-        width: 46px;
-        text-align: right;
-        font-weight: 900;
-        color: #f8fafc;
-      }
-
-      .callibri-settings-footer {
-        padding: 16px 22px 20px;
-        border-top: 1px solid rgba(255,255,255,0.08);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-
-      .callibri-settings-status {
-        min-height: 18px;
-        margin-top: 8px;
-        font-size: 13px;
-        color: #86efac;
-      }
-
-      .callibri-settings-status.error {
-        color: #fda4af;
-      }
-
-      @media (max-width: 820px) {
-        .callibri-settings-grid {
-          grid-template-columns: 1fr;
-        }
+      .callibri-clean-actions .danger {
+        background: linear-gradient(135deg, rgba(190, 24, 93, 0.92), rgba(153, 27, 27, 0.96));
       }
     `;
 
     document.head.appendChild(style);
   }
 
-  function renderAvatarPreview() {
-    const user = getCurrentUserSafe();
-    const preview = document.getElementById("callibriAvatarPreview");
-
-    if (!preview || !user) return;
-
-    if (avatarDraft) {
-      preview.innerHTML = `<img src="${avatarDraft}" alt="avatar">`;
-    } else {
-      preview.textContent = (user.displayName || user.username || "?")[0].toUpperCase();
-    }
-  }
-
-  async function loadMicrophones() {
-    const select = document.getElementById("callibriMicSelect");
-
-    if (!select || micDevicesLoaded) return;
-
-    const settings = loadGearSettings();
-
-    select.innerHTML = `<option value="">Системный микрофон по умолчанию</option>`;
-
+  function getSavedUser() {
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          const temp = await navigator.mediaDevices.getUserMedia({ audio: true });
-          temp.getTracks().forEach((track) => track.stop());
-        } catch {}
-      }
+      const raw =
+        localStorage.getItem("callibriUser") ||
+        sessionStorage.getItem("callibriUser") ||
+        localStorage.getItem("darkMessengerUser") ||
+        sessionStorage.getItem("darkMessengerUser");
 
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const microphones = devices.filter((device) => device.kind === "audioinput");
-
-      microphones.forEach((device, index) => {
-        const option = document.createElement("option");
-        option.value = device.deviceId;
-        option.textContent = device.label || `Микрофон ${index + 1}`;
-        select.appendChild(option);
-      });
-
-      select.value = settings.micId || "";
-      micDevicesLoaded = true;
+      return raw ? JSON.parse(raw) : null;
     } catch {
-      select.innerHTML = `<option value="">Не удалось получить микрофоны</option>`;
+      return null;
     }
   }
 
-  function createGearModal() {
-    if (document.getElementById("callibriGearModal")) {
-      gearModal = document.getElementById("callibriGearModal");
-      return;
+  function getCurrentCallibriUser() {
+    if (typeof currentUser !== "undefined" && currentUser) {
+      return currentUser;
     }
 
-    gearModal = document.createElement("div");
-    gearModal.id = "callibriGearModal";
-    gearModal.className = "callibri-gear-modal hidden";
+    return getSavedUser();
+  }
 
-    gearModal.innerHTML = `
-      <div class="callibri-settings-card">
-        <div class="callibri-settings-header">
+  function getSettingsKey() {
+    const user = getCurrentCallibriUser();
+    return `callibri_clean_settings_${user && user.username ? user.username : "guest"}`;
+  }
+
+  function loadCleanSettings() {
+    try {
+      const raw = localStorage.getItem(getSettingsKey());
+
+      return raw
+        ? JSON.parse(raw)
+        : {
+            favorites: "",
+            notificationVolume: 80,
+            voiceVolume: 100,
+            notificationSound: true
+          };
+    } catch {
+      return {
+        favorites: "",
+        notificationVolume: 80,
+        voiceVolume: 100,
+        notificationSound: true
+      };
+    }
+  }
+
+  function saveCleanSettings(settings) {
+    localStorage.setItem(getSettingsKey(), JSON.stringify(settings));
+  }
+
+  function createCleanSettingsModal() {
+    if (document.getElementById("callibriCleanSettingsModal")) return;
+
+    const modal = document.createElement("div");
+    modal.id = "callibriCleanSettingsModal";
+    modal.className = "callibri-clean-settings-modal hidden";
+
+    modal.innerHTML = `
+      <div class="callibri-clean-settings-card">
+        <div class="callibri-clean-settings-head">
           <div>
             <h2>Настройки Callibri</h2>
-            <p>Профиль, микрофон, устройство входа, избранное и уведомления</p>
+            <p>Профиль, избранное, звук и выход из аккаунта</p>
           </div>
 
-          <button id="callibriSettingsClose" type="button" class="callibri-settings-close">×</button>
+          <button id="callibriCleanClose" type="button" class="callibri-clean-close">×</button>
         </div>
 
-        <div class="callibri-settings-body">
-          <div class="callibri-settings-grid">
-            <section class="callibri-settings-section">
-              <h3>Профиль</h3>
+        <div class="callibri-clean-section">
+          <h3>Профиль</h3>
+          <input id="callibriCleanName" type="text" placeholder="Имя" />
+          <input id="callibriCleanUsername" type="text" placeholder="username без @" />
 
-              <div id="callibriAvatarPreview" class="callibri-avatar-preview">?</div>
+          <div class="callibri-clean-actions">
+            <button id="callibriCleanSaveProfile" type="button" class="primary">Сохранить профиль</button>
+          </div>
 
-              <label>Имя</label>
-              <input id="callibriProfileName" type="text" placeholder="Имя" />
+          <div id="callibriCleanProfileStatus" style="margin-top:8px;font-size:13px;color:#86efac;"></div>
+        </div>
 
-              <label>Username</label>
-              <input id="callibriProfileUsername" type="text" placeholder="username без @" />
+        <div class="callibri-clean-section">
+          <h3>Избранное</h3>
+          <textarea id="callibriCleanFavorites" placeholder="Твои заметки, ссылки и важная информация"></textarea>
 
-              <input id="callibriAvatarInput" type="file" accept="image/*" style="display:none;" />
-
-              <div class="callibri-settings-actions">
-                <button id="callibriChangeAvatar" type="button">Сменить аватарку</button>
-                <button id="callibriRemoveAvatar" type="button">Убрать</button>
-                <button id="callibriSaveProfile" type="button" class="primary">Сохранить</button>
-              </div>
-
-              <div id="callibriProfileStatus" class="callibri-settings-status"></div>
-            </section>
-
-            <section class="callibri-settings-section">
-              <h3>Микрофон</h3>
-
-              <label>Устройство записи</label>
-              <select id="callibriMicSelect">
-                <option value="">Загрузка...</option>
-              </select>
-
-              <div style="font-size:12px;color:#9bd8e6;line-height:1.45;margin-top:8px;">
-                Для хорошего качества не выбирай Bluetooth Hands-Free микрофон.
-                Лучше выбрать обычный микрофон или микрофон гарнитуры без режима Hands-Free.
-              </div>
-
-              <div class="callibri-settings-actions">
-                <button id="callibriRefreshMics" type="button">Обновить</button>
-                <button id="callibriSaveMic" type="button" class="primary">Сохранить микрофон</button>
-              </div>
-
-              <div id="callibriMicStatus" class="callibri-settings-status"></div>
-            </section>
-
-            <section class="callibri-settings-section full">
-              <h3>Избранное</h3>
-
-              <label>Личные заметки и данные</label>
-              <textarea id="callibriFavorites" placeholder="Сюда можно записывать важные ссылки, заметки, коды, идеи, как в Telegram «Избранное»"></textarea>
-
-              <div class="callibri-settings-actions">
-                <button id="callibriSaveFavorites" type="button" class="primary">Сохранить избранное</button>
-                <button id="callibriClearFavorites" type="button">Очистить</button>
-              </div>
-
-              <div id="callibriFavoritesStatus" class="callibri-settings-status"></div>
-            </section>
-
-            <section class="callibri-settings-section">
-              <h3>Уведомления и звук</h3>
-
-              <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                <input id="callibriSoundEnabled" type="checkbox" style="width:auto;margin:0;" />
-                <span>Звук уведомления колибри</span>
-              </label>
-
-              <label>Громкость уведомлений</label>
-              <div class="callibri-range-row">
-                <input id="callibriNotificationVolume" type="range" min="0" max="100" step="1" />
-                <div id="callibriNotificationVolumeValue" class="callibri-range-value">80%</div>
-              </div>
-
-              <label>Громкость голосовых</label>
-              <div class="callibri-range-row">
-                <input id="callibriVoiceVolume" type="range" min="0" max="100" step="1" />
-                <div id="callibriVoiceVolumeValue" class="callibri-range-value">100%</div>
-              </div>
-
-              <div class="callibri-settings-actions">
-                <button id="callibriTestSound" type="button">Проверить звук</button>
-                <button id="callibriSaveSound" type="button" class="primary">Сохранить звук</button>
-              </div>
-
-              <div id="callibriSoundStatus" class="callibri-settings-status"></div>
-            </section>
-
-            <section class="callibri-settings-section">
-              <h3>Устройство входа</h3>
-
-              <div id="callibriDeviceInfo" class="callibri-device-info"></div>
-            </section>
+          <div class="callibri-clean-actions">
+            <button id="callibriCleanSaveFavorites" type="button" class="primary">Сохранить</button>
+            <button id="callibriCleanClearFavorites" type="button">Очистить</button>
           </div>
         </div>
 
-        <div class="callibri-settings-footer">
-          <button id="callibriLogoutFromSettings" type="button" class="danger">Выйти из аккаунта</button>
+        <div class="callibri-clean-section">
+          <h3>Звук</h3>
 
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <button id="callibriCloseSettingsBottom" type="button">Закрыть</button>
-            <button id="callibriDoneSettings" type="button" class="primary">Готово</button>
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input id="callibriCleanSoundEnabled" type="checkbox" style="width:auto;margin:0;" />
+            <span>Звук уведомления колибри</span>
+          </label>
+
+          <div style="margin-top:10px;font-size:13px;color:#9bd8e6;">Громкость уведомлений</div>
+          <input id="callibriCleanNotificationVolume" type="range" min="0" max="100" />
+
+          <div style="margin-top:10px;font-size:13px;color:#9bd8e6;">Громкость голосовых</div>
+          <input id="callibriCleanVoiceVolume" type="range" min="0" max="100" />
+
+          <div class="callibri-clean-actions">
+            <button id="callibriCleanSaveSound" type="button" class="primary">Сохранить звук</button>
           </div>
+        </div>
+
+        <div class="callibri-clean-actions" style="justify-content:space-between;">
+          <button id="callibriCleanLogout" type="button" class="danger">Выйти из аккаунта</button>
+          <button id="callibriCleanDone" type="button" class="primary">Готово</button>
         </div>
       </div>
     `;
 
-    document.body.appendChild(gearModal);
+    document.body.appendChild(modal);
 
-    document.getElementById("callibriSettingsClose").addEventListener("click", closeGearModal);
-    document.getElementById("callibriCloseSettingsBottom").addEventListener("click", closeGearModal);
-    document.getElementById("callibriDoneSettings").addEventListener("click", closeGearModal);
+    const close = () => modal.classList.add("hidden");
 
-    gearModal.addEventListener("click", (event) => {
-      if (event.target === gearModal) closeGearModal();
+    document.getElementById("callibriCleanClose").addEventListener("click", close);
+    document.getElementById("callibriCleanDone").addEventListener("click", close);
+
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) close();
     });
 
-    document.getElementById("callibriChangeAvatar").addEventListener("click", () => {
-      document.getElementById("callibriAvatarInput").click();
+    document.getElementById("callibriCleanSaveFavorites").addEventListener("click", () => {
+      const settings = loadCleanSettings();
+      settings.favorites = document.getElementById("callibriCleanFavorites").value;
+      saveCleanSettings(settings);
+      alert("Избранное сохранено");
     });
 
-    document.getElementById("callibriRemoveAvatar").addEventListener("click", () => {
-      avatarDraft = "";
-      renderAvatarPreview();
+    document.getElementById("callibriCleanClearFavorites").addEventListener("click", () => {
+      const settings = loadCleanSettings();
+      settings.favorites = "";
+      saveCleanSettings(settings);
+      document.getElementById("callibriCleanFavorites").value = "";
     });
 
-    document.getElementById("callibriAvatarInput").addEventListener("change", handleAvatarSelect);
+    document.getElementById("callibriCleanSaveSound").addEventListener("click", () => {
+      const settings = loadCleanSettings();
 
-    document.getElementById("callibriSaveProfile").addEventListener("click", saveProfileFromGear);
-    document.getElementById("callibriRefreshMics").addEventListener("click", () => {
-      micDevicesLoaded = false;
-      loadMicrophones();
-    });
-    document.getElementById("callibriSaveMic").addEventListener("click", saveMicFromGear);
-    document.getElementById("callibriSaveFavorites").addEventListener("click", saveFavoritesFromGear);
-    document.getElementById("callibriClearFavorites").addEventListener("click", clearFavoritesFromGear);
-    document.getElementById("callibriSaveSound").addEventListener("click", saveSoundFromGear);
-    document.getElementById("callibriTestSound").addEventListener("click", playGearNotificationSound);
+      settings.notificationSound = document.getElementById("callibriCleanSoundEnabled").checked;
+      settings.notificationVolume = Number(document.getElementById("callibriCleanNotificationVolume").value || 80);
+      settings.voiceVolume = Number(document.getElementById("callibriCleanVoiceVolume").value || 100);
 
-    document.getElementById("callibriNotificationVolume").addEventListener("input", updateRangeLabels);
-    document.getElementById("callibriVoiceVolume").addEventListener("input", updateRangeLabels);
+      saveCleanSettings(settings);
 
-    document.getElementById("callibriLogoutFromSettings").addEventListener("click", () => {
-      closeGearModal();
-
-      const logoutBtn = document.getElementById("logoutBtn");
-
-      if (logoutBtn) {
-        logoutBtn.click();
-      } else if (typeof logout === "function") {
-        logout();
-      }
-    });
-  }
-
-  function openGearModal() {
-    const user = getCurrentUserSafe();
-
-    if (!user) return;
-
-    createGearModal();
-
-    const settings = loadGearSettings();
-
-    avatarDraft = user.avatar || "";
-
-    document.getElementById("callibriProfileName").value = user.displayName || user.username || "";
-    document.getElementById("callibriProfileUsername").value = user.username || "";
-    document.getElementById("callibriFavorites").value = settings.favorites || "";
-    document.getElementById("callibriSoundEnabled").checked = Boolean(settings.notificationSound);
-    document.getElementById("callibriNotificationVolume").value = String(settings.notificationVolume ?? 80);
-    document.getElementById("callibriVoiceVolume").value = String(settings.voiceVolume ?? 100);
-
-    document.getElementById("callibriDeviceInfo").innerHTML = `
-      <b>Браузер / приложение:</b><br>
-      ${escapeGearHtml(navigator.userAgent || "Неизвестно")}<br><br>
-
-      <b>Платформа:</b><br>
-      ${escapeGearHtml(navigator.platform || "Неизвестно")}<br><br>
-
-      <b>Язык:</b><br>
-      ${escapeGearHtml(navigator.language || "Неизвестно")}<br><br>
-
-      <b>Экран:</b><br>
-      ${window.screen.width} × ${window.screen.height}
-    `;
-
-    clearStatuses();
-    renderAvatarPreview();
-    updateRangeLabels();
-    loadMicrophones();
-
-    gearModal.classList.remove("hidden");
-  }
-
-  function closeGearModal() {
-    if (gearModal) {
-      gearModal.classList.add("hidden");
-    }
-  }
-
-  function clearStatuses() {
-    [
-      "callibriProfileStatus",
-      "callibriMicStatus",
-      "callibriFavoritesStatus",
-      "callibriSoundStatus"
-    ].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.textContent = "";
-        el.classList.remove("error");
-      }
-    });
-  }
-
-  function setStatus(id, text, error = false) {
-    const el = document.getElementById(id);
-
-    if (!el) return;
-
-    el.textContent = text;
-    el.classList.toggle("error", error);
-  }
-
-  async function handleAvatarSelect(event) {
-    const file = event.target.files && event.target.files[0];
-
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      alert("Выбери изображение");
-      return;
-    }
-
-    if (file.size > 8 * 1024 * 1024) {
-      alert("Файл слишком большой. Максимум 8 МБ.");
-      return;
-    }
-
-    avatarDraft = await fileToDataURLGear(file);
-    renderAvatarPreview();
-
-    event.target.value = "";
-  }
-
-  async function saveProfileFromGear() {
-    const user = getCurrentUserSafe();
-
-    if (!user) return;
-
-    const displayName = document.getElementById("callibriProfileName").value.trim();
-    const newUsername = document.getElementById("callibriProfileUsername").value.trim().toLowerCase().replace(/^@/, "");
-
-    if (!displayName || !newUsername) {
-      setStatus("callibriProfileStatus", "Введите имя и username", true);
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/profile", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          oldUsername: user.username,
-          newUsername,
-          displayName,
-          avatar: avatarDraft || ""
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || data.success === false) {
-        throw new Error(data.error || "Ошибка сохранения профиля");
+      if (typeof appSettings !== "undefined") {
+        appSettings.notificationSoundsEnabled = settings.notificationSound;
+        appSettings.notificationVolume = settings.notificationVolume / 100;
+        appSettings.voicePlaybackVolume = settings.voiceVolume / 100;
       }
 
-      saveUserToStorageGear(data.user);
+      alert("Настройки звука сохранены");
+    });
 
-      if (typeof currentUser !== "undefined") {
-        currentUser = data.user;
+    document.getElementById("callibriCleanSaveProfile").addEventListener("click", async () => {
+      const user = getCurrentCallibriUser();
+
+      if (!user) return;
+
+      const displayName = document.getElementById("callibriCleanName").value.trim();
+      const newUsername = document.getElementById("callibriCleanUsername").value.trim().toLowerCase().replace(/^@/, "");
+      const status = document.getElementById("callibriCleanProfileStatus");
+
+      if (!displayName || !newUsername) {
+        status.style.color = "#fda4af";
+        status.textContent = "Введите имя и username";
+        return;
       }
 
-      const meName = document.getElementById("meName");
-      const meLogin = document.getElementById("meLogin");
-
-      if (meName) meName.textContent = data.user.displayName || data.user.username;
-      if (meLogin) meLogin.textContent = "@" + data.user.username;
-
-      renderGearAvatarInSidebar();
-
-      if (typeof socket !== "undefined") {
-        socket.emit("user_online", {
-          username: data.user.username
+      try {
+        const response = await fetch("/api/profile", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            oldUsername: user.username,
+            newUsername,
+            displayName,
+            avatar: user.avatar || ""
+          })
         });
+
+        const data = await response.json();
+
+        if (!response.ok || data.success === false) {
+          throw new Error(data.error || "Ошибка сохранения профиля");
+        }
+
+        if (typeof updateSavedUser === "function") {
+          updateSavedUser(data.user);
+        } else {
+          localStorage.setItem("callibriUser", JSON.stringify(data.user));
+        }
+
+        if (typeof currentUser !== "undefined") {
+          currentUser = data.user;
+        }
+
+        const meName = document.getElementById("meName");
+        const meLogin = document.getElementById("meLogin");
+
+        if (meName) meName.textContent = data.user.displayName || data.user.username;
+        if (meLogin) meLogin.textContent = "@" + data.user.username;
+
+        status.style.color = "#86efac";
+        status.textContent = "Профиль сохранён";
+      } catch (error) {
+        status.style.color = "#fda4af";
+        status.textContent = error.message;
       }
+    });
 
-      setStatus("callibriProfileStatus", "Профиль сохранён");
-    } catch (error) {
-      setStatus("callibriProfileStatus", error.message, true);
-    }
-  }
+    document.getElementById("callibriCleanLogout").addEventListener("click", () => {
+      close();
 
-  function saveMicFromGear() {
-    const settings = loadGearSettings();
-    const select = document.getElementById("callibriMicSelect");
-
-    settings.micId = select ? select.value : "";
-    saveGearSettings(settings);
-
-    setStatus("callibriMicStatus", "Микрофон сохранён");
-  }
-
-  function saveFavoritesFromGear() {
-    const settings = loadGearSettings();
-    const textarea = document.getElementById("callibriFavorites");
-
-    settings.favorites = textarea ? textarea.value : "";
-    saveGearSettings(settings);
-
-    setStatus("callibriFavoritesStatus", "Избранное сохранено");
-  }
-
-  function clearFavoritesFromGear() {
-    const settings = loadGearSettings();
-    const textarea = document.getElementById("callibriFavorites");
-
-    settings.favorites = "";
-
-    if (textarea) textarea.value = "";
-
-    saveGearSettings(settings);
-
-    setStatus("callibriFavoritesStatus", "Избранное очищено");
-  }
-
-  function saveSoundFromGear() {
-    const settings = loadGearSettings();
-
-    settings.notificationSound = document.getElementById("callibriSoundEnabled").checked;
-    settings.notificationVolume = Number(document.getElementById("callibriNotificationVolume").value || 80);
-    settings.voiceVolume = Number(document.getElementById("callibriVoiceVolume").value || 100);
-
-    saveGearSettings(settings);
-
-    if (typeof appSettings !== "undefined") {
-      appSettings.notificationSoundsEnabled = settings.notificationSound;
-      appSettings.notificationVolume = settings.notificationVolume / 100;
-      appSettings.voicePlaybackVolume = settings.voiceVolume / 100;
-    }
-
-    setStatus("callibriSoundStatus", "Настройки звука сохранены");
-  }
-
-  function updateRangeLabels() {
-    const notification = document.getElementById("callibriNotificationVolume");
-    const voice = document.getElementById("callibriVoiceVolume");
-    const notificationValue = document.getElementById("callibriNotificationVolumeValue");
-    const voiceValue = document.getElementById("callibriVoiceVolumeValue");
-
-    if (notification && notificationValue) {
-      notificationValue.textContent = `${notification.value}%`;
-    }
-
-    if (voice && voiceValue) {
-      voiceValue.textContent = `${voice.value}%`;
-    }
-  }
-
-  function playGearNotificationSound() {
-    try {
-      const settings = loadGearSettings();
-
-      if (!settings.notificationSound) return;
-
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-
-      if (!AudioCtx) return;
-
-      const ctx = new AudioCtx();
-      const volume = Math.max(0, Math.min(1, Number(settings.notificationVolume || 80) / 100));
-
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.14 * volume, ctx.currentTime + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.55);
-      gain.connect(ctx.destination);
-
-      function chirp(start, from, to, duration, power) {
-        const osc = ctx.createOscillator();
-        const g = ctx.createGain();
-
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(from, start);
-        osc.frequency.exponentialRampToValueAtTime(to, start + duration);
-
-        g.gain.setValueAtTime(0.0001, start);
-        g.gain.exponentialRampToValueAtTime(power * volume, start + 0.015);
-        g.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-
-        osc.connect(g);
-        g.connect(gain);
-
-        osc.start(start);
-        osc.stop(start + duration + 0.03);
+      if (typeof logout === "function") {
+        logout();
+      } else {
+        localStorage.removeItem("callibriUser");
+        sessionStorage.removeItem("callibriUser");
+        location.reload();
       }
-
-      const now = ctx.currentTime;
-
-      chirp(now + 0.01, 1800, 2600, 0.1, 0.15);
-      chirp(now + 0.12, 2300, 3400, 0.09, 0.11);
-      chirp(now + 0.24, 1750, 2850, 0.13, 0.09);
-
-      setTimeout(() => ctx.close().catch(() => {}), 900);
-    } catch {}
-  }
-
-  function fileToDataURLGear(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-
-      reader.readAsDataURL(file);
     });
   }
 
-  function saveUserToStorageGear(user) {
-    const hasLocal =
-      localStorage.getItem("callibriUser") ||
-      localStorage.getItem("darkMessengerUser");
+  function openCleanSettings() {
+    const user = getCurrentCallibriUser();
 
-    localStorage.removeItem("callibriUser");
-    sessionStorage.removeItem("callibriUser");
-    localStorage.removeItem("darkMessengerUser");
-    sessionStorage.removeItem("darkMessengerUser");
+    if (!user) return;
 
-    if (hasLocal) {
-      localStorage.setItem("callibriUser", JSON.stringify(user));
-    } else {
-      sessionStorage.setItem("callibriUser", JSON.stringify(user));
-    }
+    createCleanSettingsModal();
+
+    const settings = loadCleanSettings();
+    const modal = document.getElementById("callibriCleanSettingsModal");
+
+    document.getElementById("callibriCleanName").value = user.displayName || user.username || "";
+    document.getElementById("callibriCleanUsername").value = user.username || "";
+    document.getElementById("callibriCleanFavorites").value = settings.favorites || "";
+    document.getElementById("callibriCleanSoundEnabled").checked = Boolean(settings.notificationSound);
+    document.getElementById("callibriCleanNotificationVolume").value = String(settings.notificationVolume ?? 80);
+    document.getElementById("callibriCleanVoiceVolume").value = String(settings.voiceVolume ?? 100);
+
+    modal.classList.remove("hidden");
   }
 
-  function renderGearAvatarInSidebar() {
-    const user = getCurrentUserSafe();
-    const avatarBtn = document.getElementById("callibriProfileAvatarBtn");
+  function installCleanGear() {
+    injectCleanGearStyles();
 
-    if (!avatarBtn || !user) return;
-
-    if (user.avatar) {
-      avatarBtn.innerHTML = `<img src="${user.avatar}" alt="avatar" style="width:100%;height:100%;object-fit:cover;">`;
-    } else {
-      avatarBtn.textContent = (user.displayName || user.username || "?")[0].toUpperCase();
-    }
-  }
-
-  function escapeGearHtml(value) {
-    return String(value || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  function installGearButton() {
     const profile = document.querySelector(".profile");
-    const user = getCurrentUserSafe();
 
-    if (!profile || !user) return;
+    if (!profile) return;
+
+    const badBigAvatar = document.getElementById("callibriProfileAvatarBtn");
+
+    if (badBigAvatar) {
+      badBigAvatar.remove();
+    }
 
     const oldLogout = document.getElementById("logoutBtn");
     const oldProfile = document.getElementById("profileBtn");
@@ -4305,34 +3909,20 @@ if (savedUser) {
     if (oldLogout) oldLogout.style.display = "none";
     if (oldProfile) oldProfile.style.display = "none";
 
-    if (!document.getElementById("callibriProfileAvatarBtn")) {
-      const avatarBtn = document.createElement("button");
-      avatarBtn.id = "callibriProfileAvatarBtn";
-      avatarBtn.type = "button";
-      avatarBtn.className = "callibri-avatar-btn";
-      avatarBtn.title = "Профиль и настройки";
-      avatarBtn.addEventListener("click", openGearModal);
-      profile.prepend(avatarBtn);
-    }
-
     if (!document.getElementById("callibriGearBtn")) {
-      const gearBtn = document.createElement("button");
-      gearBtn.id = "callibriGearBtn";
-      gearBtn.type = "button";
-      gearBtn.className = "callibri-gear-btn";
-      gearBtn.title = "Настройки";
-      gearBtn.textContent = "⚙";
-      gearBtn.addEventListener("click", openGearModal);
-      profile.appendChild(gearBtn);
+      const gear = document.createElement("button");
+      gear.id = "callibriGearBtn";
+      gear.type = "button";
+      gear.textContent = "⚙";
+      gear.title = "Настройки";
+      gear.addEventListener("click", openCleanSettings);
+      profile.appendChild(gear);
     }
-
-    renderGearAvatarInSidebar();
   }
 
-  injectGearStyles();
-  createGearModal();
+  injectCleanGearStyles();
+  createCleanSettingsModal();
+  installCleanGear();
 
-  setInterval(installGearButton, 600);
-
-  document.addEventListener("DOMContentLoaded", installGearButton);
+  setInterval(installCleanGear, 700);
 })();
