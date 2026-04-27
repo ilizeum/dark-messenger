@@ -3929,3 +3929,326 @@ if (savedUser) {
 
   setInterval(installCleanGear, 700);
 })();
+
+/* =========================================================
+   CALLIBRI GROUP INVITE
+   Добавление участников в уже существующую группу
+   ========================================================= */
+
+(function setupCallibriGroupInvite() {
+  let inviteModal = null;
+  let inviteBtn = null;
+
+  function injectInviteStyles() {
+    if (document.getElementById("callibriInviteStyles")) return;
+
+    const style = document.createElement("style");
+    style.id = "callibriInviteStyles";
+
+    style.textContent = `
+      #inviteGroupBtn {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #0ea5e9, #10b981);
+        color: white;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        cursor: pointer;
+      }
+
+      #inviteGroupBtn:hover {
+        filter: brightness(1.08);
+      }
+
+      .invite-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        background: rgba(2, 6, 23, 0.72);
+        backdrop-filter: blur(12px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .invite-modal.hidden {
+        display: none;
+      }
+
+      .invite-modal-card {
+        width: min(94vw, 460px);
+        padding: 24px;
+        border-radius: 24px;
+        color: #e2e8f0;
+        background:
+          radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.18), transparent 34%),
+          radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.16), transparent 34%),
+          linear-gradient(180deg, rgba(7, 37, 67, 0.98), rgba(5, 55, 64, 0.98));
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 34px 100px rgba(0,0,0,0.55);
+      }
+
+      .invite-modal-card h2 {
+        margin: 0 0 8px;
+        color: white;
+        font-size: 24px;
+        font-weight: 950;
+      }
+
+      .invite-modal-card p {
+        margin: 0 0 16px;
+        color: #8aa6b7;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      #inviteMembersInput {
+        width: 100%;
+        min-height: 120px;
+        resize: vertical;
+        box-sizing: border-box;
+        padding: 12px 14px;
+        border-radius: 15px;
+        border: 1px solid rgba(255,255,255,0.1);
+        background: rgba(2, 6, 23, 0.45);
+        color: #f8fafc;
+        outline: none;
+      }
+
+      #inviteMembersInput::placeholder {
+        color: rgba(203, 213, 225, 0.45);
+      }
+
+      #inviteError {
+        min-height: 20px;
+        margin-top: 10px;
+        color: #fb7185;
+        font-size: 13px;
+      }
+
+      .invite-actions {
+        margin-top: 14px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      .invite-actions button {
+        min-height: 40px;
+        padding: 0 15px;
+        border-radius: 14px;
+        border: none;
+        color: white;
+        font-weight: 850;
+        cursor: pointer;
+      }
+
+      #cancelInviteBtn {
+        background: rgba(255,255,255,0.1);
+      }
+
+      #saveInviteBtn {
+        background: linear-gradient(135deg, #0ea5e9, #10b981);
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function createInviteModal() {
+    if (document.getElementById("inviteGroupModal")) {
+      inviteModal = document.getElementById("inviteGroupModal");
+      return;
+    }
+
+    inviteModal = document.createElement("div");
+    inviteModal.id = "inviteGroupModal";
+    inviteModal.className = "invite-modal hidden";
+
+    inviteModal.innerHTML = `
+      <div class="invite-modal-card">
+        <h2>Добавить участников</h2>
+        <p>
+          Введи @id пользователей через запятую.<br>
+          Например: <b>@test1, @test2, test3</b>
+        </p>
+
+        <textarea
+          id="inviteMembersInput"
+          placeholder="@username1, @username2"
+        ></textarea>
+
+        <div id="inviteError"></div>
+
+        <div class="invite-actions">
+          <button id="cancelInviteBtn" type="button">Отмена</button>
+          <button id="saveInviteBtn" type="button">Добавить</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(inviteModal);
+
+    document.getElementById("cancelInviteBtn").addEventListener("click", closeInviteModal);
+    document.getElementById("saveInviteBtn").addEventListener("click", inviteMembersToCurrentGroup);
+
+    inviteModal.addEventListener("click", (event) => {
+      if (event.target === inviteModal) closeInviteModal();
+    });
+  }
+
+  function openInviteModal() {
+    if (!selectedGroup || !currentUser) {
+      alert("Сначала открой группу");
+      return;
+    }
+
+    createInviteModal();
+
+    const input = document.getElementById("inviteMembersInput");
+    const error = document.getElementById("inviteError");
+
+    if (input) input.value = "";
+    if (error) error.textContent = "";
+
+    inviteModal.classList.remove("hidden");
+
+    setTimeout(() => {
+      if (input) input.focus();
+    }, 50);
+  }
+
+  function closeInviteModal() {
+    if (inviteModal) {
+      inviteModal.classList.add("hidden");
+    }
+  }
+
+  function parseInviteMembers(text) {
+    return String(text || "")
+      .split(/[,\n;]/)
+      .map((item) => item.trim().toLowerCase().replace(/^@/, ""))
+      .filter(Boolean);
+  }
+
+  async function inviteMembersToCurrentGroup() {
+    if (!currentUser || !selectedGroup) return;
+
+    const input = document.getElementById("inviteMembersInput");
+    const error = document.getElementById("inviteError");
+
+    const members = parseInviteMembers(input ? input.value : "");
+
+    if (error) error.textContent = "";
+
+    if (!members.length) {
+      if (error) error.textContent = "Введите хотя бы одного пользователя";
+      return;
+    }
+
+    const uniqueMembers = Array.from(new Set(members));
+
+    try {
+      const data = await request(`/api/groups/${encodeURIComponent(selectedGroup.id)}/invite`, {
+        method: "POST",
+        body: JSON.stringify({
+          me: currentUser.username,
+          members: uniqueMembers
+        })
+      });
+
+      if (data.group) {
+        selectedGroup = data.group;
+
+        groupsCache = groupsCache.map((group) => {
+          return group.id === data.group.id ? data.group : group;
+        });
+
+        const exists = groupsCache.some((group) => group.id === data.group.id);
+
+        if (!exists) {
+          groupsCache.unshift(data.group);
+        }
+
+        if (typeof renderGroups === "function") renderGroups();
+        if (typeof updateChatStatusText === "function") updateChatStatusText();
+        if (typeof showGroupActions === "function") showGroupActions(data.group);
+      }
+
+      closeInviteModal();
+      alert("Участники добавлены");
+    } catch (err) {
+      if (error) error.textContent = err.message || "Ошибка добавления участников";
+    }
+  }
+
+  function ensureInviteButton() {
+    injectInviteStyles();
+    createInviteModal();
+
+    let actionsBox = document.getElementById("groupActionsBox");
+
+    if (!actionsBox && chatStatus && chatStatus.parentElement) {
+      actionsBox = document.createElement("div");
+      actionsBox.id = "groupActionsBox";
+      actionsBox.style.display = "none";
+      actionsBox.style.marginTop = "8px";
+      actionsBox.style.gap = "8px";
+      actionsBox.style.flexWrap = "wrap";
+      chatStatus.parentElement.appendChild(actionsBox);
+    }
+
+    if (!actionsBox) return;
+
+    if (!document.getElementById("inviteGroupBtn")) {
+      inviteBtn = document.createElement("button");
+      inviteBtn.id = "inviteGroupBtn";
+      inviteBtn.type = "button";
+      inviteBtn.textContent = "+ Добавить";
+      inviteBtn.title = "Добавить участников в группу";
+      inviteBtn.addEventListener("click", openInviteModal);
+      actionsBox.prepend(inviteBtn);
+    }
+
+    const btn = document.getElementById("inviteGroupBtn");
+
+    if (!btn) return;
+
+    if (selectedChatType === "group" && selectedGroup && currentUser) {
+      btn.style.display = "inline-flex";
+    } else {
+      btn.style.display = "none";
+    }
+  }
+
+  const oldShowGroupActions =
+    typeof showGroupActions === "function" ? showGroupActions : null;
+
+  if (oldShowGroupActions) {
+    showGroupActions = function patchedShowGroupActions(group) {
+      oldShowGroupActions(group);
+      ensureInviteButton();
+    };
+  }
+
+  const oldHideGroupActions =
+    typeof hideGroupActions === "function" ? hideGroupActions : null;
+
+  if (oldHideGroupActions) {
+    hideGroupActions = function patchedHideGroupActions() {
+      oldHideGroupActions();
+      ensureInviteButton();
+    };
+  }
+
+  injectInviteStyles();
+  createInviteModal();
+  ensureInviteButton();
+
+  setInterval(ensureInviteButton, 700);
+})();
