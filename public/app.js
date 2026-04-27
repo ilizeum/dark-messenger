@@ -4874,151 +4874,69 @@ if (savedUser) {
 })();
 
 /* =========================================================
-   CALLIBRI SELECT IN MESSAGE CONTEXT MENU FIX
-   Добавляет "Выбрать" в ПКМ-меню сообщения
+   CALLIBRI SELECT IN TELEGRAM MESSAGE MENU FIX
+   Добавляет "Выбрать" в настоящее ПКМ-меню сообщения
    ========================================================= */
 
-(function fixSelectInMessageContextMenu() {
+(function fixSelectInTelegramMessageMenu() {
+  let lastRightClickedBubble = null;
   let lastRightClickedMessageId = "";
 
-  function injectSelectContextStyles() {
-    if (document.getElementById("callibriSelectContextFixStyles")) return;
+  function injectSelectMenuStyles() {
+    if (document.getElementById("callibriSelectTelegramMenuStyles")) return;
 
     const style = document.createElement("style");
-    style.id = "callibriSelectContextFixStyles";
+    style.id = "callibriSelectTelegramMenuStyles";
 
     style.textContent = `
-      #callibriStartSelectBtn {
-        display: none !important;
-      }
-
-      .callibri-context-select-btn {
+      #telegramSelectBtn {
         color: #d9f99d !important;
       }
 
-      .callibri-context-select-btn:hover {
+      #telegramSelectBtn:hover {
         background: rgba(163, 230, 53, 0.12) !important;
+      }
+
+      #telegramSelectBtn .telegram-message-menu-icon {
+        color: #a3e635 !important;
+      }
+
+      #callibriStartSelectBtn {
+        display: none !important;
       }
     `;
 
     document.head.appendChild(style);
   }
 
-  function hideHeaderSelectButton() {
-    const btn = document.getElementById("callibriStartSelectBtn");
+  function getMessageBubbleFromEvent(event) {
+    const target = event.target;
 
-    if (btn) {
-      btn.remove();
-    }
+    if (!target || !target.closest) return null;
+
+    return target.closest(".message");
   }
 
-  function rememberRightClickedMessage(event) {
-    const bubble = event.target.closest(".message");
-
-    if (!bubble) return;
-
-    let messageId = "";
+  function getMessageIdFromBubble(bubble) {
+    if (!bubble) return "";
 
     if (bubble.dataset && bubble.dataset.callibriMessageId) {
-      messageId = bubble.dataset.callibriMessageId;
+      return String(bubble.dataset.callibriMessageId);
     }
 
-    if (!messageId && Array.isArray(messagesCache) && messagesBox) {
-      const bubbles = Array.from(messagesBox.querySelectorAll(".message"));
-      const index = bubbles.indexOf(bubble);
+    const bubbles = Array.from(document.querySelectorAll("#messages .message"));
+    const index = bubbles.indexOf(bubble);
+
+    if (index >= 0 && Array.isArray(messagesCache) && messagesCache[index]) {
       const message = messagesCache[index];
 
       if (message && message.id) {
-        messageId = String(message.id);
-        bubble.dataset.callibriMessageId = messageId;
+        bubble.dataset.callibriMessageId = String(message.id);
+        return String(message.id);
       }
     }
 
-    lastRightClickedMessageId = messageId;
-  }
-
-  function startSelectionByMessageId(messageId) {
-    const id = String(messageId || "");
-
-    if (!id) {
-      alert("Не удалось выбрать сообщение");
-      return;
-    }
-
-    const bubble = document.querySelector(
-      `.message[data-callibri-message-id="${CSS.escape(id)}"]`
-    );
-
-    if (!bubble) {
-      alert("Не удалось найти сообщение");
-      return;
-    }
-
-    const event = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: true
-    });
-
-    bubble.dispatchEvent(event);
-
-    closeAllContextMenus();
-  }
-
-  function closeAllContextMenus() {
-    const menus = document.querySelectorAll(
-      ".message-context-menu, #callibriContextMenu, #messageContextMenu"
-    );
-
-    menus.forEach((menu) => {
-      menu.classList.add("hidden");
-    });
-
-    try {
-      if (typeof hideContextMenu === "function") {
-        hideContextMenu();
-      }
-    } catch {}
-  }
-
-  function addSelectButtonToMenu(menu) {
-    if (!menu) return;
-    if (menu.querySelector(".callibri-context-select-btn")) return;
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "callibri-context-select-btn";
-    btn.innerHTML = "<span>☑</span> Выбрать";
-
-    btn.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      let messageId = lastRightClickedMessageId;
-
-      try {
-        if (!messageId && typeof contextMessage !== "undefined" && contextMessage) {
-          messageId = String(
-            contextMessage.id ||
-              contextMessage.messageId ||
-              (contextMessage.message && contextMessage.message.id) ||
-              ""
-          );
-        }
-      } catch {}
-
-      startSelectionByMessageId(messageId);
-    });
-
-    menu.prepend(btn);
-  }
-
-  function findAndPatchMenus() {
-    const menus = document.querySelectorAll(
-      ".message-context-menu, #callibriContextMenu, #messageContextMenu"
-    );
-
-    menus.forEach(addSelectButtonToMenu);
+    return "";
   }
 
   function annotateVisibleMessages() {
@@ -5035,18 +4953,131 @@ if (savedUser) {
     });
   }
 
-  function install() {
-    injectSelectContextStyles();
-    hideHeaderSelectButton();
+  function rememberRightClickedMessage(event) {
+    const bubble = getMessageBubbleFromEvent(event);
+
+    if (!bubble) return;
+
+    lastRightClickedBubble = bubble;
+    lastRightClickedMessageId = getMessageIdFromBubble(bubble);
+  }
+
+  function closeTelegramMessageMenu() {
+    const menu = document.getElementById("telegramMessageContextMenu");
+
+    if (menu) {
+      menu.classList.add("hidden");
+    }
+
+    try {
+      if (typeof hideMessageContextMenu === "function") {
+        hideMessageContextMenu();
+      }
+    } catch {}
+  }
+
+  function clickMessageForSelection(messageId) {
+    if (!messageId) {
+      alert("Не удалось определить сообщение");
+      return;
+    }
+
     annotateVisibleMessages();
-    findAndPatchMenus();
+
+    const bubble =
+      document.querySelector(`#messages .message[data-callibri-message-id="${CSS.escape(String(messageId))}"]`) ||
+      lastRightClickedBubble;
+
+    if (!bubble) {
+      alert("Не удалось найти сообщение");
+      return;
+    }
+
+    const clickEvent = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true
+    });
+
+    bubble.dispatchEvent(clickEvent);
+  }
+
+  function startSelectionFromContextMenu() {
+    let messageId = lastRightClickedMessageId;
+
+    try {
+      if (!messageId && contextSelectedMessage && contextSelectedMessage.id) {
+        messageId = String(contextSelectedMessage.id);
+      }
+    } catch {}
+
+    if (!messageId && lastRightClickedBubble) {
+      messageId = getMessageIdFromBubble(lastRightClickedBubble);
+    }
+
+    if (!messageId) {
+      annotateVisibleMessages();
+
+      try {
+        if (contextSelectedMessage && contextSelectedMessage.id) {
+          messageId = String(contextSelectedMessage.id);
+        }
+      } catch {}
+    }
+
+    clickMessageForSelection(messageId);
+    closeTelegramMessageMenu();
+  }
+
+  function addSelectButtonToTelegramMenu() {
+    const menu = document.getElementById("telegramMessageContextMenu");
+
+    if (!menu) return;
+    if (document.getElementById("telegramSelectBtn")) return;
+
+    const selectBtn = document.createElement("button");
+    selectBtn.id = "telegramSelectBtn";
+    selectBtn.type = "button";
+
+    selectBtn.innerHTML = `
+      <span class="telegram-message-menu-icon">☑</span>
+      Выбрать
+    `;
+
+    selectBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      startSelectionFromContextMenu();
+    });
+
+    menu.prepend(selectBtn);
+  }
+
+  function patchCreateMessageContextMenu() {
+    if (typeof createMessageContextMenu !== "function") return;
+    if (createMessageContextMenu.__callibriSelectPatched) return;
+
+    const oldCreateMessageContextMenu = createMessageContextMenu;
+
+    createMessageContextMenu = function patchedCreateMessageContextMenu() {
+      oldCreateMessageContextMenu();
+      addSelectButtonToTelegramMenu();
+    };
+
+    createMessageContextMenu.__callibriSelectPatched = true;
+  }
+
+  function install() {
+    injectSelectMenuStyles();
+    patchCreateMessageContextMenu();
+    annotateVisibleMessages();
+    addSelectButtonToTelegramMenu();
 
     document.addEventListener("contextmenu", rememberRightClickedMessage, true);
 
     const observer = new MutationObserver(() => {
-      hideHeaderSelectButton();
       annotateVisibleMessages();
-      findAndPatchMenus();
+      addSelectButtonToTelegramMenu();
     });
 
     observer.observe(document.body, {
@@ -5055,19 +5086,18 @@ if (savedUser) {
     });
 
     setInterval(() => {
-      hideHeaderSelectButton();
+      patchCreateMessageContextMenu();
       annotateVisibleMessages();
-      findAndPatchMenus();
-    }, 500);
+      addSelectButtonToTelegramMenu();
+    }, 600);
   }
 
   install();
-})();
 
-/* =========================================================
+/*
    CALLIBRI TELEGRAM-LIKE ARCHIVE MENU
    ПКМ по чату/группе слева → Архивировать / Вернуть
-   ========================================================= */
+   */
 
 (function setupCallibriTelegramArchive() {
   const ARCHIVE_KEY_PREFIX = "callibri_telegram_archive_";
@@ -5718,4 +5748,5 @@ if (savedUser) {
     patchRenderFunctions();
     renderArchiveButton();
   }, 1000);
-})();
+})(); 
+  main
