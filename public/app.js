@@ -16,6 +16,14 @@ let unreadGroups = {};
 let onlineUsers = {};
 let typingUsers = {};
 
+let archivedDirect = {};
+let archivedGroups = {};
+let archiveMode = false;
+
+let archiveBtn = null;
+let archiveContextMenu = null;
+let archiveContextTarget = null;
+
 let typingTimer = null;
 let isTypingNow = false;
 
@@ -330,6 +338,10 @@ function logout() {
   unreadGroups = {};
   onlineUsers = {};
   typingUsers = {};
+
+  archivedDirect = {};
+archivedGroups = {};
+archiveMode = false;
 
   if (auth) auth.classList.remove("hidden");
   if (app) app.classList.add("hidden");
@@ -733,7 +745,119 @@ function injectStyles() {
       color: #9fb3c8;
       font-size: 12px;
     }
-  `;
+      .archive-btn {
+      width: 100%;
+      min-height: 62px;
+      margin: 10px 0 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(34, 211, 238, 0.24);
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(16, 185, 129, 0.14));
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+
+    .archive-btn:hover {
+      transform: translateY(-1px);
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.26), rgba(16, 185, 129, 0.2));
+      border-color: rgba(125, 211, 252, 0.38);
+    }
+
+    .archive-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(125, 211, 252, 0.24);
+      color: #67e8f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      flex-shrink: 0;
+      box-shadow: 0 10px 22px rgba(0,0,0,0.2);
+    }
+
+    .archive-info {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .archive-info b {
+      display: block;
+      color: #f8fafc;
+      font-size: 14px;
+      font-weight: 900;
+      margin-bottom: 3px;
+    }
+
+    .archive-info span {
+      display: block;
+      color: #9bd8e6;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .archive-badge {
+      min-width: 24px;
+      height: 24px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: #06b6d4;
+      color: white;
+      font-size: 12px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .archive-context-menu {
+      position: fixed;
+      z-index: 999999;
+      width: 210px;
+      padding: 7px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.97);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(18px);
+    }
+
+    .archive-context-menu.hidden {
+      display: none;
+    }
+
+    .archive-context-menu button {
+      width: 100%;
+      height: 40px;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: #e5e7eb;
+      border-radius: 11px;
+      padding: 0 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      font-size: 14px;
+      font-weight: 800;
+      text-align: left;
+    }
+
+    .archive-context-menu button:hover {
+      background: rgba(148, 163, 184, 0.13);
+    }`;
 
   document.head.appendChild(style);
 }
@@ -1100,9 +1224,263 @@ function applyVoiceVolumeToPlayers() {
   }
 }
 
+function getArchiveStorageKey() {
+  if (!currentUser || !currentUser.username) return "";
+  return `callibri_archive_${currentUser.username}`;
+}
+
+function loadArchiveState() {
+  if (!currentUser) return;
+
+  try {
+    const raw = localStorage.getItem(getArchiveStorageKey());
+    const data = raw ? JSON.parse(raw) : {};
+
+    archivedDirect = data.direct || {};
+    archivedGroups = data.groups || {};
+  } catch {
+    archivedDirect = {};
+    archivedGroups = {};
+  }
+}
+
+function saveArchiveState() {
+  if (!currentUser) return;
+
+  localStorage.setItem(
+    getArchiveStorageKey(),
+    JSON.stringify({
+      direct: archivedDirect,
+      groups: archivedGroups
+    })
+  );
+}
+
+function isDirectArchived(username) {
+  return Boolean(archivedDirect[normalizeUsername(username)]);
+}
+
+function isGroupArchived(groupId) {
+  return Boolean(archivedGroups[String(groupId)]);
+}
+
+function archiveDirectChat(username) {
+  const cleanUsername = normalizeUsername(username);
+
+  if (!cleanUsername) return;
+
+  archivedDirect[cleanUsername] = true;
+  saveArchiveState();
+
+  if (
+    selectedChatType === "direct" &&
+    selectedUser &&
+    selectedUser.username === cleanUsername
+  ) {
+    renderEmptyChat();
+  }
+
+  renderRecentChats();
+  renderGroups();
+  renderArchiveButton();
+}
+
+function unarchiveDirectChat(username) {
+  const cleanUsername = normalizeUsername(username);
+
+  if (!cleanUsername) return;
+
+  delete archivedDirect[cleanUsername];
+  saveArchiveState();
+
+  renderRecentChats();
+  renderGroups();
+  renderArchiveButton();
+}
+
+function archiveGroupChat(groupId) {
+  const id = String(groupId || "");
+
+  if (!id) return;
+
+  archivedGroups[id] = true;
+  saveArchiveState();
+
+  if (
+    selectedChatType === "group" &&
+    selectedGroup &&
+    selectedGroup.id === id
+  ) {
+    renderEmptyChat();
+  }
+
+  renderRecentChats();
+  renderGroups();
+  renderArchiveButton();
+}
+
+function unarchiveGroupChat(groupId) {
+  const id = String(groupId || "");
+
+  if (!id) return;
+
+  delete archivedGroups[id];
+  saveArchiveState();
+
+  renderRecentChats();
+  renderGroups();
+  renderArchiveButton();
+}
+
+function getArchivedCount() {
+  const directCount = recentChatsCache.filter((chat) =>
+    isDirectArchived(chat.username)
+  ).length;
+
+  const groupCount = groupsCache.filter((group) =>
+    isGroupArchived(group.id)
+  ).length;
+
+  return directCount + groupCount;
+}
+
+function renderArchiveButton() {
+  if (!archiveBtn) return;
+
+  const count = getArchivedCount();
+
+  archiveBtn.innerHTML = `
+    <div class="archive-icon">▣</div>
+
+    <div class="archive-info">
+      <b>${archiveMode ? "← Все чаты" : "Архив"}</b>
+      <span>${
+        archiveMode
+          ? "Вернуться к обычным чатам"
+          : count > 0
+            ? `${count} в архиве`
+            : "Пока пусто"
+      }</span>
+    </div>
+
+    ${
+      count > 0 && !archiveMode
+        ? `<span class="archive-badge">${count}</span>`
+        : ""
+    }
+  `;
+}
+
+function toggleArchiveMode() {
+  archiveMode = !archiveMode;
+
+  renderArchiveButton();
+  renderRecentChats();
+  renderGroups();
+  renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
+}
+
+function setupArchiveContextMenu() {
+  if (document.getElementById("archiveContextMenu")) {
+    archiveContextMenu = document.getElementById("archiveContextMenu");
+    return;
+  }
+
+  archiveContextMenu = document.createElement("div");
+  archiveContextMenu.id = "archiveContextMenu";
+  archiveContextMenu.className = "archive-context-menu hidden";
+
+  archiveContextMenu.innerHTML = `
+    <button id="archiveContextToggleBtn" type="button">В архив</button>
+  `;
+
+  document.body.appendChild(archiveContextMenu);
+
+  document
+    .getElementById("archiveContextToggleBtn")
+    .addEventListener("click", () => {
+      if (!archiveContextTarget) return;
+
+      if (archiveContextTarget.type === "direct") {
+        if (isDirectArchived(archiveContextTarget.id)) {
+          unarchiveDirectChat(archiveContextTarget.id);
+        } else {
+          archiveDirectChat(archiveContextTarget.id);
+        }
+      }
+
+      if (archiveContextTarget.type === "group") {
+        if (isGroupArchived(archiveContextTarget.id)) {
+          unarchiveGroupChat(archiveContextTarget.id);
+        } else {
+          archiveGroupChat(archiveContextTarget.id);
+        }
+      }
+
+      hideArchiveContextMenu();
+    });
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#archiveContextMenu")) {
+      hideArchiveContextMenu();
+    }
+  });
+
+  window.addEventListener("resize", hideArchiveContextMenu);
+}
+
+function openArchiveContextMenu(event, target) {
+  setupArchiveContextMenu();
+
+  archiveContextTarget = target;
+
+  const btn = document.getElementById("archiveContextToggleBtn");
+
+  if (target.type === "direct") {
+    btn.textContent = isDirectArchived(target.id)
+      ? "Вернуть из архива"
+      : "В архив";
+  }
+
+  if (target.type === "group") {
+    btn.textContent = isGroupArchived(target.id)
+      ? "Вернуть из архива"
+      : "В архив";
+  }
+
+  archiveContextMenu.classList.remove("hidden");
+
+  const rect = archiveContextMenu.getBoundingClientRect();
+
+  let x = event.clientX;
+  let y = event.clientY;
+
+  if (x + rect.width > window.innerWidth) {
+    x = window.innerWidth - rect.width - 10;
+  }
+
+  if (y + rect.height > window.innerHeight) {
+    y = window.innerHeight - rect.height - 10;
+  }
+
+  archiveContextMenu.style.left = `${x}px`;
+  archiveContextMenu.style.top = `${y}px`;
+}
+
+function hideArchiveContextMenu() {
+  if (archiveContextMenu) {
+    archiveContextMenu.classList.add("hidden");
+  }
+}
+
 function setupGroupUI() {
   if (document.getElementById("createGroupBtn")) return;
   if (!usersBox || !usersBox.parentElement) return;
+
+  archiveBtn = document.createElement("button");
+  archiveBtn.id = "archiveBtn";
+  archiveBtn.type = "button";
+  archiveBtn.className = "archive-btn";
 
   createGroupBtn = document.createElement("button");
   createGroupBtn.id = "createGroupBtn";
@@ -1127,6 +1505,7 @@ function setupGroupUI() {
   usersTitle.className = "sidebar-title";
   usersTitle.textContent = "Поиск пользователей";
 
+  usersBox.parentElement.insertBefore(archiveBtn, usersBox);
   usersBox.parentElement.insertBefore(createGroupBtn, usersBox);
   usersBox.parentElement.insertBefore(recentTitle, usersBox);
   usersBox.parentElement.insertBefore(recentChatsBox, usersBox);
@@ -1134,8 +1513,12 @@ function setupGroupUI() {
   usersBox.parentElement.insertBefore(groupsBox, usersBox);
   usersBox.parentElement.insertBefore(usersTitle, usersBox);
 
+  archiveBtn.addEventListener("click", toggleArchiveMode);
   createGroupBtn.addEventListener("click", openGroupModal);
+
   createGroupModal();
+  setupArchiveContextMenu();
+  renderArchiveButton();
 }
 
 function createGroupModal() {
@@ -2192,6 +2575,7 @@ async function startApp() {
 
   injectStyles();
   loadSettings();
+  loadArchiveState();
 
   setupProfileUI();
   setupGroupUI();
@@ -2237,12 +2621,68 @@ async function loadRecentChats() {
       onlineUsers[chat.username] = Boolean(chat.online);
     });
 
-    renderRecentChats();
-  } catch {
-    if (recentChatsBox) {
-      recentChatsBox.innerHTML = `<div class="empty small-empty">Ошибка загрузки чатов</div>`;
-    }
+    function renderRecentChats() {
+  if (!recentChatsBox) return;
+
+  recentChatsBox.innerHTML = "";
+
+  const visibleChats = recentChatsCache.filter((user) => {
+    const archived = isDirectArchived(user.username);
+    return archiveMode ? archived : !archived;
+  });
+
+  if (!visibleChats.length) {
+    recentChatsBox.innerHTML = `
+      <div class="empty small-empty">
+        ${
+          archiveMode
+            ? "В архиве личных чатов пока нет"
+            : "Личных чатов пока нет"
+        }
+      </div>
+    `;
+    return;
   }
+
+  visibleChats.forEach((user) => {
+    const item = document.createElement("button");
+    item.className = "user recent-chat-item";
+
+    if (
+      selectedChatType === "direct" &&
+      selectedUser &&
+      selectedUser.username === user.username
+    ) {
+      item.classList.add("active");
+    }
+
+    const count = unreadDirect[user.username] || 0;
+    const preview = getChatPreview(user);
+
+    item.innerHTML = `
+      ${renderAvatar(user)}
+      <div class="user-info">
+        <b>${onlineDot(user.username)}${escapeHtml(user.displayName || user.username)}</b>
+        <span>${escapeHtml(preview)}</span>
+      </div>
+      ${unreadBadge(count)}
+    `;
+
+    item.addEventListener("click", () => {
+      openChat(user);
+    });
+
+    item.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+
+      openArchiveContextMenu(event, {
+        type: "direct",
+        id: user.username
+      });
+    });
+
+    recentChatsBox.appendChild(item);
+  });
 }
 
 async function loadGroups() {
@@ -2252,8 +2692,67 @@ async function loadGroups() {
     const data = await request(`/api/groups?me=${encodeURIComponent(currentUser.username)}`);
 
     groupsCache = data.groups || [];
-    renderGroups();
-  } catch {}
+    function renderGroups() {
+  if (!groupsBox) return;
+
+  groupsBox.innerHTML = "";
+
+  const visibleGroups = groupsCache.filter((group) => {
+    const archived = isGroupArchived(group.id);
+    return archiveMode ? archived : !archived;
+  });
+
+  if (!visibleGroups.length) {
+    groupsBox.innerHTML = `
+      <div class="empty small-empty">
+        ${
+          archiveMode
+            ? "В архиве групп пока нет"
+            : "Групп пока нет"
+        }
+      </div>
+    `;
+    return;
+  }
+
+  visibleGroups.forEach((group) => {
+    const item = document.createElement("button");
+    item.className = "user group-item";
+
+    if (
+      selectedChatType === "group" &&
+      selectedGroup &&
+      selectedGroup.id === group.id
+    ) {
+      item.classList.add("active");
+    }
+
+    const count = unreadGroups[group.id] || 0;
+
+    item.innerHTML = `
+      <div class="avatar group-avatar">#</div>
+      <div class="user-info">
+        <b>${escapeHtml(group.name)}</b>
+        <span>${group.members.length} участн.</span>
+      </div>
+      ${unreadBadge(count)}
+    `;
+
+    item.addEventListener("click", () => {
+      openGroup(group);
+    });
+
+    item.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+
+      openArchiveContextMenu(event, {
+        type: "group",
+        id: group.id
+      });
+    });
+
+    groupsBox.appendChild(item);
+  });
 }
 
 function renderRecentChats() {
