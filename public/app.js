@@ -4873,7 +4873,7 @@ if (savedUser) {
   }, 900);
 })();
 
-<<<<<<< HEAD
+ HEAD
 /* =========================================================
    CALLIBRI TELEGRAM-LIKE ARCHIVE MENU
    ПКМ по чату/группе слева → Архивировать / Вернуть
@@ -5529,5 +5529,3 @@ if (savedUser) {
     renderArchiveButton();
   }, 1000);
 })();
-=======
->>>>>>> friend-work
