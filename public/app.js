@@ -4874,29 +4874,29 @@ if (savedUser) {
 })();
 
 /* =========================================================
-   CALLIBRI MOVE SELECT BUTTON TO RIGHT CLICK MENU
-   Перенос "Выбрать" в меню ПКМ
+   CALLIBRI SELECT IN MESSAGE CONTEXT MENU FIX
+   Добавляет "Выбрать" в ПКМ-меню сообщения
    ========================================================= */
 
-(function moveMessageSelectToContextMenu() {
-  function injectMoveSelectStyles() {
-    if (document.getElementById("callibriMoveSelectStyles")) return;
+(function fixSelectInMessageContextMenu() {
+  let lastRightClickedMessageId = "";
+
+  function injectSelectContextStyles() {
+    if (document.getElementById("callibriSelectContextFixStyles")) return;
 
     const style = document.createElement("style");
-    style.id = "callibriMoveSelectStyles";
+    style.id = "callibriSelectContextFixStyles";
 
     style.textContent = `
       #callibriStartSelectBtn {
         display: none !important;
       }
 
-      #contextSelectBtn,
-      #messageContextSelectBtn {
+      .callibri-context-select-btn {
         color: #d9f99d !important;
       }
 
-      #contextSelectBtn:hover,
-      #messageContextSelectBtn:hover {
+      .callibri-context-select-btn:hover {
         background: rgba(163, 230, 53, 0.12) !important;
       }
     `;
@@ -4904,7 +4904,7 @@ if (savedUser) {
     document.head.appendChild(style);
   }
 
-  function removeHeaderSelectButton() {
+  function hideHeaderSelectButton() {
     const btn = document.getElementById("callibriStartSelectBtn");
 
     if (btn) {
@@ -4912,31 +4912,41 @@ if (savedUser) {
     }
   }
 
-  function getCurrentContextMessageId() {
-    try {
-      if (typeof contextMessage !== "undefined" && contextMessage) {
-        return String(
-          contextMessage.id ||
-            contextMessage.messageId ||
-            (contextMessage.message && contextMessage.message.id) ||
-            ""
-        );
-      }
-    } catch {}
+  function rememberRightClickedMessage(event) {
+    const bubble = event.target.closest(".message");
 
-    return "";
+    if (!bubble) return;
+
+    let messageId = "";
+
+    if (bubble.dataset && bubble.dataset.callibriMessageId) {
+      messageId = bubble.dataset.callibriMessageId;
+    }
+
+    if (!messageId && Array.isArray(messagesCache) && messagesBox) {
+      const bubbles = Array.from(messagesBox.querySelectorAll(".message"));
+      const index = bubbles.indexOf(bubble);
+      const message = messagesCache[index];
+
+      if (message && message.id) {
+        messageId = String(message.id);
+        bubble.dataset.callibriMessageId = messageId;
+      }
+    }
+
+    lastRightClickedMessageId = messageId;
   }
 
-  function startSelectionFromContextMenu() {
-    const messageId = getCurrentContextMessageId();
+  function startSelectionByMessageId(messageId) {
+    const id = String(messageId || "");
 
-    if (!messageId) {
+    if (!id) {
       alert("Не удалось выбрать сообщение");
       return;
     }
 
     const bubble = document.querySelector(
-      `.message[data-callibri-message-id="${CSS.escape(messageId)}"]`
+      `.message[data-callibri-message-id="${CSS.escape(id)}"]`
     );
 
     if (!bubble) {
@@ -4944,72 +4954,112 @@ if (savedUser) {
       return;
     }
 
-    const fakeClick = new MouseEvent("click", {
+    const event = new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
       ctrlKey: true
     });
 
-    bubble.dispatchEvent(fakeClick);
+    bubble.dispatchEvent(event);
+
+    closeAllContextMenus();
+  }
+
+  function closeAllContextMenus() {
+    const menus = document.querySelectorAll(
+      ".message-context-menu, #callibriContextMenu, #messageContextMenu"
+    );
+
+    menus.forEach((menu) => {
+      menu.classList.add("hidden");
+    });
 
     try {
       if (typeof hideContextMenu === "function") {
         hideContextMenu();
       }
     } catch {}
-
-    const oldMenu = document.getElementById("messageContextMenu");
-    const newMenu = document.getElementById("callibriContextMenu");
-
-    if (oldMenu) oldMenu.classList.add("hidden");
-    if (newMenu) newMenu.classList.add("hidden");
   }
 
-  function addSelectButtonToContextMenu() {
-    const newMenu = document.getElementById("callibriContextMenu");
-    const oldMenu = document.getElementById("messageContextMenu");
+  function addSelectButtonToMenu(menu) {
+    if (!menu) return;
+    if (menu.querySelector(".callibri-context-select-btn")) return;
 
-    if (newMenu && !document.getElementById("contextSelectBtn")) {
-      const btn = document.createElement("button");
-      btn.id = "contextSelectBtn";
-      btn.type = "button";
-      btn.innerHTML = "☑ Выбрать";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "callibri-context-select-btn";
+    btn.innerHTML = "<span>☑</span> Выбрать";
 
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        startSelectionFromContextMenu();
-      });
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
 
-      newMenu.prepend(btn);
-    }
+      let messageId = lastRightClickedMessageId;
 
-    if (oldMenu && !document.getElementById("messageContextSelectBtn")) {
-      const btn = document.createElement("button");
-      btn.id = "messageContextSelectBtn";
-      btn.type = "button";
-      btn.innerHTML = "<span>☑</span> Выбрать";
+      try {
+        if (!messageId && typeof contextMessage !== "undefined" && contextMessage) {
+          messageId = String(
+            contextMessage.id ||
+              contextMessage.messageId ||
+              (contextMessage.message && contextMessage.message.id) ||
+              ""
+          );
+        }
+      } catch {}
 
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        startSelectionFromContextMenu();
-      });
+      startSelectionByMessageId(messageId);
+    });
 
-      oldMenu.prepend(btn);
-    }
+    menu.prepend(btn);
   }
 
-  function init() {
-    injectMoveSelectStyles();
-    removeHeaderSelectButton();
-    addSelectButtonToContextMenu();
+  function findAndPatchMenus() {
+    const menus = document.querySelectorAll(
+      ".message-context-menu, #callibriContextMenu, #messageContextMenu"
+    );
+
+    menus.forEach(addSelectButtonToMenu);
   }
 
-  init();
+  function annotateVisibleMessages() {
+    if (!messagesBox || !Array.isArray(messagesCache)) return;
 
-  setInterval(() => {
-    removeHeaderSelectButton();
-    addSelectButtonToContextMenu();
-  }, 700);
+    const bubbles = Array.from(messagesBox.querySelectorAll(".message"));
+
+    bubbles.forEach((bubble, index) => {
+      const message = messagesCache[index];
+
+      if (message && message.id) {
+        bubble.dataset.callibriMessageId = String(message.id);
+      }
+    });
+  }
+
+  function install() {
+    injectSelectContextStyles();
+    hideHeaderSelectButton();
+    annotateVisibleMessages();
+    findAndPatchMenus();
+
+    document.addEventListener("contextmenu", rememberRightClickedMessage, true);
+
+    const observer = new MutationObserver(() => {
+      hideHeaderSelectButton();
+      annotateVisibleMessages();
+      findAndPatchMenus();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    setInterval(() => {
+      hideHeaderSelectButton();
+      annotateVisibleMessages();
+      findAndPatchMenus();
+    }, 500);
+  }
+
+  install();
 })();
