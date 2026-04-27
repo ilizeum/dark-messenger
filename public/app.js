@@ -16,60 +16,28 @@ let unreadGroups = {};
 let onlineUsers = {};
 let typingUsers = {};
 
-let archivedDirect = {};
-let archivedGroups = {};
-let archiveMode = false;
-
-let archiveBtn = null;
-let archiveContextMenu = null;
-let archiveContextTarget = null;
-
-let typingTimer = null;
-let isTypingNow = false;
-
 let mediaRecorder = null;
 let recordedChunks = [];
+let isRecording = false;
+
 let recordingStream = null;
 let recordingStartTime = 0;
 let recordingTimerInterval = null;
-let isRecording = false;
-let finalVoiceBlob = null;
-let liveWaveformBars = [];
 
 let audioContext = null;
 let analyserNode = null;
 let analyserDataArray = null;
 let visualizerAnimationFrame = null;
 
+let liveWaveformBars = [];
+let finalVoiceBlob = null;
+let finalVoiceMimeType = "audio/webm";
+
 let notificationPermissionRequested = false;
-let notificationSoundCooldown = false;
+let typingTimer = null;
+let isTypingNow = false;
 
-let fileInput = null;
-let attachBtn = null;
-let voiceBtn = null;
-let recordingPanel = null;
-let recordingTimer = null;
-let recordingVisualizer = null;
-let recordingCancelBtn = null;
-let recordingSendBtn = null;
-
-let recentChatsBox = null;
-let groupsBox = null;
-let createGroupBtn = null;
-let groupModal = null;
-let groupActionsBox = null;
-
-let settingsBtn = null;
-let profileAvatarBtn = null;
-let settingsModal = null;
 let profileAvatarDraft = "";
-
-let contextMenu = null;
-let contextMessage = null;
-let replyToMessage = null;
-let editingMessage = null;
-let replyPanel = null;
-let editPanel = null;
 
 const voicePlayers = new Map();
 
@@ -103,13 +71,39 @@ const messagesBox = document.getElementById("messages");
 const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 
-let appSettings = {
-  selectedMicId: "",
-  notificationSoundsEnabled: true,
-  notificationVolume: 0.8,
-  voicePlaybackVolume: 1,
-  favoritesText: ""
-};
+let recentChatsBox = null;
+let groupsBox = null;
+let createGroupBtn = null;
+let groupModal = null;
+
+let avatarInput = null;
+let fileInput = null;
+let attachBtn = null;
+let voiceBtn = null;
+let profileAvatarBtn = null;
+let profileBtn = null;
+let groupActionsBox = null;
+let profileModal = null;
+let profileModalAvatarInput = null;
+
+let recordingPanel = null;
+let recordingTimer = null;
+let recordingVisualizer = null;
+let recordingCancelBtn = null;
+let recordingSendBtn = null;
+
+/* =========================================================
+   MESSAGE MENU / REPLY / EDIT STATE
+   ========================================================= */
+
+let contextSelectedMessage = null;
+let replyToMessage = null;
+let editingMessage = null;
+
+let messageContextMenu = null;
+let replyPanel = null;
+let editPanel = null;
+let replyPanelText = null;
 
 function normalizeUsername(username) {
   return String(username || "")
@@ -118,34 +112,20 @@ function normalizeUsername(username) {
     .replace(/^@/, "");
 }
 
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function formatTime(value) {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "";
-
-  return date.toLocaleTimeString("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
 function showError(text) {
   if (authError) authError.textContent = text || "Ошибка";
 }
 
 function clearError() {
   if (authError) authError.textContent = "";
+}
+
+function getInputData() {
+  return {
+    displayName: displayNameInput ? displayNameInput.value.trim() : "",
+    username: usernameInput ? normalizeUsername(usernameInput.value) : "",
+    password: passwordInput ? passwordInput.value : ""
+  };
 }
 
 async function request(url, options = {}) {
@@ -165,21 +145,13 @@ async function request(url, options = {}) {
   return data;
 }
 
-function getInputData() {
-  return {
-    displayName: displayNameInput ? displayNameInput.value.trim() : "",
-    username: usernameInput ? normalizeUsername(usernameInput.value) : "",
-    password: passwordInput ? passwordInput.value : ""
-  };
-}
-
 function saveUser(user) {
   const remember = rememberMeInput ? rememberMeInput.checked : false;
 
-  localStorage.removeItem("darkMessengerUser");
   sessionStorage.removeItem("darkMessengerUser");
-  localStorage.removeItem("callibriUser");
+  localStorage.removeItem("darkMessengerUser");
   sessionStorage.removeItem("callibriUser");
+  localStorage.removeItem("callibriUser");
 
   if (remember) {
     localStorage.setItem("callibriUser", JSON.stringify(user));
@@ -189,18 +161,18 @@ function saveUser(user) {
 }
 
 function updateSavedUser(user) {
-  const useLocal =
+  currentUser = user;
+
+  const hasLocal =
     Boolean(localStorage.getItem("callibriUser")) ||
     Boolean(localStorage.getItem("darkMessengerUser"));
 
-  currentUser = user;
-
-  localStorage.removeItem("darkMessengerUser");
   sessionStorage.removeItem("darkMessengerUser");
-  localStorage.removeItem("callibriUser");
+  localStorage.removeItem("darkMessengerUser");
   sessionStorage.removeItem("callibriUser");
+  localStorage.removeItem("callibriUser");
 
-  if (useLocal) {
+  if (hasLocal) {
     localStorage.setItem("callibriUser", JSON.stringify(user));
   } else {
     sessionStorage.setItem("callibriUser", JSON.stringify(user));
@@ -209,13 +181,8 @@ function updateSavedUser(user) {
 
 function loadSavedUser() {
   try {
-    const localUser =
-      localStorage.getItem("callibriUser") ||
-      localStorage.getItem("darkMessengerUser");
-
-    const sessionUser =
-      sessionStorage.getItem("callibriUser") ||
-      sessionStorage.getItem("darkMessengerUser");
+    const localUser = localStorage.getItem("callibriUser") || localStorage.getItem("darkMessengerUser");
+    const sessionUser = sessionStorage.getItem("callibriUser") || sessionStorage.getItem("darkMessengerUser");
 
     if (localUser) {
       if (rememberMeInput) rememberMeInput.checked = true;
@@ -233,27 +200,42 @@ function loadSavedUser() {
   }
 }
 
-function getSettingsKey() {
-  if (!currentUser) return "";
-  return `callibri_settings_${currentUser.username}`;
-}
+function logout() {
+  cancelVoiceRecording();
+  stopTyping();
+  destroyAllVoicePlayers();
 
-function loadSettings() {
-  try {
-    const raw = localStorage.getItem(getSettingsKey());
-    if (!raw) return;
+  localStorage.removeItem("darkMessengerUser");
+  sessionStorage.removeItem("darkMessengerUser");
+  localStorage.removeItem("callibriUser");
+  sessionStorage.removeItem("callibriUser");
 
-    appSettings = {
-      ...appSettings,
-      ...JSON.parse(raw)
-    };
-  } catch {}
-}
+  currentUser = null;
+  selectedUser = null;
+  selectedGroup = null;
+  selectedChatType = null;
 
-function saveSettings() {
-  try {
-    localStorage.setItem(getSettingsKey(), JSON.stringify(appSettings));
-  } catch {}
+  usersCache = [];
+  recentChatsCache = [];
+  groupsCache = [];
+  messagesCache = [];
+  unreadDirect = {};
+  unreadGroups = {};
+  onlineUsers = {};
+  typingUsers = {};
+
+  updateUnreadTitle();
+
+  if (rememberMeInput) rememberMeInput.checked = false;
+
+  if (app) app.classList.add("hidden");
+  if (auth) auth.classList.remove("hidden");
+
+  if (messageInput) messageInput.disabled = true;
+  if (sendBtn) sendBtn.disabled = true;
+
+  hideGroupActions();
+  cancelMessageModes();
 }
 
 async function register() {
@@ -278,7 +260,7 @@ async function register() {
 
     currentUser = data.user;
     saveUser(currentUser);
-    await startApp();
+    startApp();
   } catch (error) {
     showError(error.message);
   }
@@ -305,832 +287,506 @@ async function login() {
 
     currentUser = data.user;
     saveUser(currentUser);
-    await startApp();
+    startApp();
   } catch (error) {
     showError(error.message);
   }
 }
 
-function logout() {
-  cancelVoiceRecording();
-  stopTyping();
-  destroyAllVoicePlayers();
-  closeSettingsModal();
-  hideContextMenu();
-  cancelReply();
-  cancelEdit();
-
-  localStorage.removeItem("callibriUser");
-  sessionStorage.removeItem("callibriUser");
-  localStorage.removeItem("darkMessengerUser");
-  sessionStorage.removeItem("darkMessengerUser");
-
-  currentUser = null;
-  selectedUser = null;
-  selectedGroup = null;
-  selectedChatType = null;
-
-  usersCache = [];
-  recentChatsCache = [];
-  groupsCache = [];
-  messagesCache = [];
-  unreadDirect = {};
-  unreadGroups = {};
-  onlineUsers = {};
-  typingUsers = {};
-
-  archivedDirect = {};
-archivedGroups = {};
-archiveMode = false;
-
-  if (auth) auth.classList.remove("hidden");
-  if (app) app.classList.add("hidden");
-
-  updateUnreadTitle();
-}
-
 function updateUnreadTitle() {
-  const directCount = Object.values(unreadDirect).reduce((sum, value) => sum + value, 0);
-  const groupCount = Object.values(unreadGroups).reduce((sum, value) => sum + value, 0);
-  const total = directCount + groupCount;
+  const totalDirect = Object.values(unreadDirect).reduce((sum, value) => sum + value, 0);
+  const totalGroups = Object.values(unreadGroups).reduce((sum, value) => sum + value, 0);
+  const total = totalDirect + totalGroups;
 
   document.title = total > 0 ? `(${total}) Callibri` : "Callibri";
 }
 
-function injectStyles() {
-  if (document.getElementById("callibriDynamicStyles")) return;
+async function setupWindowsNotifications() {
+  if (notificationPermissionRequested) return;
 
-  const style = document.createElement("style");
-  style.id = "callibriDynamicStyles";
+  notificationPermissionRequested = true;
 
-  style.textContent = `
-    .callibri-avatar-btn {
-      width: 52px;
-      height: 52px;
-      border-radius: 18px;
-      overflow: hidden;
-      background: linear-gradient(135deg, #0ea5e9, #10b981);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      font-size: 22px;
-      flex-shrink: 0;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+  if (!("Notification" in window)) return;
+
+  if (Notification.permission === "default") {
+    try {
+      await Notification.requestPermission();
+    } catch (error) {
+      console.log("Notification permission error:", error);
     }
+  }
+}
 
-    .callibri-avatar-btn img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
+function makeNotificationText(message) {
+  if (!message) return "Новое сообщение";
 
-    .callibri-settings-btn {
-      width: 44px;
-      height: 44px;
-      margin-left: auto;
-      border-radius: 15px;
-      background: linear-gradient(135deg, rgba(14, 165, 233, 0.9), rgba(16, 185, 129, 0.8));
-      color: white;
-      font-size: 20px;
-      font-weight: 900;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
-    }
+  if (message.text || message.message) {
+    return String(message.text || message.message);
+  }
 
-    .online-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 6px;
-      background: #64748b;
-    }
+  if (message.media) {
+    if (message.media.type === "image") return "Фото";
+    if (message.media.type === "video") return "Видео";
+    if (message.media.type === "audio") return "Голосовое сообщение";
+  }
 
-    .online-dot.online {
-      background: #22c55e;
-      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
-    }
+  return "Новое сообщение";
+}
 
-    .unread-badge {
-      margin-left: auto;
-      min-width: 22px;
-      height: 22px;
-      padding: 0 7px;
-      border-radius: 999px;
-      background: #06b6d4;
-      color: white;
-      font-size: 12px;
-      font-weight: 800;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+function showWindowsNotification(title, body, avatar) {
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
 
-    .message {
-      position: relative;
-    }
+  try {
+    const notification = new Notification(title, {
+      body,
+      icon: avatar || undefined,
+      silent: false
+    });
 
-    .message-meta {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 6px;
-      margin-top: 6px;
-      font-size: 12px;
-      color: #9fb3c8;
-    }
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
 
-    .message-status {
-      position: relative;
-      display: inline-flex;
-      width: 20px;
-      height: 13px;
-      flex-shrink: 0;
-    }
+    setTimeout(() => {
+      notification.close();
+    }, 7000);
+  } catch (error) {
+    console.log("Notification show error:", error);
+  }
+}
 
-    .message-status__check {
-      position: absolute;
-      top: -2px;
-      font-size: 13px;
-      line-height: 1;
-      font-weight: 900;
-    }
+function shouldNotifyDirect(message) {
+  if (!currentUser) return false;
 
-    .message-status__check.first {
-      left: 0;
-    }
+  const from = normalizeUsername(message.from || message.username);
 
-    .message-status__check.second {
-      left: 7px;
-    }
+  if (!from || from === currentUser.username) return false;
 
-    .message-status.unread .message-status__check {
-      color: #94a3b8;
-    }
+  if (selectedChatType === "direct" && selectedUser && selectedUser.username === from) {
+    return document.hidden;
+  }
 
-    .message-status.read .message-status__check {
-      color: #5fd2ff;
-      text-shadow: 0 0 8px rgba(95, 210, 255, 0.35);
-    }
+  return true;
+}
 
-    .message-edited {
-      font-size: 11px;
-      opacity: 0.7;
-    }
+function shouldNotifyGroup(message) {
+  if (!currentUser) return false;
 
-    .message-reply-preview {
-      margin-bottom: 8px;
-      padding: 7px 9px;
-      border-radius: 11px;
-      border-left: 3px solid #22d3ee;
-      background: rgba(34, 211, 238, 0.12);
-      overflow: hidden;
-    }
+  const from = normalizeUsername(message.from || message.username);
+  const groupId = String(message.groupId || "");
 
-    .message.mine .message-reply-preview {
-      border-left-color: rgba(255, 255, 255, 0.85);
-      background: rgba(255, 255, 255, 0.13);
-    }
+  if (!groupId || from === currentUser.username) return false;
 
-    .message-reply-author {
-      font-size: 12px;
-      font-weight: 900;
-      color: #67e8f9;
-      margin-bottom: 2px;
-    }
+  if (selectedChatType === "group" && selectedGroup && selectedGroup.id === groupId) {
+    return document.hidden;
+  }
 
-    .message.mine .message-reply-author {
-      color: rgba(255, 255, 255, 0.85);
-    }
+  return true;
+}
 
-    .message-reply-text {
-      font-size: 12px;
-      color: rgba(226, 232, 240, 0.82);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
+function notifyDirectMessage(message) {
+  if (!shouldNotifyDirect(message)) return;
 
-    .message-context-menu {
-      position: fixed;
-      z-index: 999999;
-      width: 220px;
-      padding: 7px;
-      border-radius: 16px;
-      background: rgba(15, 23, 42, 0.97);
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
-      backdrop-filter: blur(18px);
-    }
+  const from = normalizeUsername(message.from || message.username);
+  const title = message.displayName || from || "Новое сообщение";
+  const body = makeNotificationText(message);
 
-    .message-context-menu.hidden {
-      display: none;
-    }
+  showWindowsNotification(title, body, message.avatar || "");
+}
 
-    .message-context-menu button {
-      width: 100%;
-      height: 40px;
-      border: none;
-      outline: none;
-      background: transparent;
-      color: #e5e7eb;
-      border-radius: 11px;
-      padding: 0 11px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 11px;
-      font-size: 14px;
-      font-weight: 700;
-      text-align: left;
-    }
+function notifyGroupMessage(message) {
+  if (!shouldNotifyGroup(message)) return;
 
-    .message-context-menu button:hover {
-      background: rgba(148, 163, 184, 0.13);
-    }
+  const group = groupsCache.find((item) => item.id === String(message.groupId));
+  const groupName = group ? group.name : "Группа";
+  const sender = message.displayName || message.username || "Участник";
+  const body = `${sender}: ${makeNotificationText(message)}`;
 
-    .message-context-menu button.danger {
-      color: #fb7185;
-    }
+  showWindowsNotification(groupName, body, message.avatar || "");
+}
 
-    .message-context-menu button.danger:hover {
-      background: rgba(251, 113, 133, 0.14);
-    }
+function unreadBadge(count) {
+  if (!count || count <= 0) return "";
 
-    .mode-panel {
-      margin: 8px 0 10px;
-      padding: 10px 12px;
-      border-radius: 16px;
-      background: rgba(15, 23, 42, 0.92);
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .mode-panel.hidden {
-      display: none;
-    }
-
-    .mode-panel-line {
-      width: 3px;
-      align-self: stretch;
-      min-height: 36px;
-      border-radius: 999px;
-      background: #22d3ee;
-      flex-shrink: 0;
-    }
-
-    .mode-panel.edit .mode-panel-line {
-      background: #f59e0b;
-    }
-
-    .mode-panel-content {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .mode-panel-title {
-      font-size: 12px;
-      font-weight: 900;
-      color: #67e8f9;
-      margin-bottom: 3px;
-    }
-
-    .mode-panel.edit .mode-panel-title {
-      color: #fbbf24;
-    }
-
-    .mode-panel-text {
-      color: #cbd5e1;
-      font-size: 13px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .mode-panel-close {
-      width: 30px;
-      height: 30px;
-      border: none;
-      border-radius: 50%;
-      background: rgba(148, 163, 184, 0.13);
-      color: white;
-      cursor: pointer;
-      font-size: 20px;
-      line-height: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .settings-modal-shell {
-      width: min(96vw, 760px);
-      max-height: 88vh;
-      overflow: auto;
-      background: linear-gradient(180deg, rgba(7,37,67,.98), rgba(10,72,86,.98));
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: 26px;
-      padding: 22px;
-      color: #e2e8f0;
-      box-shadow: 0 30px 80px rgba(0,0,0,.38);
-    }
-
-    .settings-modal-shell h2 {
-      margin: 0 0 8px;
-      color: #fff;
-    }
-
-    .settings-section {
-      margin-top: 16px;
-      padding: 16px;
-      border-radius: 18px;
-      background: rgba(255,255,255,.05);
-      border: 1px solid rgba(255,255,255,.07);
-    }
-
-    .settings-section h3 {
-      margin: 0 0 10px;
-      color: #d9f99d;
-    }
-
-    .settings-section input,
-    .settings-section select,
-    .settings-section textarea {
-      width: 100%;
-      box-sizing: border-box;
-      margin-bottom: 10px;
-      padding: 11px 13px;
-      border-radius: 13px;
-      border: 1px solid rgba(255,255,255,.10);
-      background: rgba(2, 6, 23, .45);
-      color: #e2e8f0;
-      outline: none;
-    }
-
-    .settings-section textarea {
-      min-height: 130px;
-      resize: vertical;
-    }
-
-    .settings-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .settings-row button,
-    .settings-modal-shell button {
-      min-height: 38px;
-      padding: 0 14px;
-      border-radius: 13px;
-      border: none;
-      background: rgba(255,255,255,.1);
-      color: white;
-      font-weight: 800;
-      cursor: pointer;
-    }
-
-    .settings-row .primary,
-    .settings-modal-shell .primary {
-      background: linear-gradient(135deg, #0ea5e9, #10b981);
-    }
-
-    .settings-row .danger {
-      background: linear-gradient(135deg, rgba(190,24,93,.88), rgba(153,27,27,.95));
-    }
-
-    .settings-avatar-preview {
-      width: 72px;
-      height: 72px;
-      border-radius: 22px;
-      overflow: hidden;
-      background: linear-gradient(135deg, #2563eb, #10b981);
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      font-weight: 900;
-      margin-bottom: 10px;
-    }
-
-    .settings-avatar-preview img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .voice-card__footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .voice-card__footer-left,
-    .voice-card__footer-right {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .voice-card__clock {
-      color: #9fb3c8;
-      font-size: 12px;
-    }
-      .archive-btn {
-      width: 100%;
-      min-height: 62px;
-      margin: 10px 0 12px;
-      padding: 10px 12px;
-      border: 1px solid rgba(34, 211, 238, 0.24);
-      border-radius: 18px;
-      background: linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(16, 185, 129, 0.14));
-      color: #e2e8f0;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-align: left;
-      cursor: pointer;
-      transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-    }
-
-    .archive-btn:hover {
-      transform: translateY(-1px);
-      background: linear-gradient(135deg, rgba(14, 165, 233, 0.26), rgba(16, 185, 129, 0.2));
-      border-color: rgba(125, 211, 252, 0.38);
-    }
-
-    .archive-icon {
-      width: 38px;
-      height: 38px;
-      border-radius: 14px;
-      background: rgba(15, 23, 42, 0.72);
-      border: 1px solid rgba(125, 211, 252, 0.24);
-      color: #67e8f9;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      flex-shrink: 0;
-      box-shadow: 0 10px 22px rgba(0,0,0,0.2);
-    }
-
-    .archive-info {
-      min-width: 0;
-      flex: 1;
-    }
-
-    .archive-info b {
-      display: block;
-      color: #f8fafc;
-      font-size: 14px;
-      font-weight: 900;
-      margin-bottom: 3px;
-    }
-
-    .archive-info span {
-      display: block;
-      color: #9bd8e6;
-      font-size: 12px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .archive-badge {
-      min-width: 24px;
-      height: 24px;
-      padding: 0 7px;
-      border-radius: 999px;
-      background: #06b6d4;
-      color: white;
-      font-size: 12px;
-      font-weight: 900;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .archive-context-menu {
-      position: fixed;
-      z-index: 999999;
-      width: 210px;
-      padding: 7px;
-      border-radius: 16px;
-      background: rgba(15, 23, 42, 0.97);
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
-      backdrop-filter: blur(18px);
-    }
-
-    .archive-context-menu.hidden {
-      display: none;
-    }
-
-    .archive-context-menu button {
-      width: 100%;
-      height: 40px;
-      border: none;
-      outline: none;
-      background: transparent;
-      color: #e5e7eb;
-      border-radius: 11px;
-      padding: 0 11px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 11px;
-      font-size: 14px;
-      font-weight: 800;
-      text-align: left;
-    }
-
-    .archive-context-menu button:hover {
-      background: rgba(148, 163, 184, 0.13);
-    }`;
-
-  document.head.appendChild(style);
+  return `
+    <span style="
+      margin-left:auto;
+      min-width:22px;
+      height:22px;
+      padding:0 7px;
+      border-radius:999px;
+      background:#06b6d4;
+      color:white;
+      font-size:12px;
+      font-weight:800;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow:0 0 0 2px rgba(6,182,212,0.18);
+    ">
+      ${count > 99 ? "99+" : count}
+    </span>
+  `;
 }
 
 function onlineDot(username) {
   const online = onlineUsers[normalizeUsername(username)];
 
   return `
-    <span class="online-dot ${online ? "online" : ""}"></span>
+    <span style="
+      width:9px;
+      height:9px;
+      border-radius:50%;
+      background:${online ? "#22c55e" : "#64748b"};
+      display:inline-block;
+      margin-right:6px;
+      box-shadow:${online ? "0 0 0 3px rgba(34,197,94,0.18)" : "none"};
+    "></span>
   `;
 }
 
-function unreadBadge(count) {
-  if (!count || count <= 0) return "";
+function updateChatStatusText() {
+  if (!chatStatus) return;
 
-  return `<span class="unread-badge">${count > 99 ? "99+" : count}</span>`;
-}
+  if (selectedChatType === "direct" && selectedUser) {
+    const username = selectedUser.username;
+    const typing = typingUsers[username];
 
-function renderAvatar(user) {
-  const avatar = user && user.avatar;
+    if (typing) {
+      chatStatus.textContent = "печатает...";
+      return;
+    }
 
-  if (avatar) {
-    return `<div class="avatar"><img src="${avatar}" alt="avatar"></div>`;
+    chatStatus.textContent = onlineUsers[username] ? "онлайн" : "офлайн";
+    return;
   }
 
-  return `<div class="avatar">${escapeHtml(((user && (user.displayName || user.username)) || "?")[0] || "?")}</div>`;
+  if (selectedChatType === "group" && selectedGroup) {
+    const typingList = Object.keys(typingUsers).filter((username) => typingUsers[username]);
+
+    if (typingList.length === 1) {
+      chatStatus.textContent = `@${typingList[0]} печатает...`;
+      return;
+    }
+
+    if (typingList.length > 1) {
+      chatStatus.textContent = "несколько участников печатают...";
+      return;
+    }
+
+    chatStatus.textContent = `${selectedGroup.members.length} участн. · создатель @${selectedGroup.owner}`;
+  }
+}
+
+function emitTypingStart() {
+  if (!currentUser || !selectedChatType) return;
+  if (isTypingNow) return;
+
+  isTypingNow = true;
+
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("typing_start", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      chatType: "direct"
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("typing_start", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      chatType: "group"
+    });
+  }
+}
+
+function stopTyping() {
+  if (!currentUser || !selectedChatType || !isTypingNow) return;
+
+  isTypingNow = false;
+
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("typing_stop", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      chatType: "direct"
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("typing_stop", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      chatType: "group"
+    });
+  }
+}
+
+function handleTypingInput() {
+  if (!canSendNow()) return;
+
+  const text = messageInput ? messageInput.value.trim() : "";
+
+  if (!text) {
+    stopTyping();
+    return;
+  }
+
+  if (editingMessage) return;
+
+  emitTypingStart();
+
+  clearTimeout(typingTimer);
+
+  typingTimer = setTimeout(() => {
+    stopTyping();
+  }, 1600);
+}
+
+function clearTypingState() {
+  typingUsers = {};
+  updateChatStatusText();
 }
 
 function setupProfileUI() {
-  if (!meName) return;
+  if (!meName || document.getElementById("profileAvatarBtn")) return;
 
   const profile = meName.closest(".profile");
 
   if (!profile) return;
 
-  if (!profileAvatarBtn) {
-    profileAvatarBtn = document.createElement("button");
-    profileAvatarBtn.id = "profileAvatarBtn";
-    profileAvatarBtn.type = "button";
-    profileAvatarBtn.className = "callibri-avatar-btn";
-    profileAvatarBtn.title = "Профиль и настройки";
-    profileAvatarBtn.addEventListener("click", openSettingsModal);
-    profile.prepend(profileAvatarBtn);
+  profileAvatarBtn = document.createElement("button");
+  profileAvatarBtn.id = "profileAvatarBtn";
+  profileAvatarBtn.type = "button";
+  profileAvatarBtn.title = "Профиль";
+
+  profileBtn = document.createElement("button");
+  profileBtn.id = "profileBtn";
+  profileBtn.type = "button";
+  profileBtn.textContent = "Профиль";
+  profileBtn.title = "Открыть профиль";
+
+  profileBtn.style.marginLeft = "auto";
+  profileBtn.style.background = "#243044";
+  profileBtn.style.color = "#cbd5e1";
+  profileBtn.style.padding = "9px 12px";
+  profileBtn.style.borderRadius = "12px";
+  profileBtn.style.fontWeight = "700";
+  profileBtn.style.whiteSpace = "nowrap";
+
+  if (logoutBtn) {
+    logoutBtn.style.marginLeft = "6px";
   }
 
-  if (!settingsBtn) {
-    settingsBtn = document.createElement("button");
-    settingsBtn.id = "settingsBtn";
-    settingsBtn.type = "button";
-    settingsBtn.className = "callibri-settings-btn";
-    settingsBtn.title = "Настройки";
-    settingsBtn.textContent = "⚙";
-    settingsBtn.addEventListener("click", openSettingsModal);
-    profile.appendChild(settingsBtn);
+  profile.prepend(profileAvatarBtn);
+
+  if (logoutBtn) {
+    profile.insertBefore(profileBtn, logoutBtn);
+  } else {
+    profile.appendChild(profileBtn);
   }
 
-  if (logoutBtn) logoutBtn.style.display = "none";
+  profileAvatarBtn.addEventListener("click", openProfileModal);
+  profileBtn.addEventListener("click", openProfileModal);
 
+  createProfileModal();
   renderMyAvatar();
 }
 
-function renderMyAvatar() {
-  if (!profileAvatarBtn || !currentUser) return;
+function createProfileModal() {
+  if (document.getElementById("profileModal")) return;
 
-  if (currentUser.avatar) {
-    profileAvatarBtn.innerHTML = `<img src="${currentUser.avatar}" alt="avatar">`;
-  } else {
-    profileAvatarBtn.textContent = (currentUser.displayName || currentUser.username || "?")[0].toUpperCase();
-  }
-}
+  profileModal = document.createElement("div");
+  profileModal.id = "profileModal";
+  profileModal.className = "modal hidden";
 
-function setupSettingsModal() {
-  if (document.getElementById("settingsModal")) {
-    settingsModal = document.getElementById("settingsModal");
-    return;
-  }
+  profileModal.innerHTML = `
+    <div class="modal-card" style="max-width:460px;">
+      <h2>Профиль</h2>
+      <p>Здесь можно изменить аватарку, имя и @username.</p>
 
-  settingsModal = document.createElement("div");
-  settingsModal.id = "settingsModal";
-  settingsModal.className = "modal hidden";
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+        <button id="profileModalAvatarBtn" type="button" style="
+          width:74px;
+          height:74px;
+          border-radius:50%;
+          background:linear-gradient(135deg,#22d3ee,#2563eb);
+          color:white;
+          font-size:28px;
+          font-weight:900;
+          overflow:hidden;
+          flex-shrink:0;
+        "></button>
 
-  settingsModal.innerHTML = `
-    <div class="settings-modal-shell">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <div>
-          <h2>Настройки Callibri</h2>
-          <div style="color:#9bd8e6;font-size:13px;">Профиль, микрофон, избранное и уведомления</div>
-        </div>
+          <button id="profileChangeAvatarBtn" type="button" style="
+            background:#243044;
+            color:white;
+            border-radius:12px;
+            padding:10px 13px;
+            font-weight:800;
+          ">Сменить аватарку</button>
 
-        <button id="settingsCloseBtn" type="button">×</button>
-      </div>
-
-      <div class="settings-section">
-        <h3>Профиль</h3>
-        <div id="settingsAvatarPreview" class="settings-avatar-preview">?</div>
-        <input id="settingsDisplayName" type="text" placeholder="Имя" />
-        <input id="settingsUsername" type="text" placeholder="username без @" />
-        <input id="settingsAvatarFile" type="file" accept="image/*" style="display:none;" />
-
-        <div class="settings-row">
-          <button id="settingsChangeAvatar" type="button">Сменить аватарку</button>
-          <button id="settingsRemoveAvatar" type="button">Убрать</button>
-          <button id="settingsSaveProfile" type="button" class="primary">Сохранить профиль</button>
-        </div>
-
-        <div id="settingsProfileError" style="margin-top:8px;color:#fb7185;font-size:13px;"></div>
-      </div>
-
-      <div class="settings-section">
-        <h3>Микрофон</h3>
-        <select id="settingsMicSelect"></select>
-
-        <div class="settings-row">
-          <button id="settingsRefreshMics" type="button">Обновить список</button>
-          <button id="settingsSaveMic" type="button" class="primary">Сохранить микрофон</button>
-        </div>
-
-        <div style="margin-top:8px;color:#9bd8e6;font-size:12px;">
-          Для лучшего качества не выбирай Bluetooth Hands-Free микрофон.
+          <button id="profileRemoveAvatarBtn" type="button" style="
+            background:#3a2230;
+            color:#fb7185;
+            border-radius:12px;
+            padding:10px 13px;
+            font-weight:800;
+            margin-left:6px;
+          ">Убрать</button>
         </div>
       </div>
 
-      <div class="settings-section">
-        <h3>Избранное</h3>
-        <textarea id="settingsFavorites" placeholder="Твои заметки, ссылки, важная информация..."></textarea>
+      <input id="profileDisplayNameInput" type="text" placeholder="Имя" />
+      <input id="profileUsernameInput" type="text" placeholder="username без @" />
 
-        <div class="settings-row">
-          <button id="settingsSaveFavorites" type="button" class="primary">Сохранить избранное</button>
-          <button id="settingsClearFavorites" type="button">Очистить</button>
-        </div>
+      <div style="color:#94a3b8;font-size:13px;line-height:1.4;margin:-4px 0 12px;">
+        Username: только латиница, цифры и нижнее подчёркивание. От 3 до 24 символов.
       </div>
 
-      <div class="settings-section">
-        <h3>Уведомления и звук</h3>
+      <input id="profileAvatarFileInput" type="file" accept="image/*" style="display:none;" />
 
-        <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-          <input id="settingsNotificationsEnabled" type="checkbox" style="width:auto;margin:0;" />
-          <span>Звук уведомлений колибри</span>
-        </label>
+      <div id="profileError" style="min-height:20px;color:#fb7185;font-size:14px;margin-bottom:12px;"></div>
 
-        <label>Громкость уведомлений</label>
-        <input id="settingsNotificationVolume" type="range" min="0" max="100" step="1" />
-
-        <label>Громкость голосовых</label>
-        <input id="settingsVoiceVolume" type="range" min="0" max="100" step="1" />
-
-        <div class="settings-row">
-          <button id="settingsTestSound" type="button">Проверить звук</button>
-          <button id="settingsSaveSounds" type="button" class="primary">Сохранить звук</button>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h3>Устройство входа</h3>
-        <div id="settingsDeviceInfo" style="font-size:13px;color:#cbd5e1;line-height:1.6;"></div>
-      </div>
-
-      <div class="settings-row" style="margin-top:16px;justify-content:space-between;">
-        <button id="settingsLogout" type="button" class="danger">Выйти из аккаунта</button>
-        <button id="settingsDone" type="button" class="primary">Готово</button>
+      <div class="modal-actions">
+        <button id="cancelProfileBtn" type="button">Отмена</button>
+        <button id="saveProfileBtn" type="button">Сохранить</button>
       </div>
     </div>
   `;
 
-  document.body.appendChild(settingsModal);
+  document.body.appendChild(profileModal);
 
-  document.getElementById("settingsCloseBtn").addEventListener("click", closeSettingsModal);
-  document.getElementById("settingsDone").addEventListener("click", closeSettingsModal);
-  document.getElementById("settingsLogout").addEventListener("click", logout);
+  const cancelProfileBtn = document.getElementById("cancelProfileBtn");
+  const saveProfileBtn = document.getElementById("saveProfileBtn");
+  const profileModalAvatarBtn = document.getElementById("profileModalAvatarBtn");
+  const profileChangeAvatarBtn = document.getElementById("profileChangeAvatarBtn");
+  const profileRemoveAvatarBtn = document.getElementById("profileRemoveAvatarBtn");
 
-  document.getElementById("settingsChangeAvatar").addEventListener("click", () => {
-    document.getElementById("settingsAvatarFile").click();
-  });
+  profileModalAvatarInput = document.getElementById("profileAvatarFileInput");
 
-  document.getElementById("settingsRemoveAvatar").addEventListener("click", () => {
-    profileAvatarDraft = "";
-    renderSettingsAvatar();
-  });
+  if (cancelProfileBtn) cancelProfileBtn.addEventListener("click", closeProfileModal);
+  if (saveProfileBtn) saveProfileBtn.addEventListener("click", saveProfile);
 
-  document.getElementById("settingsAvatarFile").addEventListener("change", handleSettingsAvatar);
+  if (profileModalAvatarBtn) {
+    profileModalAvatarBtn.addEventListener("click", () => {
+      profileModalAvatarInput.click();
+    });
+  }
 
-  document.getElementById("settingsSaveProfile").addEventListener("click", saveProfileFromSettings);
-  document.getElementById("settingsRefreshMics").addEventListener("click", populateMicrophones);
-  document.getElementById("settingsSaveMic").addEventListener("click", saveMicSettings);
+  if (profileChangeAvatarBtn) {
+    profileChangeAvatarBtn.addEventListener("click", () => {
+      profileModalAvatarInput.click();
+    });
+  }
 
-  document.getElementById("settingsSaveFavorites").addEventListener("click", () => {
-    appSettings.favoritesText = document.getElementById("settingsFavorites").value;
-    saveSettings();
-    alert("Избранное сохранено");
-  });
+  if (profileRemoveAvatarBtn) {
+    profileRemoveAvatarBtn.addEventListener("click", () => {
+      profileAvatarDraft = "";
+      renderProfileModalAvatar();
+    });
+  }
 
-  document.getElementById("settingsClearFavorites").addEventListener("click", () => {
-    document.getElementById("settingsFavorites").value = "";
-    appSettings.favoritesText = "";
-    saveSettings();
-  });
-
-  document.getElementById("settingsTestSound").addEventListener("click", playNotificationSound);
-  document.getElementById("settingsSaveSounds").addEventListener("click", saveSoundSettings);
-}
-
-function openSettingsModal() {
-  setupSettingsModal();
-  loadSettings();
-
-  profileAvatarDraft = currentUser.avatar || "";
-
-  document.getElementById("settingsDisplayName").value = currentUser.displayName || currentUser.username || "";
-  document.getElementById("settingsUsername").value = currentUser.username || "";
-  document.getElementById("settingsFavorites").value = appSettings.favoritesText || "";
-  document.getElementById("settingsNotificationsEnabled").checked = Boolean(appSettings.notificationSoundsEnabled);
-  document.getElementById("settingsNotificationVolume").value = String(Math.round((appSettings.notificationVolume || 0.8) * 100));
-  document.getElementById("settingsVoiceVolume").value = String(Math.round((appSettings.voicePlaybackVolume || 1) * 100));
-
-  document.getElementById("settingsDeviceInfo").innerHTML = `
-    Браузер: ${escapeHtml(navigator.userAgent)}<br>
-    Платформа: ${escapeHtml(navigator.platform || "—")}<br>
-    Язык: ${escapeHtml(navigator.language || "—")}<br>
-    Экран: ${window.screen.width} × ${window.screen.height}
-  `;
-
-  renderSettingsAvatar();
-  populateMicrophones();
-
-  settingsModal.classList.remove("hidden");
-}
-
-function closeSettingsModal() {
-  if (settingsModal) settingsModal.classList.add("hidden");
-}
-
-function renderSettingsAvatar() {
-  const box = document.getElementById("settingsAvatarPreview");
-
-  if (!box) return;
-
-  if (profileAvatarDraft) {
-    box.innerHTML = `<img src="${profileAvatarDraft}" alt="avatar">`;
-  } else {
-    box.textContent = (currentUser.displayName || currentUser.username || "?")[0].toUpperCase();
+  if (profileModalAvatarInput) {
+    profileModalAvatarInput.addEventListener("change", handleProfileAvatarDraft);
   }
 }
 
-async function handleSettingsAvatar(event) {
+function openProfileModal() {
+  if (!currentUser) return;
+
+  createProfileModal();
+
+  const nameInput = document.getElementById("profileDisplayNameInput");
+  const usernameInput = document.getElementById("profileUsernameInput");
+  const error = document.getElementById("profileError");
+
+  profileAvatarDraft = currentUser.avatar || "";
+
+  if (nameInput) nameInput.value = currentUser.displayName || currentUser.username || "";
+  if (usernameInput) usernameInput.value = currentUser.username || "";
+  if (error) error.textContent = "";
+
+  renderProfileModalAvatar();
+
+  if (profileModal) {
+    profileModal.classList.remove("hidden");
+  }
+}
+
+function closeProfileModal() {
+  if (profileModal) {
+    profileModal.classList.add("hidden");
+  }
+
+  if (profileModalAvatarInput) {
+    profileModalAvatarInput.value = "";
+  }
+}
+
+function renderProfileModalAvatar() {
+  const btn = document.getElementById("profileModalAvatarBtn");
+
+  if (!btn || !currentUser) return;
+
+  if (profileAvatarDraft) {
+    btn.innerHTML = `<img src="${profileAvatarDraft}" alt="avatar" style="width:100%;height:100%;object-fit:cover;">`;
+  } else {
+    btn.textContent = (currentUser.displayName || currentUser.username || "?")[0].toUpperCase();
+  }
+}
+
+async function handleProfileAvatarDraft(event) {
   const file = event.target.files && event.target.files[0];
 
   if (!file) return;
 
   if (!file.type.startsWith("image/")) {
     alert("Выбери изображение");
+    event.target.value = "";
     return;
   }
 
   if (file.size > MAX_FILE_SIZE) {
     alert("Файл слишком большой. Максимум 8 МБ.");
+    event.target.value = "";
     return;
   }
 
-  profileAvatarDraft = await fileToDataUrl(file);
-  renderSettingsAvatar();
-  event.target.value = "";
+  try {
+    profileAvatarDraft = await fileToDataUrl(file);
+    renderProfileModalAvatar();
+  } catch (error) {
+    alert("Не удалось загрузить аватарку");
+  } finally {
+    event.target.value = "";
+  }
 }
 
-async function saveProfileFromSettings() {
-  const error = document.getElementById("settingsProfileError");
-  const displayName = document.getElementById("settingsDisplayName").value.trim();
-  const newUsername = normalizeUsername(document.getElementById("settingsUsername").value);
+async function saveProfile() {
+  if (!currentUser) return;
+
+  const nameInput = document.getElementById("profileDisplayNameInput");
+  const usernameInput = document.getElementById("profileUsernameInput");
+  const error = document.getElementById("profileError");
+
   const oldUsername = currentUser.username;
+  const displayName = nameInput ? nameInput.value.trim() : "";
+  const newUsername = usernameInput ? normalizeUsername(usernameInput.value) : "";
 
-  error.textContent = "";
+  if (error) error.textContent = "";
 
-  if (!displayName || !newUsername) {
-    error.textContent = "Введите имя и username";
+  if (!displayName) {
+    if (error) error.textContent = "Введите имя";
+    return;
+  }
+
+  if (!newUsername) {
+    if (error) error.textContent = "Введите username";
     return;
   }
 
@@ -1156,331 +812,37 @@ async function saveProfileFromSettings() {
       username: currentUser.username
     });
 
+    selectedUser = null;
+    selectedGroup = null;
+    selectedChatType = null;
+    messagesCache = [];
+
     await loadRecentChats();
     await loadGroups();
 
-    alert("Профиль сохранён");
+    renderEmptyChat();
+    closeProfileModal();
+
+    alert("Профиль обновлён");
   } catch (err) {
-    error.textContent = err.message;
+    if (error) error.textContent = err.message;
   }
 }
 
-async function populateMicrophones() {
-  const select = document.getElementById("settingsMicSelect");
-
-  if (!select) return;
-
-  select.innerHTML = `<option value="">Системный микрофон по умолчанию</option>`;
-
-  try {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        const temp = await navigator.mediaDevices.getUserMedia({ audio: true });
-        temp.getTracks().forEach((track) => track.stop());
-      } catch {}
-    }
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const microphones = devices.filter((device) => device.kind === "audioinput");
-
-    microphones.forEach((device, index) => {
-      const option = document.createElement("option");
-      option.value = device.deviceId;
-      option.textContent = device.label || `Микрофон ${index + 1}`;
-      select.appendChild(option);
-    });
-
-    select.value = appSettings.selectedMicId || "";
-  } catch {
-    select.innerHTML = `<option value="">Не удалось получить микрофоны</option>`;
-  }
-}
-
-function saveMicSettings() {
-  const select = document.getElementById("settingsMicSelect");
-
-  if (!select) return;
-
-  appSettings.selectedMicId = select.value || "";
-  saveSettings();
-  alert("Микрофон сохранён");
-}
-
-function saveSoundSettings() {
-  appSettings.notificationSoundsEnabled = document.getElementById("settingsNotificationsEnabled").checked;
-  appSettings.notificationVolume = Number(document.getElementById("settingsNotificationVolume").value) / 100;
-  appSettings.voicePlaybackVolume = Number(document.getElementById("settingsVoiceVolume").value) / 100;
-
-  saveSettings();
-  applyVoiceVolumeToPlayers();
-  alert("Настройки звука сохранены");
-}
-
-function applyVoiceVolumeToPlayers() {
-  for (const [, player] of voicePlayers.entries()) {
-    try {
-      player.setVolume(Number(appSettings.voicePlaybackVolume || 1));
-    } catch {}
-  }
-}
-
-function getArchiveStorageKey() {
-  if (!currentUser || !currentUser.username) return "";
-  return `callibri_archive_${currentUser.username}`;
-}
-
-function loadArchiveState() {
-  if (!currentUser) return;
-
-  try {
-    const raw = localStorage.getItem(getArchiveStorageKey());
-    const data = raw ? JSON.parse(raw) : {};
-
-    archivedDirect = data.direct || {};
-    archivedGroups = data.groups || {};
-  } catch {
-    archivedDirect = {};
-    archivedGroups = {};
-  }
-}
-
-function saveArchiveState() {
-  if (!currentUser) return;
-
-  localStorage.setItem(
-    getArchiveStorageKey(),
-    JSON.stringify({
-      direct: archivedDirect,
-      groups: archivedGroups
-    })
-  );
-}
-
-function isDirectArchived(username) {
-  return Boolean(archivedDirect[normalizeUsername(username)]);
-}
-
-function isGroupArchived(groupId) {
-  return Boolean(archivedGroups[String(groupId)]);
-}
-
-function archiveDirectChat(username) {
-  const cleanUsername = normalizeUsername(username);
-
-  if (!cleanUsername) return;
-
-  archivedDirect[cleanUsername] = true;
-  saveArchiveState();
-
-  if (
-    selectedChatType === "direct" &&
-    selectedUser &&
-    selectedUser.username === cleanUsername
-  ) {
-    renderEmptyChat();
-  }
-
-  renderRecentChats();
-  renderGroups();
-  renderArchiveButton();
-}
-
-function unarchiveDirectChat(username) {
-  const cleanUsername = normalizeUsername(username);
-
-  if (!cleanUsername) return;
-
-  delete archivedDirect[cleanUsername];
-  saveArchiveState();
-
-  renderRecentChats();
-  renderGroups();
-  renderArchiveButton();
-}
-
-function archiveGroupChat(groupId) {
-  const id = String(groupId || "");
-
-  if (!id) return;
-
-  archivedGroups[id] = true;
-  saveArchiveState();
-
-  if (
-    selectedChatType === "group" &&
-    selectedGroup &&
-    selectedGroup.id === id
-  ) {
-    renderEmptyChat();
-  }
-
-  renderRecentChats();
-  renderGroups();
-  renderArchiveButton();
-}
-
-function unarchiveGroupChat(groupId) {
-  const id = String(groupId || "");
-
-  if (!id) return;
-
-  delete archivedGroups[id];
-  saveArchiveState();
-
-  renderRecentChats();
-  renderGroups();
-  renderArchiveButton();
-}
-
-function getArchivedCount() {
-  const directCount = recentChatsCache.filter((chat) =>
-    isDirectArchived(chat.username)
-  ).length;
-
-  const groupCount = groupsCache.filter((group) =>
-    isGroupArchived(group.id)
-  ).length;
-
-  return directCount + groupCount;
-}
-
-function renderArchiveButton() {
-  if (!archiveBtn) return;
-
-  const count = getArchivedCount();
-
-  archiveBtn.innerHTML = `
-    <div class="archive-icon">▣</div>
-
-    <div class="archive-info">
-      <b>${archiveMode ? "← Все чаты" : "Архив"}</b>
-      <span>${
-        archiveMode
-          ? "Вернуться к обычным чатам"
-          : count > 0
-            ? `${count} в архиве`
-            : "Пока пусто"
-      }</span>
-    </div>
-
-    ${
-      count > 0 && !archiveMode
-        ? `<span class="archive-badge">${count}</span>`
-        : ""
-    }
-  `;
-}
-
-function toggleArchiveMode() {
-  archiveMode = !archiveMode;
-
-  renderArchiveButton();
-  renderRecentChats();
-  renderGroups();
-  renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
-}
-
-function setupArchiveContextMenu() {
-  if (document.getElementById("archiveContextMenu")) {
-    archiveContextMenu = document.getElementById("archiveContextMenu");
-    return;
-  }
-
-  archiveContextMenu = document.createElement("div");
-  archiveContextMenu.id = "archiveContextMenu";
-  archiveContextMenu.className = "archive-context-menu hidden";
-
-  archiveContextMenu.innerHTML = `
-    <button id="archiveContextToggleBtn" type="button">В архив</button>
-  `;
-
-  document.body.appendChild(archiveContextMenu);
-
-  document
-    .getElementById("archiveContextToggleBtn")
-    .addEventListener("click", () => {
-      if (!archiveContextTarget) return;
-
-      if (archiveContextTarget.type === "direct") {
-        if (isDirectArchived(archiveContextTarget.id)) {
-          unarchiveDirectChat(archiveContextTarget.id);
-        } else {
-          archiveDirectChat(archiveContextTarget.id);
-        }
-      }
-
-      if (archiveContextTarget.type === "group") {
-        if (isGroupArchived(archiveContextTarget.id)) {
-          unarchiveGroupChat(archiveContextTarget.id);
-        } else {
-          archiveGroupChat(archiveContextTarget.id);
-        }
-      }
-
-      hideArchiveContextMenu();
-    });
-
-  document.addEventListener("click", (event) => {
-    if (!event.target.closest("#archiveContextMenu")) {
-      hideArchiveContextMenu();
-    }
-  });
-
-  window.addEventListener("resize", hideArchiveContextMenu);
-}
-
-function openArchiveContextMenu(event, target) {
-  setupArchiveContextMenu();
-
-  archiveContextTarget = target;
-
-  const btn = document.getElementById("archiveContextToggleBtn");
-
-  if (target.type === "direct") {
-    btn.textContent = isDirectArchived(target.id)
-      ? "Вернуть из архива"
-      : "В архив";
-  }
-
-  if (target.type === "group") {
-    btn.textContent = isGroupArchived(target.id)
-      ? "Вернуть из архива"
-      : "В архив";
-  }
-
-  archiveContextMenu.classList.remove("hidden");
-
-  const rect = archiveContextMenu.getBoundingClientRect();
-
-  let x = event.clientX;
-  let y = event.clientY;
-
-  if (x + rect.width > window.innerWidth) {
-    x = window.innerWidth - rect.width - 10;
-  }
-
-  if (y + rect.height > window.innerHeight) {
-    y = window.innerHeight - rect.height - 10;
-  }
-
-  archiveContextMenu.style.left = `${x}px`;
-  archiveContextMenu.style.top = `${y}px`;
-}
-
-function hideArchiveContextMenu() {
-  if (archiveContextMenu) {
-    archiveContextMenu.classList.add("hidden");
+function renderMyAvatar() {
+  if (!profileAvatarBtn || !currentUser) return;
+
+  if (currentUser.avatar) {
+    profileAvatarBtn.innerHTML = `<img src="${currentUser.avatar}" alt="avatar">`;
+  } else {
+    profileAvatarBtn.textContent = (currentUser.displayName || currentUser.username || "?")[0].toUpperCase();
   }
 }
 
 function setupGroupUI() {
   if (document.getElementById("createGroupBtn")) return;
-  if (!usersBox || !usersBox.parentElement) return;
 
-  archiveBtn = document.createElement("button");
-  archiveBtn.id = "archiveBtn";
-  archiveBtn.type = "button";
-  archiveBtn.className = "archive-btn";
+  if (!usersBox || !usersBox.parentElement) return;
 
   createGroupBtn = document.createElement("button");
   createGroupBtn.id = "createGroupBtn";
@@ -1505,7 +867,6 @@ function setupGroupUI() {
   usersTitle.className = "sidebar-title";
   usersTitle.textContent = "Поиск пользователей";
 
-  usersBox.parentElement.insertBefore(archiveBtn, usersBox);
   usersBox.parentElement.insertBefore(createGroupBtn, usersBox);
   usersBox.parentElement.insertBefore(recentTitle, usersBox);
   usersBox.parentElement.insertBefore(recentChatsBox, usersBox);
@@ -1513,12 +874,9 @@ function setupGroupUI() {
   usersBox.parentElement.insertBefore(groupsBox, usersBox);
   usersBox.parentElement.insertBefore(usersTitle, usersBox);
 
-  archiveBtn.addEventListener("click", toggleArchiveMode);
   createGroupBtn.addEventListener("click", openGroupModal);
 
   createGroupModal();
-  setupArchiveContextMenu();
-  renderArchiveButton();
 }
 
 function createGroupModal() {
@@ -1608,6 +966,7 @@ async function createGroup() {
 
 function setupGroupActionsUI() {
   if (document.getElementById("groupActionsBox")) return;
+
   if (!chatStatus || !chatStatus.parentElement) return;
 
   groupActionsBox = document.createElement("div");
@@ -1691,6 +1050,8 @@ async function leaveCurrentGroup() {
     renderGroups();
     renderEmptyChat();
     updateUnreadTitle();
+
+    alert("Ты вышел из группы");
   } catch (error) {
     alert(error.message);
   }
@@ -1699,7 +1060,7 @@ async function leaveCurrentGroup() {
 async function deleteCurrentGroup() {
   if (!currentUser || !selectedGroup) return;
 
-  const ok = confirm(`Удалить группу "${selectedGroup.name}" полностью?`);
+  const ok = confirm(`Удалить группу "${selectedGroup.name}" полностью? Сообщения группы тоже удалятся.`);
 
   if (!ok) return;
 
@@ -1714,6 +1075,8 @@ async function deleteCurrentGroup() {
     renderGroups();
     renderEmptyChat();
     updateUnreadTitle();
+
+    alert("Группа удалена");
   } catch (error) {
     alert(error.message);
   }
@@ -1750,10 +1113,10 @@ function setupMessageTools() {
   });
 
   fileInput.addEventListener("change", handleFileSend);
+
   voiceBtn.addEventListener("click", toggleVoiceRecording);
 
   setupRecordingPanel();
-  setupPanels();
 }
 
 function setupRecordingPanel() {
@@ -1793,183 +1156,6 @@ function setupRecordingPanel() {
   if (recordingSendBtn) recordingSendBtn.addEventListener("click", sendRecordedVoice);
 }
 
-function setupPanels() {
-  if (!sendBtn || !sendBtn.parentElement || !sendBtn.parentElement.parentElement) return;
-
-  const inputBox = sendBtn.parentElement;
-  const parent = inputBox.parentElement;
-
-  if (!document.getElementById("replyPanelNew")) {
-    replyPanel = document.createElement("div");
-    replyPanel.id = "replyPanelNew";
-    replyPanel.className = "mode-panel hidden";
-
-    replyPanel.innerHTML = `
-      <div class="mode-panel-line"></div>
-      <div class="mode-panel-content">
-        <div class="mode-panel-title">Ответ на сообщение</div>
-        <div id="replyPanelTextNew" class="mode-panel-text"></div>
-      </div>
-      <button id="cancelReplyNew" type="button" class="mode-panel-close">×</button>
-    `;
-
-    parent.insertBefore(replyPanel, inputBox);
-
-    document.getElementById("cancelReplyNew").addEventListener("click", cancelReply);
-  } else {
-    replyPanel = document.getElementById("replyPanelNew");
-  }
-
-  if (!document.getElementById("editPanelNew")) {
-    editPanel = document.createElement("div");
-    editPanel.id = "editPanelNew";
-    editPanel.className = "mode-panel edit hidden";
-
-    editPanel.innerHTML = `
-      <div class="mode-panel-line"></div>
-      <div class="mode-panel-content">
-        <div class="mode-panel-title">Редактирование сообщения</div>
-        <div class="mode-panel-text">Измени текст и нажми «Сохранить»</div>
-      </div>
-      <button id="cancelEditNew" type="button" class="mode-panel-close">×</button>
-    `;
-
-    parent.insertBefore(editPanel, inputBox);
-
-    document.getElementById("cancelEditNew").addEventListener("click", cancelEdit);
-  } else {
-    editPanel = document.getElementById("editPanelNew");
-  }
-}
-
-function setupContextMenu() {
-  if (document.getElementById("callibriContextMenu")) {
-    contextMenu = document.getElementById("callibriContextMenu");
-    return;
-  }
-
-  contextMenu = document.createElement("div");
-  contextMenu.id = "callibriContextMenu";
-  contextMenu.className = "message-context-menu hidden";
-
-  contextMenu.innerHTML = `
-    <button id="contextReplyBtn" type="button">↩ Ответить</button>
-    <button id="contextEditBtn" type="button">✎ Редактировать</button>
-    <button id="contextDeleteBtn" type="button" class="danger">🗑 Удалить</button>
-  `;
-
-  document.body.appendChild(contextMenu);
-
-  document.getElementById("contextReplyBtn").addEventListener("click", () => {
-    if (!contextMessage) return;
-
-    replyToMessage = {
-      id: contextMessage.id,
-      text: contextMessage.text,
-      username: contextMessage.username,
-      displayName: contextMessage.displayName
-    };
-
-    if (replyPanel) {
-      const textBox = document.getElementById("replyPanelTextNew");
-      if (textBox) textBox.textContent = replyToMessage.text || "Медиа";
-      replyPanel.classList.remove("hidden");
-    }
-
-    cancelEdit();
-    hideContextMenu();
-
-    if (messageInput) messageInput.focus();
-  });
-
-  document.getElementById("contextEditBtn").addEventListener("click", () => {
-    if (!contextMessage || !contextMessage.mine) return;
-
-    editingMessage = {
-      id: contextMessage.id,
-      text: contextMessage.text
-    };
-
-    if (messageInput) {
-      messageInput.value = contextMessage.text || "";
-      messageInput.focus();
-    }
-
-    if (sendBtn) sendBtn.textContent = "Сохранить";
-    if (editPanel) editPanel.classList.remove("hidden");
-
-    cancelReply();
-    hideContextMenu();
-  });
-
-  document.getElementById("contextDeleteBtn").addEventListener("click", () => {
-    if (!contextMessage || !contextMessage.mine) return;
-
-    deleteMessage(contextMessage.id);
-    hideContextMenu();
-  });
-
-  document.addEventListener("click", (event) => {
-    if (!event.target.closest("#callibriContextMenu")) {
-      hideContextMenu();
-    }
-  });
-
-  window.addEventListener("resize", hideContextMenu);
-}
-
-function openContextMenu(event, data) {
-  setupContextMenu();
-
-  contextMessage = data;
-
-  const editBtn = document.getElementById("contextEditBtn");
-  const deleteBtn = document.getElementById("contextDeleteBtn");
-
-  if (data.mine) {
-    editBtn.style.display = "flex";
-    deleteBtn.style.display = "flex";
-  } else {
-    editBtn.style.display = "none";
-    deleteBtn.style.display = "none";
-  }
-
-  contextMenu.classList.remove("hidden");
-
-  const rect = contextMenu.getBoundingClientRect();
-
-  let x = event.clientX;
-  let y = event.clientY;
-
-  if (x + rect.width > window.innerWidth) {
-    x = window.innerWidth - rect.width - 10;
-  }
-
-  if (y + rect.height > window.innerHeight) {
-    y = window.innerHeight - rect.height - 10;
-  }
-
-  contextMenu.style.left = `${x}px`;
-  contextMenu.style.top = `${y}px`;
-}
-
-function hideContextMenu() {
-  if (contextMenu) contextMenu.classList.add("hidden");
-}
-
-function cancelReply() {
-  replyToMessage = null;
-
-  if (replyPanel) replyPanel.classList.add("hidden");
-}
-
-function cancelEdit() {
-  editingMessage = null;
-
-  if (editPanel) editPanel.classList.add("hidden");
-  if (sendBtn) sendBtn.textContent = "Отправить";
-}
-
 function canSendNow() {
   return Boolean(currentUser && selectedChatType && (selectedUser || selectedGroup));
 }
@@ -1997,137 +1183,17 @@ async function handleFileSend(event) {
   try {
     const url = await fileToDataUrl(file);
 
-    sendMediaMessage({
+    const media = {
       type: isImage ? "image" : "video",
       url,
       name: file.name
-    });
-  } catch {
+    };
+
+    sendMediaMessage(media);
+  } catch (error) {
     alert("Не удалось отправить файл");
   } finally {
     event.target.value = "";
-  }
-}
-
-function buildAudioConstraints(useExactDevice = true) {
-  const audio = {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
-    channelCount: 1,
-    sampleRate: 48000
-  };
-
-  if (useExactDevice && appSettings.selectedMicId) {
-    audio.deviceId = {
-      exact: appSettings.selectedMicId
-    };
-  }
-
-  return audio;
-}
-
-async function getRecordingStream() {
-  try {
-    return await navigator.mediaDevices.getUserMedia({
-      audio: buildAudioConstraints(true)
-    });
-  } catch (error) {
-    if (appSettings.selectedMicId) {
-      return navigator.mediaDevices.getUserMedia({
-        audio: buildAudioConstraints(false)
-      });
-    }
-
-    throw error;
-  }
-}
-
-function getBestAudioMimeType() {
-  const types = [
-    "audio/webm;codecs=opus",
-    "audio/ogg;codecs=opus",
-    "audio/webm",
-    "audio/ogg"
-  ];
-
-  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
-
-  return types.find((type) => MediaRecorder.isTypeSupported(type)) || "";
-}
-
-async function toggleVoiceRecording() {
-  if (!canSendNow()) return;
-
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    alert("Запись голоса не поддерживается.");
-    return;
-  }
-
-  if (isRecording) {
-    finishVoiceRecording();
-    return;
-  }
-
-  try {
-    recordedChunks = [];
-    finalVoiceBlob = null;
-    liveWaveformBars = [];
-
-    recordingStream = await getRecordingStream();
-
-    const mimeType = getBestAudioMimeType();
-    const options = {
-      audioBitsPerSecond: 128000
-    };
-
-    if (mimeType) options.mimeType = mimeType;
-
-    mediaRecorder = new MediaRecorder(recordingStream, options);
-
-    audioContext = new (window.AudioContext || window.webkitAudioContext)({
-      sampleRate: 48000
-    });
-
-    const source = audioContext.createMediaStreamSource(recordingStream);
-    analyserNode = audioContext.createAnalyser();
-    analyserNode.fftSize = 256;
-    source.connect(analyserNode);
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data && event.data.size > 0) {
-        recordedChunks.push(event.data);
-      }
-    };
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, {
-        type: mimeType || "audio/webm"
-      });
-
-      finalVoiceBlob = blob;
-
-      if (recordingSendBtn) {
-        recordingSendBtn.disabled = !blob.size;
-      }
-    };
-
-    mediaRecorder.start(250);
-    isRecording = true;
-
-    openRecordingPanel();
-    startRecordingTimer();
-    startRealtimeVisualizer();
-
-    if (voiceBtn) {
-      voiceBtn.classList.add("recording");
-      voiceBtn.textContent = "■";
-      voiceBtn.disabled = false;
-    }
-  } catch (error) {
-    console.error(error);
-    alert("Разреши доступ к микрофону");
-    cancelVoiceRecording();
   }
 }
 
@@ -2144,6 +1210,7 @@ function openRecordingPanel() {
   if (recordingSendBtn) recordingSendBtn.disabled = true;
   if (recordingVisualizer) recordingVisualizer.innerHTML = "";
 
+  liveWaveformBars = [];
   renderLiveWaveform([]);
 }
 
@@ -2161,6 +1228,7 @@ function closeRecordingPanel() {
   if (recordingVisualizer) recordingVisualizer.innerHTML = "";
 
   finalVoiceBlob = null;
+  finalVoiceMimeType = "audio/webm";
   liveWaveformBars = [];
 }
 
@@ -2181,13 +1249,18 @@ function formatVoiceSeconds(seconds) {
 function startRecordingTimer() {
   recordingStartTime = Date.now();
 
-  if (recordingTimer) recordingTimer.textContent = "00:00";
+  if (recordingTimer) {
+    recordingTimer.textContent = "00:00";
+  }
 
   clearInterval(recordingTimerInterval);
 
   recordingTimerInterval = setInterval(() => {
     const elapsed = Date.now() - recordingStartTime;
-    if (recordingTimer) recordingTimer.textContent = formatRecordingTime(elapsed);
+
+    if (recordingTimer) {
+      recordingTimer.textContent = formatRecordingTime(elapsed);
+    }
   }, 200);
 }
 
@@ -2214,7 +1287,8 @@ function renderLiveWaveform(values) {
 function startRealtimeVisualizer() {
   if (!analyserNode) return;
 
-  analyserDataArray = new Uint8Array(analyserNode.fftSize);
+  const bufferLength = analyserNode.fftSize;
+  analyserDataArray = new Uint8Array(bufferLength);
 
   function draw() {
     if (!analyserNode || !analyserDataArray) return;
@@ -2251,6 +1325,135 @@ function stopRealtimeVisualizer() {
   }
 }
 
+function normalizeWaveformBars(bars, targetCount = 96) {
+  if (!Array.isArray(bars) || !bars.length) {
+    return Array.from({ length: targetCount }, () => 10);
+  }
+
+  const result = [];
+
+  for (let i = 0; i < targetCount; i++) {
+    const start = Math.floor((i / targetCount) * bars.length);
+    const end = Math.floor(((i + 1) / targetCount) * bars.length);
+    const slice = bars.slice(start, Math.max(start + 1, end));
+
+    const avg = slice.reduce((sum, value) => sum + value, 0) / slice.length;
+    result.push(Math.max(6, Math.min(32, Math.round(avg))));
+  }
+
+  return result;
+}
+
+/* =========================================================
+   HIGH QUALITY VOICE RECORDING
+   ========================================================= */
+
+function getBestAudioMimeType() {
+  const types = [
+    "audio/webm;codecs=opus",
+    "audio/ogg;codecs=opus",
+    "audio/webm",
+    "audio/ogg"
+  ];
+
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) {
+    return "";
+  }
+
+  return types.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+}
+
+async function toggleVoiceRecording() {
+  if (!canSendNow()) return;
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Запись голоса не поддерживается в этом браузере/окне.");
+    return;
+  }
+
+  if (isRecording) {
+    await finishVoiceRecording();
+    return;
+  }
+
+  try {
+    recordingStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+        sampleRate: 48000,
+        sampleSize: 16
+      }
+    });
+
+    recordedChunks = [];
+    finalVoiceBlob = null;
+    liveWaveformBars = [];
+
+    const selectedMimeType = getBestAudioMimeType();
+
+    const recorderOptions = {
+      audioBitsPerSecond: 128000
+    };
+
+    if (selectedMimeType) {
+      recorderOptions.mimeType = selectedMimeType;
+    }
+
+    mediaRecorder = new MediaRecorder(recordingStream, recorderOptions);
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: 48000
+    });
+
+    const source = audioContext.createMediaStreamSource(recordingStream);
+    analyserNode = audioContext.createAnalyser();
+    analyserNode.fftSize = 256;
+    source.connect(analyserNode);
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        recordedChunks.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      const finalType = selectedMimeType || "audio/webm";
+
+      const blob = new Blob(recordedChunks, {
+        type: finalType
+      });
+
+      finalVoiceBlob = blob;
+      finalVoiceMimeType = finalType;
+
+      if (recordingSendBtn) {
+        recordingSendBtn.disabled = !blob.size;
+      }
+    };
+
+    mediaRecorder.start(250);
+    isRecording = true;
+
+    openRecordingPanel();
+    startRecordingTimer();
+    startRealtimeVisualizer();
+
+    if (voiceBtn) {
+      voiceBtn.classList.add("recording");
+      voiceBtn.textContent = "■";
+      voiceBtn.title = "Остановить запись";
+      voiceBtn.disabled = false;
+    }
+  } catch (error) {
+    console.error("Voice recording error:", error);
+    alert("Разреши доступ к микрофону. Если звук плохой — проверь, что выбран не Bluetooth Hands-Free микрофон.");
+    cancelVoiceRecording();
+  }
+}
+
 async function finishVoiceRecording() {
   if (!mediaRecorder || mediaRecorder.state === "inactive") return;
 
@@ -2262,6 +1465,7 @@ async function finishVoiceRecording() {
   if (voiceBtn) {
     voiceBtn.classList.remove("recording");
     voiceBtn.textContent = "🎙";
+    voiceBtn.title = "Голосовое сообщение";
     voiceBtn.disabled = false;
   }
 
@@ -2301,35 +1505,18 @@ function cancelVoiceRecording() {
 
   recordedChunks = [];
   finalVoiceBlob = null;
+  finalVoiceMimeType = "audio/webm";
   liveWaveformBars = [];
   isRecording = false;
 
   if (voiceBtn) {
     voiceBtn.classList.remove("recording");
     voiceBtn.textContent = "🎙";
+    voiceBtn.title = "Голосовое сообщение";
     voiceBtn.disabled = false;
   }
 
   closeRecordingPanel();
-}
-
-function normalizeWaveformBars(bars, targetCount = 96) {
-  if (!Array.isArray(bars) || !bars.length) {
-    return Array.from({ length: targetCount }, () => 10);
-  }
-
-  const result = [];
-
-  for (let i = 0; i < targetCount; i++) {
-    const start = Math.floor((i / targetCount) * bars.length);
-    const end = Math.floor(((i + 1) / targetCount) * bars.length);
-    const slice = bars.slice(start, Math.max(start + 1, end));
-    const avg = slice.reduce((sum, value) => sum + value, 0) / slice.length;
-
-    result.push(Math.max(6, Math.min(32, Math.round(avg))));
-  }
-
-  return result;
 }
 
 async function sendRecordedVoice() {
@@ -2342,248 +1529,47 @@ async function sendRecordedVoice() {
 
   try {
     const url = await blobToDataUrl(finalVoiceBlob);
+
     const elapsed = Math.max(1000, Date.now() - recordingStartTime);
+    const waveform = normalizeWaveformBars(liveWaveformBars, 96);
+
+    let fileName = "voice.webm";
+
+    if ((finalVoiceBlob.type || finalVoiceMimeType).includes("ogg")) {
+      fileName = "voice.ogg";
+    }
 
     sendMediaMessage({
       type: "audio",
       url,
-      name: finalVoiceBlob.type.includes("ogg") ? "voice.ogg" : "voice.webm",
+      name: fileName,
       isVoice: true,
       durationMs: elapsed,
-      waveform: normalizeWaveformBars(liveWaveformBars, 96),
-      mimeType: finalVoiceBlob.type || "audio/webm",
+      waveform,
+      mimeType: finalVoiceBlob.type || finalVoiceMimeType || "audio/webm",
       quality: "high"
     });
 
     closeRecordingPanel();
-  } catch {
+  } catch (error) {
+    console.error("Send voice error:", error);
     alert("Не удалось отправить голосовое");
   }
 }
 
-function emitTypingStart() {
-  if (!currentUser || !selectedChatType || isTypingNow || editingMessage) return;
-
-  isTypingNow = true;
-
-  if (selectedChatType === "direct" && selectedUser) {
-    socket.emit("typing_start", {
-      from: currentUser.username,
-      to: selectedUser.username,
-      chatType: "direct"
-    });
-  }
-
-  if (selectedChatType === "group" && selectedGroup) {
-    socket.emit("typing_start", {
-      from: currentUser.username,
-      groupId: selectedGroup.id,
-      chatType: "group"
-    });
-  }
-}
-
-function stopTyping() {
-  if (!currentUser || !selectedChatType || !isTypingNow) return;
-
-  isTypingNow = false;
-
-  if (selectedChatType === "direct" && selectedUser) {
-    socket.emit("typing_stop", {
-      from: currentUser.username,
-      to: selectedUser.username,
-      chatType: "direct"
-    });
-  }
-
-  if (selectedChatType === "group" && selectedGroup) {
-    socket.emit("typing_stop", {
-      from: currentUser.username,
-      groupId: selectedGroup.id,
-      chatType: "group"
-    });
-  }
-}
-
-function handleTypingInput() {
-  if (!canSendNow()) return;
-
-  const text = messageInput ? messageInput.value.trim() : "";
-
-  if (!text) {
-    stopTyping();
-    return;
-  }
-
-  emitTypingStart();
-
-  clearTimeout(typingTimer);
-
-  typingTimer = setTimeout(stopTyping, 1600);
-}
-
-function clearTypingState() {
-  typingUsers = {};
-  updateChatStatusText();
-}
-
-function updateChatStatusText() {
-  if (!chatStatus) return;
-
-  if (selectedChatType === "direct" && selectedUser) {
-    const username = selectedUser.username;
-
-    if (typingUsers[username]) {
-      chatStatus.textContent = "печатает...";
-      return;
-    }
-
-    chatStatus.textContent = onlineUsers[username] ? "онлайн" : "офлайн";
-    return;
-  }
-
-  if (selectedChatType === "group" && selectedGroup) {
-    const typingList = Object.keys(typingUsers).filter((username) => typingUsers[username]);
-
-    if (typingList.length === 1) {
-      chatStatus.textContent = `@${typingList[0]} печатает...`;
-      return;
-    }
-
-    if (typingList.length > 1) {
-      chatStatus.textContent = "несколько участников печатают...";
-      return;
-    }
-
-    chatStatus.textContent = `${selectedGroup.members.length} участн. · создатель @${selectedGroup.owner}`;
-  }
-}
-
-function buildReplyPayload() {
-  if (!replyToMessage) return null;
-
-  return {
-    id: String(replyToMessage.id || ""),
-    text: String(replyToMessage.text || "").slice(0, 500),
-    username: normalizeUsername(replyToMessage.username || ""),
-    displayName: String(replyToMessage.displayName || "").trim()
-  };
-}
-
-function sendMessage() {
-  if (!currentUser) return;
-
-  const text = messageInput ? messageInput.value.trim() : "";
-
-  if (!text) return;
-
-  stopTyping();
-
-  if (editingMessage) {
-    socket.emit("edit_message", {
-      messageId: editingMessage.id,
-      me: currentUser.username,
-      username: currentUser.username,
-      text
-    });
-
-    if (messageInput) {
-      messageInput.value = "";
-      messageInput.focus();
-    }
-
-    cancelEdit();
-    return;
-  }
-
-  const replyTo = buildReplyPayload();
-
-  if (selectedChatType === "direct" && selectedUser) {
-    socket.emit("send_message", {
-      from: currentUser.username,
-      to: selectedUser.username,
-      text,
-      replyTo
-    });
-  }
-
-  if (selectedChatType === "group" && selectedGroup) {
-    socket.emit("send_group_message", {
-      from: currentUser.username,
-      groupId: selectedGroup.id,
-      text,
-      replyTo
-    });
-  }
-
-  if (messageInput) {
-    messageInput.value = "";
-    messageInput.focus();
-  }
-
-  cancelReply();
-}
-
-function sendMediaMessage(media) {
-  stopTyping();
-
-  if (!canSendNow()) return;
-
-  const replyTo = buildReplyPayload();
-
-  if (selectedChatType === "direct" && selectedUser) {
-    socket.emit("send_message", {
-      from: currentUser.username,
-      to: selectedUser.username,
-      text: "",
-      media,
-      replyTo
-    });
-  }
-
-  if (selectedChatType === "group" && selectedGroup) {
-    socket.emit("send_group_message", {
-      from: currentUser.username,
-      groupId: selectedGroup.id,
-      text: "",
-      media,
-      replyTo
-    });
-  }
-
-  cancelReply();
-}
-
-function deleteMessage(messageId) {
-  if (!currentUser || !messageId) return;
-
-  const ok = confirm("Удалить сообщение у всех?");
-
-  if (!ok) return;
-
-  destroyVoicePlayer(messageId);
-
-  socket.emit("delete_message", {
-    messageId,
-    me: currentUser.username,
-    username: currentUser.username
-  });
-}
+/* =========================================================
+   APP START / CHATS
+   ========================================================= */
 
 async function startApp() {
   if (!currentUser) return;
-
-  injectStyles();
-  loadSettings();
-  loadArchiveState();
 
   setupProfileUI();
   setupGroupUI();
   setupGroupActionsUI();
   setupMessageTools();
-  setupContextMenu();
-  setupSettingsModal();
-  setupNotifications();
+  setupTelegramMessageMenu();
+  setupWindowsNotifications();
 
   if (auth) auth.classList.add("hidden");
   if (app) app.classList.remove("hidden");
@@ -2621,68 +1607,14 @@ async function loadRecentChats() {
       onlineUsers[chat.username] = Boolean(chat.online);
     });
 
-    function renderRecentChats() {
-  if (!recentChatsBox) return;
+    renderRecentChats();
+  } catch (error) {
+    console.error(error);
 
-  recentChatsBox.innerHTML = "";
-
-  const visibleChats = recentChatsCache.filter((user) => {
-    const archived = isDirectArchived(user.username);
-    return archiveMode ? archived : !archived;
-  });
-
-  if (!visibleChats.length) {
-    recentChatsBox.innerHTML = `
-      <div class="empty small-empty">
-        ${
-          archiveMode
-            ? "В архиве личных чатов пока нет"
-            : "Личных чатов пока нет"
-        }
-      </div>
-    `;
-    return;
-  }
-
-  visibleChats.forEach((user) => {
-    const item = document.createElement("button");
-    item.className = "user recent-chat-item";
-
-    if (
-      selectedChatType === "direct" &&
-      selectedUser &&
-      selectedUser.username === user.username
-    ) {
-      item.classList.add("active");
+    if (recentChatsBox) {
+      recentChatsBox.innerHTML = `<div class="empty small-empty">Ошибка загрузки чатов</div>`;
     }
-
-    const count = unreadDirect[user.username] || 0;
-    const preview = getChatPreview(user);
-
-    item.innerHTML = `
-      ${renderAvatar(user)}
-      <div class="user-info">
-        <b>${onlineDot(user.username)}${escapeHtml(user.displayName || user.username)}</b>
-        <span>${escapeHtml(preview)}</span>
-      </div>
-      ${unreadBadge(count)}
-    `;
-
-    item.addEventListener("click", () => {
-      openChat(user);
-    });
-
-    item.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-
-      openArchiveContextMenu(event, {
-        type: "direct",
-        id: user.username
-      });
-    });
-
-    recentChatsBox.appendChild(item);
-  });
+  }
 }
 
 async function loadGroups() {
@@ -2692,67 +1624,10 @@ async function loadGroups() {
     const data = await request(`/api/groups?me=${encodeURIComponent(currentUser.username)}`);
 
     groupsCache = data.groups || [];
-    function renderGroups() {
-  if (!groupsBox) return;
-
-  groupsBox.innerHTML = "";
-
-  const visibleGroups = groupsCache.filter((group) => {
-    const archived = isGroupArchived(group.id);
-    return archiveMode ? archived : !archived;
-  });
-
-  if (!visibleGroups.length) {
-    groupsBox.innerHTML = `
-      <div class="empty small-empty">
-        ${
-          archiveMode
-            ? "В архиве групп пока нет"
-            : "Групп пока нет"
-        }
-      </div>
-    `;
-    return;
+    renderGroups();
+  } catch (error) {
+    console.error(error);
   }
-
-  visibleGroups.forEach((group) => {
-    const item = document.createElement("button");
-    item.className = "user group-item";
-
-    if (
-      selectedChatType === "group" &&
-      selectedGroup &&
-      selectedGroup.id === group.id
-    ) {
-      item.classList.add("active");
-    }
-
-    const count = unreadGroups[group.id] || 0;
-
-    item.innerHTML = `
-      <div class="avatar group-avatar">#</div>
-      <div class="user-info">
-        <b>${escapeHtml(group.name)}</b>
-        <span>${group.members.length} участн.</span>
-      </div>
-      ${unreadBadge(count)}
-    `;
-
-    item.addEventListener("click", () => {
-      openGroup(group);
-    });
-
-    item.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-
-      openArchiveContextMenu(event, {
-        type: "group",
-        id: group.id
-      });
-    });
-
-    groupsBox.appendChild(item);
-  });
 }
 
 function renderRecentChats() {
@@ -2785,7 +1660,9 @@ function renderRecentChats() {
       ${unreadBadge(count)}
     `;
 
-    item.addEventListener("click", () => openChat(user));
+    item.addEventListener("click", () => {
+      openChat(user);
+    });
 
     recentChatsBox.appendChild(item);
   });
@@ -2852,7 +1729,9 @@ function renderGroups() {
       ${unreadBadge(count)}
     `;
 
-    item.addEventListener("click", () => openGroup(group));
+    item.addEventListener("click", () => {
+      openGroup(group);
+    });
 
     groupsBox.appendChild(item);
   });
@@ -2880,8 +1759,11 @@ async function loadUsers(query = "") {
     });
 
     renderUsers(cleanQuery);
-  } catch {
-    if (usersBox) usersBox.innerHTML = `<div class="empty">Ошибка поиска</div>`;
+  } catch (error) {
+    console.error(error);
+    if (usersBox) {
+      usersBox.innerHTML = `<div class="empty">Ошибка поиска</div>`;
+    }
   }
 }
 
@@ -2894,6 +1776,16 @@ function renderSearchHint() {
       Например: <b>@username</b>
     </div>
   `;
+}
+
+function renderAvatar(user) {
+  const avatar = user && user.avatar;
+
+  if (avatar) {
+    return `<div class="avatar"><img src="${avatar}" alt="avatar"></div>`;
+  }
+
+  return `<div class="avatar">${escapeHtml(((user && (user.displayName || user.username)) || "?")[0] || "?")}</div>`;
 }
 
 function renderUsers(query = "") {
@@ -2934,7 +1826,9 @@ function renderUsers(query = "") {
       </div>
     `;
 
-    item.addEventListener("click", () => openChat(user));
+    item.addEventListener("click", () => {
+      openChat(user);
+    });
 
     usersBox.appendChild(item);
   });
@@ -2944,9 +1838,7 @@ function renderEmptyChat() {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
-  cancelReply();
-  cancelEdit();
-  hideContextMenu();
+  cancelMessageModes();
 
   selectedUser = null;
   selectedGroup = null;
@@ -2990,9 +1882,7 @@ async function openChat(user) {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
-  cancelReply();
-  cancelEdit();
-  hideContextMenu();
+  cancelMessageModes();
 
   selectedUser = user;
   selectedGroup = null;
@@ -3027,7 +1917,9 @@ async function openChat(user) {
   if (attachBtn) attachBtn.disabled = false;
   if (voiceBtn) voiceBtn.disabled = false;
 
-  if (messagesBox) messagesBox.innerHTML = `<div class="empty">Загрузка...</div>`;
+  if (messagesBox) {
+    messagesBox.innerHTML = `<div class="empty">Загрузка...</div>`;
+  }
 
   socket.emit("open_chat", {
     me: currentUser.username,
@@ -3041,13 +1933,10 @@ async function openChat(user) {
 
     messagesCache = data.messages || [];
     renderMessages();
-    markCurrentDirectMessagesAsRead();
     renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
     renderRecentChats();
     renderGroups();
   } catch (error) {
-    console.error("Open chat messages error:", error);
-
     if (messagesBox) {
       messagesBox.innerHTML = `<div class="empty">Ошибка загрузки сообщений</div>`;
     }
@@ -3058,9 +1947,7 @@ async function openGroup(group) {
   cancelVoiceRecording();
   stopTyping();
   destroyAllVoicePlayers();
-  cancelReply();
-  cancelEdit();
-  hideContextMenu();
+  cancelMessageModes();
 
   selectedGroup = group;
   selectedUser = null;
@@ -3087,7 +1974,9 @@ async function openGroup(group) {
   if (attachBtn) attachBtn.disabled = false;
   if (voiceBtn) voiceBtn.disabled = false;
 
-  if (messagesBox) messagesBox.innerHTML = `<div class="empty">Загрузка...</div>`;
+  if (messagesBox) {
+    messagesBox.innerHTML = `<div class="empty">Загрузка...</div>`;
+  }
 
   socket.emit("open_group", {
     me: currentUser.username,
@@ -3104,328 +1993,124 @@ async function openGroup(group) {
     renderGroups();
     renderRecentChats();
     renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
-  } catch {
-    if (messagesBox) messagesBox.innerHTML = `<div class="empty">Ошибка загрузки группы</div>`;
+  } catch (error) {
+    if (messagesBox) {
+      messagesBox.innerHTML = `<div class="empty">Ошибка загрузки группы</div>`;
+    }
   }
 }
 
-function isMessageRead(message) {
-  return Boolean(message && (message.isRead === true || message.is_read === true));
-}
+/* =========================================================
+   SEND MESSAGE / MEDIA
+   ========================================================= */
 
-function renderMessageStatus(message, mine, compact = false) {
-  if (!mine || !message) return "";
-
-  const isDirectMessage =
-    String(message.type || "") === "direct" ||
-    Boolean(message.to);
-
-  if (!isDirectMessage) return "";
-
-  const read = isMessageRead(message);
-
-  return `
-    <span class="message-status ${read ? "read" : "unread"} ${compact ? "compact" : ""}" title="${read ? "Прочитано" : "Не прочитано"}">
-      <span class="message-status__check first">✓</span>
-      <span class="message-status__check second">✓</span>
-    </span>
-  `;
-}
-
-function markCurrentDirectMessagesAsRead() {
+function sendMessage() {
   if (!currentUser) return;
-  if (selectedChatType !== "direct") return;
-  if (!selectedUser) return;
 
-  socket.emit("mark_messages_read", {
-    me: currentUser.username,
-    with: selectedUser.username
-  });
-}
+  const text = messageInput ? messageInput.value.trim() : "";
 
-function getReply(message) {
-  return message.replyTo || message.reply_to || null;
-}
+  if (!text) return;
 
-function renderReplyPreview(message) {
-  const reply = getReply(message);
+  stopTyping();
 
-  if (!reply) return "";
-
-  const author = reply.displayName || reply.display_name || reply.username || "Сообщение";
-  const text = reply.text || reply.message || "Медиа";
-
-  return `
-    <div class="message-reply-preview">
-      <div class="message-reply-author">${escapeHtml(author)}</div>
-      <div class="message-reply-text">${escapeHtml(text)}</div>
-    </div>
-  `;
-}
-
-function getMessageActionText(message) {
-  if (!message) return "";
-
-  const text = message.text || message.message || "";
-
-  if (text) return String(text);
-
-  if (message.media) {
-    if (message.media.type === "image") return "Фото";
-    if (message.media.type === "video") return "Видео";
-    if (message.media.type === "audio") return "Голосовое сообщение";
-  }
-
-  return "Сообщение";
-}
-
-function renderMessages() {
-  if (!messagesBox) return;
-
-  setupContextMenu();
-  destroyAllVoicePlayers();
-
-  messagesBox.innerHTML = "";
-
-  if (!messagesCache.length) {
-    messagesBox.innerHTML = `<div class="empty">Сообщений пока нет. Напиши первым.</div>`;
-    return;
-  }
-
-  messagesCache.forEach((message) => {
-    const mine = message.from === currentUser.username || message.username === currentUser.username;
-    const isAudio = message.media && message.media.type === "audio";
-
-    const bubble = document.createElement("div");
-    bubble.className = mine ? "message mine" : "message";
-
-    const text = message.text || message.message || "";
-    const mediaHtml = renderMedia(message.media, message, mine);
-    const replyHtml = renderReplyPreview(message);
-    const statusHtml = renderMessageStatus(message, mine);
-
-    bubble.innerHTML = `
-      <div class="message-name">${escapeHtml(message.displayName || message.username || "")}</div>
-      ${replyHtml}
-      ${mediaHtml}
-      ${text ? `<div class="message-text">${escapeHtml(text)}</div>` : ""}
-      ${
-        !isAudio
-          ? `
-            <div class="message-meta">
-              <span class="message-time">${formatTime(message.created_at)}</span>
-              ${message.edited ? `<span class="message-edited">изменено</span>` : ""}
-              ${statusHtml}
-            </div>
-          `
-          : ""
-      }
-    `;
-
-    bubble.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-
-      openContextMenu(event, {
-        id: String(message.id || ""),
-        text: getMessageActionText(message),
-        username: message.username || message.from || "",
-        displayName: message.displayName || message.username || "",
-        mine,
-        message
-      });
+  if (editingMessage) {
+    socket.emit("edit_message", {
+      messageId: editingMessage.id,
+      me: currentUser.username,
+      username: currentUser.username,
+      text
     });
 
-    messagesBox.appendChild(bubble);
+    if (messageInput) {
+      messageInput.value = "";
+      messageInput.focus();
+    }
 
-    if (isAudio) initVoicePlayer(message);
-  });
-
-  messagesBox.scrollTop = messagesBox.scrollHeight;
-}
-
-function renderMedia(media, message, mine) {
-  if (!media || !media.url) return "";
-
-  if (media.type === "image") {
-    return `
-      <div class="message-media">
-        <img src="${media.url}" alt="${escapeHtml(media.name || "image")}" loading="lazy">
-      </div>
-    `;
-  }
-
-  if (media.type === "video") {
-    return `
-      <div class="message-media">
-        <video src="${media.url}" controls></video>
-      </div>
-    `;
-  }
-
-  if (media.type === "audio") {
-    return `
-      <div class="message-media">
-        ${renderVoiceCard(media, message, mine)}
-      </div>
-    `;
-  }
-
-  return "";
-}
-
-function createFallbackWaveformHtml(waveform) {
-  const bars = Array.isArray(waveform) && waveform.length
-    ? waveform
-    : Array.from({ length: 60 }, (_, index) => 8 + ((index * 7) % 20));
-
-  return bars
-    .map((value) => {
-      const height = Math.max(5, Math.min(26, Number(value) || 8));
-      return `<span class="voice-wave-bar" style="height:${height}px"></span>`;
-    })
-    .join("");
-}
-
-function renderVoiceCard(media, message, mine) {
-  const id = String(message.id);
-  const audioUrl = media.url || "";
-  const durationText = media.durationMs ? formatRecordingTime(media.durationMs) : "00:00";
-  const clockText = formatTime(message.created_at);
-  const fallbackWave = createFallbackWaveformHtml(media.waveform);
-  const statusHtml = renderMessageStatus(message, mine, true);
-
-  return `
-    <div class="voice-card" data-voice-id="${escapeHtml(id)}" data-audio-url="${escapeHtml(audioUrl)}">
-      <div class="voice-card__main">
-        <button class="voice-card__play" type="button" data-voice-play="${escapeHtml(id)}">▶</button>
-
-        <div class="voice-card__body">
-          <div class="voice-card__top">
-            <span class="voice-card__time">
-              <span id="voice-current-${escapeHtml(id)}">0:00</span>
-              <span class="voice-card__slash">/</span>
-              <span id="voice-duration-${escapeHtml(id)}">${escapeHtml(durationText)}</span>
-            </span>
-
-            <span class="voice-card__hint">тяни волну</span>
-          </div>
-
-          <div class="voice-card__wave" id="voice-wave-${escapeHtml(id)}">
-            <div class="voice-card__fallback-wave">
-              ${fallbackWave}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="voice-card__footer">
-        <div class="voice-card__footer-left"></div>
-
-        <div class="voice-card__footer-right">
-          <span class="voice-card__clock">
-            ${escapeHtml(clockText)}
-            ${message.edited ? `<span class="message-edited">изменено</span>` : ""}
-          </span>
-          ${statusHtml}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function initVoicePlayer(message) {
-  if (!message || !message.id || !message.media || message.media.type !== "audio") return;
-
-  const id = String(message.id);
-  const media = message.media;
-  const audioUrl = media.url || "";
-
-  if (!audioUrl) return;
-  if (voicePlayers.has(id)) return;
-
-  const waveEl = document.getElementById(`voice-wave-${id}`);
-  const playBtn = document.querySelector(`[data-voice-play="${CSS.escape(id)}"]`);
-  const currentEl = document.getElementById(`voice-current-${id}`);
-  const durationEl = document.getElementById(`voice-duration-${id}`);
-
-  if (!waveEl || !playBtn || !currentEl || !durationEl) return;
-
-  if (typeof WaveSurfer === "undefined") {
-    console.warn("WaveSurfer не подключён");
+    hideEditPanel();
     return;
   }
 
-  waveEl.innerHTML = "";
+  const replyTo = buildReplyPayload();
 
-  const player = WaveSurfer.create({
-    container: waveEl,
-    height: 38,
-    waveColor: "rgba(255,255,255,0.34)",
-    progressColor: "#ffffff",
-    cursorColor: "#7fe3ff",
-    cursorWidth: 2,
-    barWidth: 3,
-    barGap: 2,
-    barRadius: 4,
-    normalize: true,
-    interact: true,
-    dragToSeek: true,
-    hideScrollbar: true,
-    backend: "MediaElement"
-  });
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("send_message", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      text,
+      replyTo
+    });
+  }
 
-  voicePlayers.set(id, player);
-  player.load(audioUrl);
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("send_group_message", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      text,
+      replyTo
+    });
+  }
 
-  player.on("ready", () => {
-    const duration = player.getDuration();
+  if (messageInput) {
+    messageInput.value = "";
+    messageInput.focus();
+  }
 
-    if (duration && Number.isFinite(duration)) {
-      durationEl.textContent = formatVoiceSeconds(duration);
-    } else if (media.durationMs) {
-      durationEl.textContent = formatRecordingTime(media.durationMs);
-    }
-
-    try {
-      player.setVolume(Number(appSettings.voicePlaybackVolume || 1));
-    } catch {}
-  });
-
-  player.on("play", () => {
-    stopOtherVoicePlayers(id);
-    playBtn.textContent = "❚❚";
-  });
-
-  player.on("pause", () => {
-    playBtn.textContent = "▶";
-  });
-
-  player.on("finish", () => {
-    playBtn.textContent = "▶";
-    currentEl.textContent = "0:00";
-
-    try {
-      player.seekTo(0);
-    } catch {}
-  });
-
-  player.on("audioprocess", () => {
-    currentEl.textContent = formatVoiceSeconds(player.getCurrentTime());
-  });
-
-  player.on("interaction", () => {
-    currentEl.textContent = formatVoiceSeconds(player.getCurrentTime());
-  });
-
-  playBtn.addEventListener("click", () => {
-    if (player.isPlaying()) {
-      player.pause();
-    } else {
-      stopOtherVoicePlayers(id);
-      player.play();
-    }
-  });
+  hideReplyPanel();
 }
+
+function sendMediaMessage(media) {
+  stopTyping();
+
+  if (!canSendNow()) return;
+
+  const replyTo = buildReplyPayload();
+
+  if (selectedChatType === "direct" && selectedUser) {
+    socket.emit("send_message", {
+      from: currentUser.username,
+      to: selectedUser.username,
+      text: "",
+      media,
+      replyTo
+    });
+  }
+
+  if (selectedChatType === "group" && selectedGroup) {
+    socket.emit("send_group_message", {
+      from: currentUser.username,
+      groupId: selectedGroup.id,
+      text: "",
+      media,
+      replyTo
+    });
+  }
+
+  hideReplyPanel();
+}
+
+async function deleteMessage(messageId) {
+  if (!currentUser || !messageId) return;
+
+  const ok = confirm("Удалить сообщение у всех?");
+
+  if (!ok) return;
+
+  try {
+    destroyVoicePlayer(messageId);
+
+    socket.emit("delete_message", {
+      messageId,
+      me: currentUser.username,
+      username: currentUser.username
+    });
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+/* =========================================================
+   VOICE PLAYERS
+   ========================================================= */
 
 function destroyVoicePlayer(messageId) {
   const id = String(messageId);
@@ -3458,96 +2143,678 @@ function stopOtherVoicePlayers(exceptId) {
   }
 }
 
-function setupNotifications() {
-  if (notificationPermissionRequested) return;
+function createFallbackWaveformHtml(waveform) {
+  const bars = Array.isArray(waveform) && waveform.length
+    ? waveform
+    : Array.from({ length: 60 }, (_, index) => 8 + ((index * 7) % 20));
 
-  notificationPermissionRequested = true;
+  return bars
+    .map((value) => {
+      const height = Math.max(5, Math.min(26, value));
 
-  if (!("Notification" in window)) return;
+      return `<span class="voice-wave-bar" style="height:${height}px"></span>`;
+    })
+    .join("");
+}
 
-  if (Notification.permission === "default") {
-    Notification.requestPermission().catch(() => {});
+function renderVoiceCard(media, message, mine, canDelete) {
+  const id = String(message.id);
+  const audioUrl = media.url || "";
+  const durationText = media.durationMs ? formatRecordingTime(media.durationMs) : "00:00";
+  const clockText = formatTime(message.created_at);
+  const fallbackWave = createFallbackWaveformHtml(media.waveform);
+
+  return `
+    <div class="voice-card" data-voice-id="${escapeHtml(id)}" data-audio-url="${escapeHtml(audioUrl)}">
+      <div class="voice-card__main">
+        <button class="voice-card__play" type="button" data-voice-play="${escapeHtml(id)}">▶</button>
+
+        <div class="voice-card__body">
+          <div class="voice-card__top">
+            <span class="voice-card__time">
+              <span id="voice-current-${escapeHtml(id)}">0:00</span>
+              <span class="voice-card__slash">/</span>
+              <span id="voice-duration-${escapeHtml(id)}">${escapeHtml(durationText)}</span>
+            </span>
+
+            <span class="voice-card__hint">тяни волну</span>
+          </div>
+
+          <div class="voice-card__wave" id="voice-wave-${escapeHtml(id)}">
+            <div class="voice-card__fallback-wave">
+              ${fallbackWave}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="voice-card__footer">
+        <span></span>
+        <span class="voice-card__clock">
+          ${escapeHtml(clockText)}
+          ${message.edited ? `<span class="message-edited">изменено</span>` : ""}
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function initVoicePlayer(message) {
+  if (!message || !message.id || !message.media || message.media.type !== "audio") return;
+
+  const id = String(message.id);
+  const media = message.media;
+  const audioUrl = media.url || "";
+
+  if (!audioUrl) return;
+  if (voicePlayers.has(id)) return;
+
+  const waveEl = document.getElementById(`voice-wave-${id}`);
+  const playBtn = document.querySelector(`[data-voice-play="${CSS.escape(id)}"]`);
+  const currentEl = document.getElementById(`voice-current-${id}`);
+  const durationEl = document.getElementById(`voice-duration-${id}`);
+
+  if (!waveEl || !playBtn || !currentEl || !durationEl) return;
+
+  if (typeof WaveSurfer === "undefined") {
+    console.warn("WaveSurfer не подключён. Проверь public/index.html");
+    return;
+  }
+
+  waveEl.innerHTML = "";
+
+  const player = WaveSurfer.create({
+    container: waveEl,
+    height: 38,
+    waveColor: "rgba(255,255,255,0.34)",
+    progressColor: "#ffffff",
+    cursorColor: "#7fe3ff",
+    cursorWidth: 2,
+    barWidth: 3,
+    barGap: 2,
+    barRadius: 4,
+    normalize: true,
+    interact: true,
+    dragToSeek: true,
+    hideScrollbar: true,
+    backend: "MediaElement"
+  });
+
+  voicePlayers.set(id, player);
+
+  player.load(audioUrl);
+
+  player.on("ready", () => {
+    const duration = player.getDuration();
+
+    if (duration && Number.isFinite(duration)) {
+      durationEl.textContent = formatVoiceSeconds(duration);
+    } else if (media.durationMs) {
+      durationEl.textContent = formatRecordingTime(media.durationMs);
+    }
+  });
+
+  player.on("play", () => {
+    stopOtherVoicePlayers(id);
+    playBtn.textContent = "❚❚";
+  });
+
+  player.on("pause", () => {
+    playBtn.textContent = "▶";
+  });
+
+  player.on("finish", () => {
+    playBtn.textContent = "▶";
+    currentEl.textContent = "0:00";
+
+    try {
+      player.seekTo(0);
+    } catch {}
+  });
+
+  player.on("audioprocess", () => {
+    currentEl.textContent = formatVoiceSeconds(player.getCurrentTime());
+  });
+
+  player.on("seeking", () => {
+    currentEl.textContent = formatVoiceSeconds(player.getCurrentTime());
+  });
+
+  player.on("interaction", () => {
+    currentEl.textContent = formatVoiceSeconds(player.getCurrentTime());
+  });
+
+  playBtn.addEventListener("click", () => {
+    if (player.isPlaying()) {
+      player.pause();
+    } else {
+      stopOtherVoicePlayers(id);
+      player.play();
+    }
+  });
+}
+
+function renderMedia(media, message, mine, canDelete) {
+  if (!media || !media.url) return "";
+
+  if (media.type === "image") {
+    return `
+      <div class="message-media">
+        <img src="${media.url}" alt="${escapeHtml(media.name || "image")}" loading="lazy">
+      </div>
+    `;
+  }
+
+  if (media.type === "video") {
+    return `
+      <div class="message-media">
+        <video src="${media.url}" controls></video>
+      </div>
+    `;
+  }
+
+  if (media.type === "audio") {
+    return `
+      <div class="message-media">
+        ${renderVoiceCard(media, message, mine, canDelete)}
+      </div>
+    `;
+  }
+
+  return "";
+}
+
+/* =========================================================
+   TELEGRAM-LIKE MESSAGE MENU
+   ========================================================= */
+
+function setupTelegramMessageMenu() {
+  setupTelegramMenuStyles();
+  createMessageContextMenu();
+  createReplyAndEditPanels();
+}
+
+function setupTelegramMenuStyles() {
+  if (document.getElementById("telegramMessageMenuStyles")) return;
+
+  const style = document.createElement("style");
+  style.id = "telegramMessageMenuStyles";
+
+  style.textContent = `
+    .telegram-message-menu {
+      position: fixed;
+      z-index: 999999;
+      width: 220px;
+      padding: 7px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(18px);
+      animation: telegramMenuShow 0.12s ease-out;
+    }
+
+    .telegram-message-menu.hidden {
+      display: none;
+    }
+
+    .telegram-message-menu button {
+      width: 100%;
+      height: 40px;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: #e5e7eb;
+      border-radius: 11px;
+      padding: 0 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      font-size: 14px;
+      font-weight: 700;
+      text-align: left;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .telegram-message-menu button:hover {
+      background: rgba(148, 163, 184, 0.13);
+    }
+
+    .telegram-message-menu button.danger {
+      color: #fb7185;
+    }
+
+    .telegram-message-menu button.danger:hover {
+      background: rgba(251, 113, 133, 0.14);
+    }
+
+    .telegram-message-menu-icon {
+      width: 22px;
+      text-align: center;
+      font-size: 15px;
+    }
+
+    @keyframes telegramMenuShow {
+      from {
+        opacity: 0;
+        transform: scale(0.96) translateY(-4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .dm-reply-panel,
+    .dm-edit-panel {
+      margin: 8px 0 10px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dm-reply-panel.hidden,
+    .dm-edit-panel.hidden {
+      display: none;
+    }
+
+    .dm-reply-line,
+    .dm-edit-line {
+      width: 3px;
+      align-self: stretch;
+      min-height: 36px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+    }
+
+    .dm-reply-line {
+      background: #22d3ee;
+    }
+
+    .dm-edit-line {
+      background: #f59e0b;
+    }
+
+    .dm-panel-content {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .dm-panel-title {
+      font-size: 12px;
+      font-weight: 900;
+      margin-bottom: 3px;
+    }
+
+    .dm-reply-panel .dm-panel-title {
+      color: #67e8f9;
+    }
+
+    .dm-edit-panel .dm-panel-title {
+      color: #fbbf24;
+    }
+
+    .dm-panel-text {
+      color: #cbd5e1;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dm-panel-close {
+      width: 30px;
+      height: 30px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(148, 163, 184, 0.13);
+      color: white;
+      cursor: pointer;
+      font-size: 20px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+
+    .dm-panel-close:hover {
+      background: rgba(148, 163, 184, 0.22);
+    }
+
+    .message {
+      position: relative;
+    }
+
+    .message-reply-preview {
+      margin-bottom: 8px;
+      padding: 7px 9px;
+      border-radius: 11px;
+      border-left: 3px solid #22d3ee;
+      background: rgba(34, 211, 238, 0.12);
+      overflow: hidden;
+    }
+
+    .message.mine .message-reply-preview {
+      border-left-color: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.13);
+    }
+
+    .message-reply-author {
+      font-size: 12px;
+      font-weight: 900;
+      color: #67e8f9;
+      margin-bottom: 2px;
+    }
+
+    .message.mine .message-reply-author {
+      color: rgba(255, 255, 255, 0.82);
+    }
+
+    .message-reply-text {
+      font-size: 12px;
+      color: rgba(226, 232, 240, 0.78);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .message-edited {
+      opacity: 0.72;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function createMessageContextMenu() {
+  if (document.getElementById("telegramMessageContextMenu")) {
+    messageContextMenu = document.getElementById("telegramMessageContextMenu");
+    return;
+  }
+
+  messageContextMenu = document.createElement("div");
+  messageContextMenu.id = "telegramMessageContextMenu";
+  messageContextMenu.className = "telegram-message-menu hidden";
+
+  messageContextMenu.innerHTML = `
+    <button id="telegramReplyBtn" type="button">
+      <span class="telegram-message-menu-icon">↩</span>
+      Ответить
+    </button>
+
+    <button id="telegramEditBtn" type="button">
+      <span class="telegram-message-menu-icon">✎</span>
+      Редактировать
+    </button>
+
+    <button id="telegramDeleteBtn" type="button" class="danger">
+      <span class="telegram-message-menu-icon">🗑</span>
+      Удалить
+    </button>
+  `;
+
+  document.body.appendChild(messageContextMenu);
+
+  const replyBtn = document.getElementById("telegramReplyBtn");
+  const editBtn = document.getElementById("telegramEditBtn");
+  const deleteBtn = document.getElementById("telegramDeleteBtn");
+
+  if (replyBtn) {
+    replyBtn.addEventListener("click", () => {
+      if (!contextSelectedMessage) return;
+
+      replyToMessage = {
+        id: contextSelectedMessage.id,
+        text: contextSelectedMessage.text,
+        username: contextSelectedMessage.username,
+        displayName: contextSelectedMessage.displayName
+      };
+
+      hideEditPanel();
+      showReplyPanel(replyToMessage);
+      hideMessageContextMenu();
+
+      if (messageInput) {
+        messageInput.focus();
+      }
+    });
+  }
+
+  if (editBtn) {
+    editBtn.addEventListener("click", () => {
+      if (!contextSelectedMessage) return;
+      if (!contextSelectedMessage.mine) return;
+
+      editingMessage = {
+        id: contextSelectedMessage.id,
+        text: contextSelectedMessage.text
+      };
+
+      hideReplyPanel();
+      showEditPanel();
+
+      if (messageInput) {
+        messageInput.value = contextSelectedMessage.text;
+        messageInput.focus();
+        messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+      }
+
+      if (sendBtn) {
+        sendBtn.textContent = "Сохранить";
+      }
+
+      hideMessageContextMenu();
+    });
+  }
+
+  if (deleteBtn) {
+    deleteBtn.addEventListener("click", () => {
+      if (!contextSelectedMessage) return;
+      if (!contextSelectedMessage.mine) return;
+
+      deleteMessage(contextSelectedMessage.id);
+      hideMessageContextMenu();
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#telegramMessageContextMenu")) {
+      hideMessageContextMenu();
+    }
+  });
+
+  window.addEventListener("resize", hideMessageContextMenu);
+  window.addEventListener("scroll", hideMessageContextMenu);
+}
+
+function createReplyAndEditPanels() {
+  if (!sendBtn || !sendBtn.parentElement) return;
+
+  const inputBox = sendBtn.parentElement;
+  const parent = inputBox.parentElement;
+
+  if (!parent) return;
+
+  if (!document.getElementById("dmReplyPanel")) {
+    replyPanel = document.createElement("div");
+    replyPanel.id = "dmReplyPanel";
+    replyPanel.className = "dm-reply-panel hidden";
+
+    replyPanel.innerHTML = `
+      <div class="dm-reply-line"></div>
+
+      <div class="dm-panel-content">
+        <div class="dm-panel-title">Ответ на сообщение</div>
+        <div id="dmReplyPanelText" class="dm-panel-text"></div>
+      </div>
+
+      <button id="dmCancelReplyBtn" class="dm-panel-close" type="button">×</button>
+    `;
+
+    parent.insertBefore(replyPanel, inputBox);
+
+    replyPanelText = document.getElementById("dmReplyPanelText");
+
+    const cancelReplyBtn = document.getElementById("dmCancelReplyBtn");
+
+    if (cancelReplyBtn) {
+      cancelReplyBtn.addEventListener("click", () => {
+        hideReplyPanel();
+
+        if (messageInput) {
+          messageInput.focus();
+        }
+      });
+    }
+  } else {
+    replyPanel = document.getElementById("dmReplyPanel");
+    replyPanelText = document.getElementById("dmReplyPanelText");
+  }
+
+  if (!document.getElementById("dmEditPanel")) {
+    editPanel = document.createElement("div");
+    editPanel.id = "dmEditPanel";
+    editPanel.className = "dm-edit-panel hidden";
+
+    editPanel.innerHTML = `
+      <div class="dm-edit-line"></div>
+
+      <div class="dm-panel-content">
+        <div class="dm-panel-title">Редактирование сообщения</div>
+        <div class="dm-panel-text">Измени текст и нажми «Сохранить»</div>
+      </div>
+
+      <button id="dmCancelEditBtn" class="dm-panel-close" type="button">×</button>
+    `;
+
+    parent.insertBefore(editPanel, inputBox);
+
+    const cancelEditBtn = document.getElementById("dmCancelEditBtn");
+
+    if (cancelEditBtn) {
+      cancelEditBtn.addEventListener("click", () => {
+        hideEditPanel();
+
+        if (messageInput) {
+          messageInput.value = "";
+          messageInput.focus();
+        }
+      });
+    }
+  } else {
+    editPanel = document.getElementById("dmEditPanel");
   }
 }
 
-function playNotificationSound() {
-  if (!appSettings.notificationSoundsEnabled) return;
-  if (notificationSoundCooldown) return;
+function showReplyPanel(message) {
+  createReplyAndEditPanels();
 
-  notificationSoundCooldown = true;
+  if (!replyPanel || !replyPanelText) return;
 
-  setTimeout(() => {
-    notificationSoundCooldown = false;
-  }, 650);
-
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-
-    const ctx = new AudioCtx();
-    const volume = Math.max(0, Math.min(1, Number(appSettings.notificationVolume || 0.8)));
-
-    const master = ctx.createGain();
-    master.gain.setValueAtTime(0.0001, ctx.currentTime);
-    master.gain.exponentialRampToValueAtTime(0.14 * volume, ctx.currentTime + 0.03);
-    master.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.55);
-    master.connect(ctx.destination);
-
-    function chirp(start, from, to, duration, gainValue) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(from, start);
-      osc.frequency.exponentialRampToValueAtTime(to, start + duration);
-
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(gainValue * volume, start + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-
-      osc.connect(gain);
-      gain.connect(master);
-
-      osc.start(start);
-      osc.stop(start + duration + 0.03);
-    }
-
-    const now = ctx.currentTime;
-
-    chirp(now + 0.01, 1800, 2600, 0.1, 0.15);
-    chirp(now + 0.12, 2300, 3400, 0.09, 0.11);
-    chirp(now + 0.24, 1750, 2850, 0.13, 0.09);
-
-    setTimeout(() => ctx.close().catch(() => {}), 900);
-  } catch {}
+  replyPanelText.textContent = message.text || "Медиа";
+  replyPanel.classList.remove("hidden");
 }
 
-function showWindowsNotification(title, body, avatar) {
-  if (!("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
+function hideReplyPanel() {
+  replyToMessage = null;
 
-  try {
-    const notification = new Notification(title, {
-      body,
-      icon: avatar || undefined,
-      silent: true
-    });
+  if (replyPanel) {
+    replyPanel.classList.add("hidden");
+  }
 
-    playNotificationSound();
-
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
-
-    setTimeout(() => notification.close(), 7000);
-  } catch {}
+  if (replyPanelText) {
+    replyPanelText.textContent = "";
+  }
 }
 
-function makeNotificationText(message) {
-  if (!message) return "Новое сообщение";
+function showEditPanel() {
+  createReplyAndEditPanels();
 
-  if (message.text || message.message) return String(message.text || message.message);
+  if (editPanel) {
+    editPanel.classList.remove("hidden");
+  }
+
+  if (sendBtn) {
+    sendBtn.textContent = "Сохранить";
+  }
+}
+
+function hideEditPanel() {
+  editingMessage = null;
+
+  if (editPanel) {
+    editPanel.classList.add("hidden");
+  }
+
+  if (sendBtn) {
+    sendBtn.textContent = "Отправить";
+  }
+}
+
+function cancelMessageModes() {
+  hideReplyPanel();
+  hideEditPanel();
+  hideMessageContextMenu();
+}
+
+function openMessageContextMenu(event, message) {
+  setupTelegramMessageMenu();
+
+  contextSelectedMessage = message;
+
+  if (!messageContextMenu) return;
+
+  const editBtn = document.getElementById("telegramEditBtn");
+  const deleteBtn = document.getElementById("telegramDeleteBtn");
+
+  if (message.mine) {
+    if (editBtn) editBtn.style.display = "flex";
+    if (deleteBtn) deleteBtn.style.display = "flex";
+  } else {
+    if (editBtn) editBtn.style.display = "none";
+    if (deleteBtn) deleteBtn.style.display = "none";
+  }
+
+  messageContextMenu.classList.remove("hidden");
+
+  const rect = messageContextMenu.getBoundingClientRect();
+
+  let x = event.clientX;
+  let y = event.clientY;
+
+  if (x + rect.width > window.innerWidth) {
+    x = window.innerWidth - rect.width - 10;
+  }
+
+  if (y + rect.height > window.innerHeight) {
+    y = window.innerHeight - rect.height - 10;
+  }
+
+  messageContextMenu.style.left = x + "px";
+  messageContextMenu.style.top = y + "px";
+}
+
+function hideMessageContextMenu() {
+  if (messageContextMenu) {
+    messageContextMenu.classList.add("hidden");
+  }
+}
+
+function getMessageTextForAction(message) {
+  if (!message) return "";
+
+  const text = message.text || message.message || "";
+
+  if (text) return String(text);
 
   if (message.media) {
     if (message.media.type === "image") return "Фото";
@@ -3555,58 +2822,112 @@ function makeNotificationText(message) {
     if (message.media.type === "audio") return "Голосовое сообщение";
   }
 
-  return "Новое сообщение";
+  return "Сообщение";
 }
 
-function shouldNotifyDirect(message) {
-  if (!currentUser) return false;
+function buildReplyPayload() {
+  if (!replyToMessage) return null;
 
-  const from = normalizeUsername(message.from || message.username);
+  return {
+    id: String(replyToMessage.id || ""),
+    text: String(replyToMessage.text || "").slice(0, 500),
+    username: normalizeUsername(replyToMessage.username || ""),
+    displayName: String(replyToMessage.displayName || "").trim()
+  };
+}
 
-  if (!from || from === currentUser.username) return false;
+function getReplyFromMessage(message) {
+  return message.replyTo || message.reply_to || null;
+}
 
-  if (selectedChatType === "direct" && selectedUser && selectedUser.username === from) {
-    return document.hidden;
+function renderReplyPreview(message) {
+  const reply = getReplyFromMessage(message);
+
+  if (!reply) return "";
+
+  const author = reply.displayName || reply.display_name || reply.authorName || reply.username || "Сообщение";
+  const text = reply.text || reply.message || "Медиа";
+
+  return `
+    <div class="message-reply-preview">
+      <div class="message-reply-author">${escapeHtml(author)}</div>
+      <div class="message-reply-text">${escapeHtml(text)}</div>
+    </div>
+  `;
+}
+
+function renderMessages() {
+  setupTelegramMessageMenu();
+
+  if (!messagesBox) return;
+
+  destroyAllVoicePlayers();
+
+  messagesBox.innerHTML = "";
+
+  if (!messagesCache.length) {
+    messagesBox.innerHTML = `<div class="empty">Сообщений пока нет. Напиши первым.</div>`;
+    return;
   }
 
-  return true;
+  messagesCache.forEach((message) => {
+    const mine = message.from === currentUser.username || message.username === currentUser.username;
+    const canEditOrDelete = mine && message.id;
+    const isAudio = message.media && message.media.type === "audio";
+
+    const bubble = document.createElement("div");
+    bubble.className = mine ? "message mine" : "message";
+
+    bubble.dataset.messageId = String(message.id || "");
+    bubble.dataset.messageMine = mine ? "true" : "false";
+
+    const text = message.text || message.message || "";
+    const mediaHtml = renderMedia(message.media, message, mine, false);
+    const replyHtml = renderReplyPreview(message);
+
+    bubble.innerHTML = `
+      <div class="message-name">${escapeHtml(message.displayName || message.username || "")}</div>
+      ${replyHtml}
+      ${mediaHtml}
+      ${text ? `<div class="message-text">${escapeHtml(text)}</div>` : ""}
+      ${
+        !isAudio
+          ? `
+            <div class="message-time">
+              ${formatTime(message.created_at)}
+              ${message.edited ? `<span class="message-edited">изменено</span>` : ""}
+            </div>
+          `
+          : ""
+      }
+    `;
+
+    bubble.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+
+      openMessageContextMenu(event, {
+        id: String(message.id || ""),
+        text: getMessageTextForAction(message),
+        username: message.username || message.from || "",
+        displayName: message.displayName || message.username || "",
+        mine: canEditOrDelete,
+        message
+      });
+    });
+
+    messagesBox.appendChild(bubble);
+
+    if (isAudio) {
+      initVoicePlayer(message);
+    }
+  });
+
+  messagesBox.scrollTop = messagesBox.scrollHeight;
 }
 
-function shouldNotifyGroup(message) {
-  if (!currentUser) return false;
-
-  const from = normalizeUsername(message.from || message.username);
-  const groupId = String(message.groupId || "");
-
-  if (!groupId || from === currentUser.username) return false;
-
-  if (selectedChatType === "group" && selectedGroup && selectedGroup.id === groupId) {
-    return document.hidden;
-  }
-
-  return true;
-}
-
-function notifyDirectMessage(message) {
-  if (!shouldNotifyDirect(message)) return;
-
-  const from = normalizeUsername(message.from || message.username);
-  const title = message.displayName || from || "Новое сообщение";
-  const body = makeNotificationText(message);
-
-  showWindowsNotification(title, body, message.avatar || "");
-}
-
-function notifyGroupMessage(message) {
-  if (!shouldNotifyGroup(message)) return;
-
-  const group = groupsCache.find((item) => item.id === String(message.groupId));
-  const groupName = group ? group.name : "Группа";
-  const sender = message.displayName || message.username || "Участник";
-  const body = `${sender}: ${makeNotificationText(message)}`;
-
-  showWindowsNotification(groupName, body, message.avatar || "");
-}
+/* =========================================================
+   SOCKET HELPERS
+   ========================================================= */
 
 function shouldShowIncomingDirect(message) {
   if (!currentUser || !selectedUser || selectedChatType !== "direct") return false;
@@ -3626,24 +2947,6 @@ function shouldShowIncomingGroup(message) {
   return String(message.groupId) === String(selectedGroup.id);
 }
 
-function handleMessageDeleted(data) {
-  if (!data) return;
-
-  const id = String(data.id || data.messageId || "");
-
-  if (!id) return;
-
-  destroyVoicePlayer(id);
-
-  messagesCache = messagesCache.filter((message) => String(message.id) !== id);
-
-  if (replyToMessage && String(replyToMessage.id) === id) cancelReply();
-  if (editingMessage && String(editingMessage.id) === id) cancelEdit();
-
-  renderMessages();
-  loadRecentChats();
-}
-
 function handleMessageEdited(data) {
   if (!data) return;
 
@@ -3659,7 +2962,7 @@ function handleMessageEdited(data) {
       text: data.text || data.message || message.text || "",
       message: data.text || data.message || message.message || "",
       edited: true,
-      updatedAt: data.updatedAt || new Date().toISOString()
+      updatedAt: data.updatedAt || data.updated_at || new Date().toISOString()
     };
   });
 
@@ -3667,40 +2970,40 @@ function handleMessageEdited(data) {
   loadRecentChats();
 }
 
+function handleMessageDeleted(data) {
+  if (!data) return;
+
+  const id = String(data.id || data.messageId || "");
+
+  if (!id) return;
+
+  destroyVoicePlayer(id);
+
+  messagesCache = messagesCache.filter((message) => String(message.id) !== id);
+
+  if (contextSelectedMessage && String(contextSelectedMessage.id) === id) {
+    contextSelectedMessage = null;
+  }
+
+  if (replyToMessage && String(replyToMessage.id) === id) {
+    hideReplyPanel();
+  }
+
+  if (editingMessage && String(editingMessage.id) === id) {
+    hideEditPanel();
+  }
+
+  renderMessages();
+  loadRecentChats();
+}
+
+/* =========================================================
+   SOCKET EVENTS
+   ========================================================= */
+
 socket.on("load_messages", (messages) => {
   messagesCache = Array.isArray(messages) ? messages : [];
   renderMessages();
-
-  if (selectedChatType === "direct" && selectedUser) {
-    markCurrentDirectMessagesAsRead();
-  }
-});
-
-socket.on("messages_read", (data) => {
-  if (!data || !data.chatId || !currentUser) return;
-
-  const ids = Array.isArray(data.ids) ? data.ids.map(String) : [];
-  let changed = false;
-
-  messagesCache = messagesCache.map((message) => {
-    const sameChat = String(message.chatId || "") === String(data.chatId);
-    const messageId = String(message.id || "");
-    const mine = normalizeUsername(message.from || message.username) === currentUser.username;
-
-    if (!sameChat || !mine) return message;
-
-    if (ids.length && !ids.includes(messageId)) return message;
-
-    changed = true;
-
-    return {
-      ...message,
-      isRead: true,
-      readAt: data.readAt || message.readAt || new Date().toISOString()
-    };
-  });
-
-  if (changed) renderMessages();
 });
 
 socket.on("message_deleted", handleMessageDeleted);
@@ -3894,7 +3197,7 @@ socket.on("new_message", (message) => {
 
   if (from === currentUser.username) {
     if (shouldShowIncomingDirect(message)) {
-      const exists = messagesCache.some((m) => String(m.id) === String(message.id));
+      const exists = messagesCache.some((m) => m.id === message.id);
 
       if (!exists) {
         messagesCache.push(message);
@@ -3908,7 +3211,7 @@ socket.on("new_message", (message) => {
   }
 
   if (shouldShowIncomingDirect(message)) {
-    const exists = messagesCache.some((m) => String(m.id) === String(message.id));
+    const exists = messagesCache.some((m) => m.id === message.id);
 
     if (!exists) {
       messagesCache.push(message);
@@ -3916,7 +3219,6 @@ socket.on("new_message", (message) => {
     }
 
     unreadDirect[from] = 0;
-    markCurrentDirectMessagesAsRead();
   } else {
     unreadDirect[from] = (unreadDirect[from] || 0) + 1;
   }
@@ -3943,7 +3245,7 @@ socket.on("new_group_message", (message) => {
   }
 
   if (shouldShowIncomingGroup(message)) {
-    const exists = messagesCache.some((m) => String(m.id) === String(message.id));
+    const exists = messagesCache.some((m) => m.id === message.id);
 
     if (!exists) {
       messagesCache.push(message);
@@ -4005,6 +3307,10 @@ socket.on("group_deleted", (data) => {
   updateUnreadTitle();
 });
 
+/* =========================================================
+   UTILS
+   ========================================================= */
+
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -4027,16 +3333,42 @@ function blobToDataUrl(blob) {
   });
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatTime(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+/* =========================================================
+   EVENTS
+   ========================================================= */
+
 if (loginBtn) loginBtn.addEventListener("click", login);
 if (registerBtn) registerBtn.addEventListener("click", register);
 if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
 if (togglePasswordBtn && passwordInput) {
   togglePasswordBtn.addEventListener("click", () => {
-    const hidden = passwordInput.type === "password";
+    const isHidden = passwordInput.type === "password";
 
-    passwordInput.type = hidden ? "text" : "password";
-    togglePasswordBtn.textContent = hidden ? "Скрыть" : "Показать";
+    passwordInput.type = isHidden ? "text" : "password";
+    togglePasswordBtn.textContent = isHidden ? "Скрыть" : "Показать";
   });
 }
 
@@ -4046,7 +3378,9 @@ if (searchInput) {
   });
 }
 
-if (sendBtn) sendBtn.addEventListener("click", sendMessage);
+if (sendBtn) {
+  sendBtn.addEventListener("click", sendMessage);
+}
 
 if (messageInput) {
   messageInput.addEventListener("input", handleTypingInput);
@@ -4058,16 +3392,15 @@ if (messageInput) {
     }
 
     if (event.key === "Escape") {
-      cancelReply();
-      cancelEdit();
-      hideContextMenu();
-
-      if (messageInput) messageInput.value = "";
+      cancelMessageModes();
+      messageInput.value = "";
     }
   });
 
   messageInput.addEventListener("blur", () => {
-    setTimeout(stopTyping, 500);
+    setTimeout(() => {
+      stopTyping();
+    }, 500);
   });
 }
 
@@ -4077,8 +3410,11 @@ window.addEventListener("beforeunload", () => {
   destroyAllVoicePlayers();
 });
 
-injectStyles();
-setupContextMenu();
+/* =========================================================
+   START
+   ========================================================= */
+
+setupTelegramMessageMenu();
 
 const savedUser = loadSavedUser();
 
