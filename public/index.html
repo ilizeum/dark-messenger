@@ -6,7 +6,7 @@
 
   <title>Callibri</title>
 
-  <link rel="stylesheet" href="style.css?v=callibri-5" />
+  <link rel="stylesheet" href="style.css?v=callibri-8" />
 </head>
 <body>
   <!-- ВХОД / РЕГИСТРАЦИЯ -->
@@ -53,7 +53,6 @@
 
   <!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
   <div id="app" class="hidden">
-    <!-- ЛЕВАЯ ПАНЕЛЬ -->
     <aside class="sidebar">
       <div class="profile">
         <div>
@@ -61,6 +60,7 @@
           <div id="meLogin">@username</div>
         </div>
 
+        <!-- Старая кнопка остаётся в коде, но будет скрыта через app.js -->
         <button id="logoutBtn" type="button">Выйти</button>
       </div>
 
@@ -74,7 +74,6 @@
       <div id="users"></div>
     </aside>
 
-    <!-- ЧАТ -->
     <main class="chat">
       <header class="chat-header">
         <div id="chatAvatar">?</div>
@@ -103,85 +102,8 @@
     </main>
   </div>
 
-  <!-- SOCKET.IO -->
-  <script src="/socket.io/socket.io.js?v=callibri-4"></script>
-
-  <!-- WAVESURFER ДЛЯ КРАСИВЫХ ГОЛОСОВЫХ -->
+  <script src="/socket.io/socket.io.js?v=callibri-8"></script>
   <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
-
-  <!-- ОСНОВНАЯ ЛОГИКА -->
-  <script src="app.js?v=callibri-7"></script>
-
-  <!-- ЛОГИКА ОКНА ОБНОВЛЕНИЯ ДЛЯ ELECTRON -->
-  <script>
-    if (window.require) {
-      try {
-        const { ipcRenderer } = require("electron");
-
-        const updateBox = document.createElement("div");
-        updateBox.id = "updateBox";
-        updateBox.style.position = "fixed";
-        updateBox.style.right = "16px";
-        updateBox.style.bottom = "16px";
-        updateBox.style.zIndex = "99999";
-        updateBox.style.maxWidth = "340px";
-        updateBox.style.padding = "14px 16px";
-        updateBox.style.borderRadius = "16px";
-        updateBox.style.background = "#111827";
-        updateBox.style.border = "1px solid #243044";
-        updateBox.style.color = "white";
-        updateBox.style.boxShadow = "0 20px 60px rgba(0,0,0,0.45)";
-        updateBox.style.display = "none";
-        updateBox.style.fontFamily = "Arial, sans-serif";
-        document.body.appendChild(updateBox);
-
-        function showUpdateMessage(text) {
-          updateBox.textContent = text;
-          updateBox.style.display = "block";
-        }
-
-        ipcRenderer.on("update-message", (event, message) => {
-          showUpdateMessage(message);
-        });
-
-        ipcRenderer.on("update-downloaded", () => {
-          updateBox.innerHTML = "";
-
-          const title = document.createElement("div");
-          title.textContent = "Обновление загружено";
-          title.style.fontWeight = "800";
-          title.style.marginBottom = "8px";
-
-          const text = document.createElement("div");
-          text.textContent = "Перезапусти приложение, чтобы установить новую версию.";
-          text.style.color = "#cbd5e1";
-          text.style.fontSize = "14px";
-          text.style.marginBottom = "12px";
-
-          const button = document.createElement("button");
-          button.textContent = "Перезапустить";
-          button.style.background = "#06b6d4";
-          button.style.color = "white";
-          button.style.border = "none";
-          button.style.borderRadius = "12px";
-          button.style.padding = "10px 14px";
-          button.style.fontWeight = "800";
-          button.style.cursor = "pointer";
-
-          button.addEventListener("click", () => {
-            ipcRenderer.send("restart-app");
-          });
-
-          updateBox.appendChild(title);
-          updateBox.appendChild(text);
-          updateBox.appendChild(button);
-
-          updateBox.style.display = "block";
-        });
-      } catch (error) {
-        console.log("Electron update UI disabled:", error);
-      }
-    }
-  </script>
+  <script src="app.js?v=callibri-8"></script>
 </body>
 </html>
