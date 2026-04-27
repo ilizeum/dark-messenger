@@ -5063,3 +5063,659 @@ if (savedUser) {
 
   install();
 })();
+
+/* =========================================================
+   CALLIBRI TELEGRAM-LIKE ARCHIVE MENU
+   ПКМ по чату/группе слева → Архивировать / Вернуть
+   ========================================================= */
+
+(function setupCallibriTelegramArchive() {
+  const ARCHIVE_KEY_PREFIX = "callibri_telegram_archive_";
+
+  let archiveModeLocal = false;
+  let archiveMenu = null;
+  let archiveTarget = null;
+  let archiveMainButton = null;
+
+  function getArchiveUserKey() {
+    const username =
+      currentUser && currentUser.username
+        ? normalizeUsername(currentUser.username)
+        : "guest";
+
+    return ARCHIVE_KEY_PREFIX + username;
+  }
+
+  function loadArchiveData() {
+    try {
+      const raw = localStorage.getItem(getArchiveUserKey());
+      const data = raw ? JSON.parse(raw) : {};
+
+      return {
+        direct: data.direct || {},
+        groups: data.groups || {}
+      };
+    } catch {
+      return {
+        direct: {},
+        groups: {}
+      };
+    }
+  }
+
+  function saveArchiveData(data) {
+    localStorage.setItem(getArchiveUserKey(), JSON.stringify(data));
+  }
+
+  function isDirectInArchive(username) {
+    const data = loadArchiveData();
+    return Boolean(data.direct[normalizeUsername(username)]);
+  }
+
+  function isGroupInArchive(groupId) {
+    const data = loadArchiveData();
+    return Boolean(data.groups[String(groupId)]);
+  }
+
+  function archiveDirect(username) {
+    const clean = normalizeUsername(username);
+    if (!clean) return;
+
+    const data = loadArchiveData();
+    data.direct[clean] = true;
+    saveArchiveData(data);
+
+    if (
+      selectedChatType === "direct" &&
+      selectedUser &&
+      selectedUser.username === clean
+    ) {
+      renderEmptyChat();
+    }
+
+    redrawArchiveUI();
+  }
+
+  function unarchiveDirect(username) {
+    const clean = normalizeUsername(username);
+    if (!clean) return;
+
+    const data = loadArchiveData();
+    delete data.direct[clean];
+    saveArchiveData(data);
+
+    redrawArchiveUI();
+  }
+
+  function archiveGroup(groupId) {
+    const id = String(groupId || "");
+    if (!id) return;
+
+    const data = loadArchiveData();
+    data.groups[id] = true;
+    saveArchiveData(data);
+
+    if (
+      selectedChatType === "group" &&
+      selectedGroup &&
+      String(selectedGroup.id) === id
+    ) {
+      renderEmptyChat();
+    }
+
+    redrawArchiveUI();
+  }
+
+  function unarchiveGroup(groupId) {
+    const id = String(groupId || "");
+    if (!id) return;
+
+    const data = loadArchiveData();
+    delete data.groups[id];
+    saveArchiveData(data);
+
+    redrawArchiveUI();
+  }
+
+  function getArchiveCount() {
+    const directCount = Array.isArray(recentChatsCache)
+      ? recentChatsCache.filter((chat) => isDirectInArchive(chat.username)).length
+      : 0;
+
+    const groupCount = Array.isArray(groupsCache)
+      ? groupsCache.filter((group) => isGroupInArchive(group.id)).length
+      : 0;
+
+    return directCount + groupCount;
+  }
+
+  function injectArchiveStyles() {
+    if (document.getElementById("callibriTelegramArchiveStyles")) return;
+
+    const style = document.createElement("style");
+    style.id = "callibriTelegramArchiveStyles";
+
+    style.textContent = `
+      .callibri-archive-main-btn {
+        width: 100%;
+        min-height: 62px;
+        margin: 10px 0 12px;
+        padding: 10px 12px;
+        border: 1px solid rgba(34, 211, 238, 0.22);
+        border-radius: 20px;
+        background:
+          radial-gradient(circle at 90% 0%, rgba(16, 185, 129, 0.15), transparent 42%),
+          linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(16, 185, 129, 0.09));
+        color: #f8fafc;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-align: left;
+        cursor: pointer;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+        transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+      }
+
+      .callibri-archive-main-btn:hover {
+        transform: translateY(-1px);
+        border-color: rgba(125, 211, 252, 0.38);
+        background:
+          radial-gradient(circle at 90% 0%, rgba(16, 185, 129, 0.22), transparent 42%),
+          linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(16, 185, 129, 0.13));
+      }
+
+      .callibri-archive-main-btn.active {
+        border-color: rgba(163, 230, 53, 0.36);
+        background:
+          radial-gradient(circle at 90% 0%, rgba(163, 230, 53, 0.16), transparent 42%),
+          linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(16, 185, 129, 0.16));
+      }
+
+      .callibri-archive-main-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 15px;
+        background: rgba(2, 12, 24, 0.52);
+        color: #67e8f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 19px;
+        font-weight: 950;
+        border: 1px solid rgba(125, 211, 252, 0.18);
+        flex-shrink: 0;
+      }
+
+      .callibri-archive-main-info {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .callibri-archive-main-info b {
+        display: block;
+        color: #f8fafc;
+        font-size: 14px;
+        font-weight: 950;
+        margin-bottom: 3px;
+      }
+
+      .callibri-archive-main-info span {
+        display: block;
+        color: #9bd8e6;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .callibri-archive-main-badge {
+        min-width: 24px;
+        height: 24px;
+        padding: 0 7px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #06b6d4, #10b981);
+        color: white;
+        font-size: 12px;
+        font-weight: 950;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .callibri-sidebar-context-menu {
+        position: fixed;
+        z-index: 999999;
+        width: 270px;
+        padding: 7px;
+        border-radius: 16px;
+        background: rgba(15, 23, 42, 0.97);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(18px);
+      }
+
+      .callibri-sidebar-context-menu.hidden {
+        display: none;
+      }
+
+      .callibri-sidebar-context-menu button {
+        width: 100%;
+        height: 42px;
+        border: none;
+        outline: none;
+        background: transparent;
+        color: #e5e7eb;
+        border-radius: 11px;
+        padding: 0 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        font-weight: 800;
+        text-align: left;
+      }
+
+      .callibri-sidebar-context-menu button:hover {
+        background: rgba(148, 163, 184, 0.13);
+      }
+
+      .callibri-sidebar-context-menu button.archive {
+        color: #d9f99d;
+      }
+
+      .callibri-sidebar-context-menu button.archive:hover {
+        background: rgba(163, 230, 53, 0.12);
+      }
+
+      .callibri-sidebar-context-menu button.danger {
+        color: #fb7185;
+      }
+
+      .callibri-sidebar-context-menu button.danger:hover {
+        background: rgba(251, 113, 133, 0.13);
+      }
+
+      .callibri-sidebar-context-separator {
+        height: 1px;
+        margin: 6px 4px;
+        background: rgba(148, 163, 184, 0.16);
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function createArchiveButton() {
+    if (!usersBox || !usersBox.parentElement) return;
+
+    const existing =
+      document.getElementById("archiveToggleBtn") ||
+      document.getElementById("archiveBtn") ||
+      document.getElementById("callibriArchiveMainBtn");
+
+    if (existing) {
+      const cleanButton = existing.cloneNode(false);
+      cleanButton.id = "callibriArchiveMainBtn";
+      cleanButton.className = "callibri-archive-main-btn";
+      existing.replaceWith(cleanButton);
+      archiveMainButton = cleanButton;
+    } else {
+      archiveMainButton = document.createElement("button");
+      archiveMainButton.id = "callibriArchiveMainBtn";
+      archiveMainButton.type = "button";
+      archiveMainButton.className = "callibri-archive-main-btn";
+
+      usersBox.parentElement.insertBefore(archiveMainButton, usersBox);
+    }
+
+    archiveMainButton.addEventListener("click", () => {
+      archiveModeLocal = !archiveModeLocal;
+      redrawArchiveUI();
+    });
+
+    renderArchiveButton();
+  }
+
+  function renderArchiveButton() {
+    if (!archiveMainButton) return;
+
+    const count = getArchiveCount();
+
+    archiveMainButton.classList.toggle("active", archiveModeLocal);
+
+    archiveMainButton.innerHTML = `
+      <div class="callibri-archive-main-icon">${archiveModeLocal ? "←" : "🗂"}</div>
+
+      <div class="callibri-archive-main-info">
+        <b>${archiveModeLocal ? "Все чаты" : "Архив"}</b>
+        <span>${
+          archiveModeLocal
+            ? "Вернуться к обычному списку"
+            : count > 0
+              ? `${count} в архиве`
+              : "Скрытые чаты"
+        }</span>
+      </div>
+
+      ${
+        count > 0 && !archiveModeLocal
+          ? `<div class="callibri-archive-main-badge">${count > 99 ? "99+" : count}</div>`
+          : ""
+      }
+    `;
+  }
+
+  function createContextMenu() {
+    if (document.getElementById("callibriSidebarContextMenu")) {
+      archiveMenu = document.getElementById("callibriSidebarContextMenu");
+      return;
+    }
+
+    archiveMenu = document.createElement("div");
+    archiveMenu.id = "callibriSidebarContextMenu";
+    archiveMenu.className = "callibri-sidebar-context-menu hidden";
+
+    archiveMenu.innerHTML = `
+      <button id="callibriSidebarOpenBtn" type="button">
+        <span>↗</span>
+        Открыть чат
+      </button>
+
+      <button id="callibriSidebarArchiveBtn" type="button" class="archive">
+        <span>🗂</span>
+        Архивировать
+      </button>
+
+      <div class="callibri-sidebar-context-separator"></div>
+
+      <button id="callibriSidebarCopyBtn" type="button">
+        <span>📋</span>
+        Скопировать @id
+      </button>
+    `;
+
+    document.body.appendChild(archiveMenu);
+
+    document.getElementById("callibriSidebarOpenBtn").addEventListener("click", () => {
+      if (!archiveTarget) return;
+
+      if (archiveTarget.type === "direct") {
+        const chat = recentChatsCache.find((item) => item.username === archiveTarget.id);
+        if (chat) openChat(chat);
+      }
+
+      if (archiveTarget.type === "group") {
+        const group = groupsCache.find((item) => String(item.id) === String(archiveTarget.id));
+        if (group) openGroup(group);
+      }
+
+      hideArchiveMenu();
+    });
+
+    document.getElementById("callibriSidebarArchiveBtn").addEventListener("click", () => {
+      if (!archiveTarget) return;
+
+      if (archiveTarget.type === "direct") {
+        if (isDirectInArchive(archiveTarget.id)) {
+          unarchiveDirect(archiveTarget.id);
+        } else {
+          archiveDirect(archiveTarget.id);
+        }
+      }
+
+      if (archiveTarget.type === "group") {
+        if (isGroupInArchive(archiveTarget.id)) {
+          unarchiveGroup(archiveTarget.id);
+        } else {
+          archiveGroup(archiveTarget.id);
+        }
+      }
+
+      hideArchiveMenu();
+    });
+
+    document.getElementById("callibriSidebarCopyBtn").addEventListener("click", async () => {
+      if (!archiveTarget) return;
+
+      const text =
+        archiveTarget.type === "direct"
+          ? "@" + archiveTarget.id
+          : archiveTarget.title || "Группа";
+
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+
+      hideArchiveMenu();
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest("#callibriSidebarContextMenu")) {
+        hideArchiveMenu();
+      }
+    });
+
+    window.addEventListener("resize", hideArchiveMenu);
+    window.addEventListener("scroll", hideArchiveMenu, true);
+  }
+
+  function openArchiveMenu(event, target) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    createContextMenu();
+
+    archiveTarget = target;
+
+    const archiveBtn = document.getElementById("callibriSidebarArchiveBtn");
+
+    if (archiveBtn) {
+      const isArchived =
+        target.type === "direct"
+          ? isDirectInArchive(target.id)
+          : isGroupInArchive(target.id);
+
+      archiveBtn.innerHTML = isArchived
+        ? `<span>↩</span> Вернуть из архива`
+        : `<span>🗂</span> Архивировать`;
+    }
+
+    archiveMenu.classList.remove("hidden");
+
+    const rect = archiveMenu.getBoundingClientRect();
+
+    let x = event.clientX;
+    let y = event.clientY;
+
+    if (x + rect.width > window.innerWidth) {
+      x = window.innerWidth - rect.width - 10;
+    }
+
+    if (y + rect.height > window.innerHeight) {
+      y = window.innerHeight - rect.height - 10;
+    }
+
+    archiveMenu.style.left = `${x}px`;
+    archiveMenu.style.top = `${y}px`;
+  }
+
+  function hideArchiveMenu() {
+    if (archiveMenu) {
+      archiveMenu.classList.add("hidden");
+    }
+  }
+
+  function patchedRenderRecentChats() {
+    if (!recentChatsBox) return;
+
+    recentChatsBox.innerHTML = "";
+
+    const visibleChats = (recentChatsCache || []).filter((chat) => {
+      const archived = isDirectInArchive(chat.username);
+      return archiveModeLocal ? archived : !archived;
+    });
+
+    if (!visibleChats.length) {
+      recentChatsBox.innerHTML = `
+        <div class="empty small-empty">
+          ${archiveModeLocal ? "В архиве личных чатов пока нет" : "Личных чатов пока нет"}
+        </div>
+      `;
+      renderArchiveButton();
+      return;
+    }
+
+    visibleChats.forEach((user) => {
+      const item = document.createElement("button");
+      item.className = "user recent-chat-item";
+
+      if (
+        selectedChatType === "direct" &&
+        selectedUser &&
+        selectedUser.username === user.username
+      ) {
+        item.classList.add("active");
+      }
+
+      const count = unreadDirect[user.username] || 0;
+      const preview = typeof getChatPreview === "function"
+        ? getChatPreview(user)
+        : user.lastMessageText || "";
+
+      item.innerHTML = `
+        ${renderAvatar(user)}
+        <div class="user-info">
+          <b>${onlineDot(user.username)}${escapeHtml(user.displayName || user.username)}</b>
+          <span>${escapeHtml(preview)}</span>
+        </div>
+        ${unreadBadge(count)}
+      `;
+
+      item.addEventListener("click", () => {
+        openChat(user);
+      });
+
+      item.addEventListener("contextmenu", (event) => {
+        openArchiveMenu(event, {
+          type: "direct",
+          id: user.username,
+          title: user.displayName || user.username
+        });
+      });
+
+      recentChatsBox.appendChild(item);
+    });
+
+    renderArchiveButton();
+  }
+
+  function patchedRenderGroups() {
+    if (!groupsBox) return;
+
+    groupsBox.innerHTML = "";
+
+    const visibleGroups = (groupsCache || []).filter((group) => {
+      const archived = isGroupInArchive(group.id);
+      return archiveModeLocal ? archived : !archived;
+    });
+
+    if (!visibleGroups.length) {
+      groupsBox.innerHTML = `
+        <div class="empty small-empty">
+          ${archiveModeLocal ? "В архиве групп пока нет" : "Групп пока нет"}
+        </div>
+      `;
+      renderArchiveButton();
+      return;
+    }
+
+    visibleGroups.forEach((group) => {
+      const item = document.createElement("button");
+      item.className = "user group-item";
+
+      if (
+        selectedChatType === "group" &&
+        selectedGroup &&
+        selectedGroup.id === group.id
+      ) {
+        item.classList.add("active");
+      }
+
+      const count = unreadGroups[group.id] || 0;
+
+      item.innerHTML = `
+        <div class="avatar group-avatar">#</div>
+        <div class="user-info">
+          <b>${escapeHtml(group.name)}</b>
+          <span>${group.members.length} участн.</span>
+        </div>
+        ${unreadBadge(count)}
+      `;
+
+      item.addEventListener("click", () => {
+        openGroup(group);
+      });
+
+      item.addEventListener("contextmenu", (event) => {
+        openArchiveMenu(event, {
+          type: "group",
+          id: group.id,
+          title: group.name
+        });
+      });
+
+      groupsBox.appendChild(item);
+    });
+
+    renderArchiveButton();
+  }
+
+  function patchRenderFunctions() {
+    renderRecentChats = patchedRenderRecentChats;
+    renderGroups = patchedRenderGroups;
+  }
+
+  function redrawArchiveUI() {
+    renderArchiveButton();
+
+    if (typeof renderRecentChats === "function") {
+      renderRecentChats();
+    }
+
+    if (typeof renderGroups === "function") {
+      renderGroups();
+    }
+
+    if (typeof renderUsers === "function") {
+      renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
+    }
+  }
+
+  function initArchive() {
+    injectArchiveStyles();
+    createContextMenu();
+    createArchiveButton();
+    patchRenderFunctions();
+    redrawArchiveUI();
+  }
+
+  initArchive();
+
+  setInterval(() => {
+    injectArchiveStyles();
+    createArchiveButton();
+    patchRenderFunctions();
+    renderArchiveButton();
+  }, 1000);
+})();
