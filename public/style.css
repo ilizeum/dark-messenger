@@ -2002,3 +2002,590 @@ button {
 .recent-chat-item:hover .hummingbird-pin svg {
   transform: rotate(-10deg) scale(1.08);
 }
+
+/* =========================================================
+   CALLIBRI PREMIUM SETTINGS + GROUP ACTIONS DESIGN
+   Дизайн как на макете: настройки, кнопки группы, модалка
+   ========================================================= */
+
+:root {
+  --cb-bg: #04111f;
+  --cb-panel: rgba(4, 25, 42, 0.92);
+  --cb-panel-2: rgba(7, 42, 64, 0.82);
+  --cb-card: rgba(2, 18, 33, 0.72);
+  --cb-border: rgba(103, 232, 249, 0.18);
+  --cb-border-strong: rgba(34, 211, 238, 0.38);
+  --cb-text: #f8fafc;
+  --cb-muted: #8aa6b7;
+  --cb-soft: #cbd5e1;
+  --cb-cyan: #22d3ee;
+  --cb-blue: #0ea5e9;
+  --cb-green: #10b981;
+  --cb-lime: #a3e635;
+  --cb-danger: #fb7185;
+  --cb-danger-bg: rgba(190, 24, 93, 0.18);
+  --cb-radius-xl: 28px;
+  --cb-radius-lg: 22px;
+  --cb-radius-md: 16px;
+  --cb-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+}
+
+#groupActionsBox {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+#inviteGroupBtn,
+#leaveGroupBtn,
+#deleteGroupBtn,
+.callibri-premium-group-btn {
+  min-height: 42px !important;
+  padding: 0 18px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(125, 211, 252, 0.22) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #e2e8f0 !important;
+  font-weight: 900 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  cursor: pointer !important;
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease !important;
+}
+
+#inviteGroupBtn,
+.callibri-premium-group-btn.add {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.18), transparent 45%),
+    linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(16, 185, 129, 0.16)) !important;
+  color: #eaffff !important;
+  border-color: rgba(45, 212, 191, 0.34) !important;
+}
+
+#leaveGroupBtn,
+.callibri-premium-group-btn.leave {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.18), transparent 45%),
+    rgba(14, 165, 233, 0.1) !important;
+  color: #d9f7ff !important;
+  border-color: rgba(14, 165, 233, 0.34) !important;
+}
+
+#deleteGroupBtn,
+.callibri-premium-group-btn.delete {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(251, 113, 133, 0.16), transparent 45%),
+    rgba(127, 29, 29, 0.18) !important;
+  color: #fecdd3 !important;
+  border-color: rgba(251, 113, 133, 0.34) !important;
+}
+
+#inviteGroupBtn:hover,
+#leaveGroupBtn:hover,
+#deleteGroupBtn:hover,
+.callibri-premium-group-btn:hover {
+  transform: translateY(-1px) !important;
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+#profileBtn,
+#logoutBtn {
+  display: none !important;
+}
+
+#callibriPremiumGear {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  margin-left: auto;
+  border: none;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #06b6d4, #10b981);
+  color: white;
+  font-size: 22px;
+  font-weight: 950;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+#callibriPremiumGear:hover {
+  transform: translateY(-1px) rotate(9deg);
+  box-shadow:
+    0 20px 42px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.callibri-premium-settings {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(34, 211, 238, 0.11), transparent 36%),
+    radial-gradient(circle at 82% 12%, rgba(16, 185, 129, 0.11), transparent 34%),
+    rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(18px);
+}
+
+.callibri-premium-settings.hidden {
+  display: none;
+}
+
+.callibri-premium-window {
+  width: min(94vw, 980px);
+  max-height: 90vh;
+  overflow: hidden;
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.16), transparent 38%),
+    radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(7, 39, 65, 0.98), rgba(2, 18, 33, 0.98));
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  box-shadow: var(--cb-shadow);
+  color: var(--cb-text);
+  display: flex;
+  flex-direction: column;
+}
+
+.callibri-premium-head {
+  min-height: 84px;
+  padding: 24px 28px 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.callibri-premium-head h2 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+  color: #f8fafc;
+}
+
+.callibri-premium-head p {
+  margin: 7px 0 0;
+  color: #8fb5c5;
+  font-size: 14px;
+}
+
+.callibri-premium-close {
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+  border: none;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.callibri-premium-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  transform: rotate(5deg);
+}
+
+.callibri-premium-body {
+  min-height: 0;
+  padding: 0 28px 20px;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 16px;
+  overflow: hidden;
+}
+
+.callibri-premium-nav {
+  min-height: 0;
+  padding: 12px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(6, 45, 70, 0.74), rgba(2, 18, 33, 0.66));
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  overflow-y: auto;
+}
+
+.callibri-premium-nav button {
+  width: 100%;
+  height: 58px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 18px;
+  background: transparent;
+  color: #9fb8c6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 850;
+  font-size: 15px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.callibri-premium-nav button span {
+  width: 28px;
+  text-align: center;
+  font-size: 20px;
+}
+
+.callibri-premium-nav button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.callibri-premium-nav button.active {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.2), transparent 44%),
+    linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(16, 185, 129, 0.14));
+  color: white;
+  box-shadow: inset 3px 0 0 #22d3ee;
+}
+
+.callibri-premium-content {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.callibri-premium-section {
+  padding: 18px;
+  margin-bottom: 12px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(2, 18, 33, 0.68), rgba(2, 18, 33, 0.48));
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.callibri-premium-section-title {
+  margin: 0 0 12px;
+  color: #a9dbe8;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.callibri-premium-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 18px;
+  align-items: center;
+}
+
+.callibri-premium-field {
+  margin-bottom: 12px;
+}
+
+.callibri-premium-field label {
+  display: block;
+  margin-bottom: 7px;
+  color: #9fb8c6;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.callibri-premium-input,
+.callibri-premium-textarea,
+.callibri-premium-select {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 12, 24, 0.55);
+  color: #f8fafc;
+  outline: none;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.callibri-premium-input,
+.callibri-premium-select {
+  height: 44px;
+  padding: 0 14px;
+}
+
+.callibri-premium-textarea {
+  min-height: 86px;
+  padding: 13px 14px;
+  resize: vertical;
+}
+
+.callibri-premium-input:focus,
+.callibri-premium-textarea:focus,
+.callibri-premium-select:focus {
+  border-color: rgba(34, 211, 238, 0.48);
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.08);
+  background: rgba(2, 12, 24, 0.72);
+}
+
+.callibri-premium-avatar {
+  width: 136px;
+  height: 136px;
+  border-radius: 50%;
+  margin-left: auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(34, 211, 238, 0.18), transparent 50%),
+    rgba(2, 12, 24, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  overflow: hidden;
+}
+
+.callibri-premium-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.callibri-premium-avatar-mark {
+  width: 76px;
+  height: 76px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 35% 25%, #67e8f9, transparent 32%),
+    linear-gradient(135deg, #0ea5e9, #10b981);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 34px;
+  font-weight: 950;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
+}
+
+.callibri-premium-avatar-edit {
+  position: absolute;
+  right: 8px;
+  bottom: 10px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  background: rgba(2, 12, 24, 0.82);
+  color: white;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.callibri-premium-row {
+  min-height: 64px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(2, 12, 24, 0.42);
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.callibri-premium-row-icon {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  border-radius: 14px;
+  background: rgba(34, 211, 238, 0.12);
+  color: #67e8f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.callibri-premium-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.callibri-premium-row-main b {
+  display: block;
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.callibri-premium-row-main span {
+  display: block;
+  margin-top: 4px;
+  color: #8fb5c5;
+  font-size: 12px;
+}
+
+.callibri-premium-meter {
+  width: 150px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.callibri-premium-meter i {
+  width: 5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #22d3ee, #22c55e);
+  opacity: 0.35;
+}
+
+.callibri-premium-meter i.active {
+  opacity: 1;
+}
+
+.callibri-premium-toggle {
+  width: 54px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.42);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+
+.callibri-premium-toggle::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.16s ease;
+}
+
+.callibri-premium-toggle.active {
+  background: linear-gradient(135deg, #0ea5e9, #10b981);
+}
+
+.callibri-premium-toggle.active::after {
+  transform: translateX(24px);
+}
+
+.callibri-premium-sound-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.callibri-premium-range {
+  width: 100%;
+  accent-color: #22d3ee;
+}
+
+.callibri-premium-status {
+  min-height: 20px;
+  color: #86efac;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.callibri-premium-footer {
+  padding: 0 28px 26px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.1fr;
+  gap: 12px;
+}
+
+.callibri-premium-footer button {
+  height: 58px;
+  border-radius: 18px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  font-weight: 950;
+  font-size: 15px;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.callibri-premium-footer button:hover {
+  transform: translateY(-1px);
+}
+
+.callibri-premium-footer .danger {
+  color: #fecdd3;
+  border-color: rgba(251, 113, 133, 0.34);
+  background: rgba(127, 29, 29, 0.16);
+}
+
+.callibri-premium-footer .primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #0ea5e9, #10b981);
+  box-shadow: 0 18px 42px rgba(14, 165, 233, 0.2);
+}
+
+@media (max-width: 860px) {
+  .callibri-premium-window {
+    width: 96vw;
+  }
+
+  .callibri-premium-body {
+    grid-template-columns: 1fr;
+  }
+
+  .callibri-premium-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    max-height: 190px;
+  }
+
+  .callibri-premium-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .callibri-premium-avatar {
+    margin: 0 auto;
+  }
+
+  .callibri-premium-sound-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .callibri-premium-footer {
+    grid-template-columns: 1fr;
+  }
+}
