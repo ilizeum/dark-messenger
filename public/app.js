@@ -2377,3 +2377,258 @@ if (savedUser) {
 
   window.addEventListener("beforeunload", stopMicMeter);
 })();
+
+/* =========================================================
+   CALLIBRI FULL REDESIGN ENHANCER
+   Без setInterval и без MutationObserver по всему body
+   ========================================================= */
+
+(function setupCallibriFullRedesign() {
+  function makeRailUser() {
+    const avatar = currentUser && currentUser.avatar;
+    const letter = currentUser
+      ? (currentUser.displayName || currentUser.username || "C")[0].toUpperCase()
+      : "C";
+
+    if (avatar) {
+      return `<img src="${escapeHtml(avatar)}" alt="avatar">`;
+    }
+
+    return escapeHtml(letter);
+  }
+
+  function ensureRail() {
+    if (!app || document.getElementById("callibriRail")) return;
+
+    const rail = document.createElement("nav");
+    rail.id = "callibriRail";
+    rail.className = "callibri-rail";
+
+    rail.innerHTML = `
+      <div class="callibri-rail-logo">C</div>
+      <button class="callibri-rail-btn active" type="button" title="Чаты">💬</button>
+      <button class="callibri-rail-btn" type="button" title="Контакты">👥</button>
+      <button class="callibri-rail-btn" type="button" title="Звонки">📞</button>
+      <button class="callibri-rail-btn" type="button" title="Уведомления">🔔</button>
+      <button class="callibri-rail-btn" type="button" title="Избранное">☆</button>
+      <div class="callibri-rail-spacer"></div>
+      <button id="callibriRailSettings" class="callibri-rail-btn" type="button" title="Настройки">⚙</button>
+      <div id="callibriRailUser" class="callibri-rail-user">${makeRailUser()}</div>
+    `;
+
+    app.prepend(rail);
+
+    const settings = document.getElementById("callibriRailSettings");
+
+    if (settings) {
+      settings.addEventListener("click", () => {
+        const premiumGear = document.getElementById("callibriPremiumGear");
+        const globalGear = document.getElementById("callibriGlobalSettingsBtn");
+        const fallbackProfile = document.getElementById("profileBtn");
+
+        if (premiumGear) premiumGear.click();
+        else if (globalGear) globalGear.click();
+        else if (fallbackProfile) fallbackProfile.click();
+      });
+    }
+  }
+
+  function updateRailUser() {
+    const railUser = document.getElementById("callibriRailUser");
+
+    if (railUser) {
+      railUser.innerHTML = makeRailUser();
+    }
+  }
+
+  function ensureFilterChips() {
+    if (!searchInput || !searchInput.parentElement) return;
+    if (document.getElementById("callibriFilterRow")) return;
+
+    const row = document.createElement("div");
+    row.id = "callibriFilterRow";
+    row.className = "callibri-filter-row";
+
+    row.innerHTML = `
+      <button class="callibri-filter-chip active" type="button">Все</button>
+      <button class="callibri-filter-chip" type="button">Непрочитанные</button>
+      <button class="callibri-filter-chip" type="button">Группы</button>
+    `;
+
+    searchInput.insertAdjacentElement("afterend", row);
+
+    row.querySelectorAll(".callibri-filter-chip").forEach((button) => {
+      button.addEventListener("click", () => {
+        row.querySelectorAll(".callibri-filter-chip").forEach((item) => {
+          item.classList.remove("active");
+        });
+
+        button.classList.add("active");
+      });
+    });
+  }
+
+  function ensurePremiumGearFallback() {
+    if (!meName) return;
+
+    const profile = meName.closest(".profile");
+
+    if (!profile) return;
+
+    const oldProfileBtn = document.getElementById("profileBtn");
+    const oldLogoutBtn = document.getElementById("logoutBtn");
+
+    if (oldProfileBtn) oldProfileBtn.style.display = "none";
+    if (oldLogoutBtn) oldLogoutBtn.style.display = "none";
+
+    if (document.getElementById("callibriGlobalSettingsBtn")) return;
+    if (document.getElementById("callibriPremiumGear")) return;
+
+    const btn = document.createElement("button");
+    btn.id = "callibriGlobalSettingsBtn";
+    btn.type = "button";
+    btn.title = "Настройки";
+    btn.textContent = "⚙";
+
+    btn.addEventListener("click", () => {
+      const profileBtn = document.getElementById("profileBtn");
+
+      if (profileBtn) {
+        profileBtn.click();
+        return;
+      }
+
+      if (typeof openProfileModal === "function") {
+        openProfileModal();
+      }
+    });
+
+    profile.appendChild(btn);
+  }
+
+  function decorateGroupButtons() {
+    const invite = document.getElementById("inviteGroupBtn");
+    const leave = document.getElementById("leaveGroupBtn");
+    const del = document.getElementById("deleteGroupBtn");
+
+    if (invite && !invite.dataset.redesignDone) {
+      invite.dataset.redesignDone = "1";
+      invite.classList.add("callibri-premium-group-btn", "add");
+      invite.innerHTML = `<span>👥</span><b>Добавить</b>`;
+    }
+
+    if (leave && !leave.dataset.redesignDone) {
+      leave.dataset.redesignDone = "1";
+      leave.classList.add("callibri-premium-group-btn", "leave");
+      leave.innerHTML = `<span>↪</span><b>Выйти</b>`;
+    }
+
+    if (del && !del.dataset.redesignDone) {
+      del.dataset.redesignDone = "1";
+      del.classList.add("callibri-premium-group-btn", "delete");
+      del.innerHTML = `<span>🗑</span><b>Удалить</b>`;
+    }
+  }
+
+  function decorateComposerButtons() {
+    if (attachBtn && !attachBtn.dataset.redesignDone) {
+      attachBtn.dataset.redesignDone = "1";
+      attachBtn.innerHTML = "📎";
+      attachBtn.title = "Прикрепить файл";
+    }
+
+    if (voiceBtn && !voiceBtn.dataset.redesignDone) {
+      voiceBtn.dataset.redesignDone = "1";
+      voiceBtn.innerHTML = "🎙";
+      voiceBtn.title = "Голосовое сообщение";
+    }
+  }
+
+  function decorateExistingUi() {
+    if (app) app.classList.add("callibri-redesign-ready");
+
+    ensureRail();
+    updateRailUser();
+    ensureFilterChips();
+    ensurePremiumGearFallback();
+    decorateGroupButtons();
+    decorateComposerButtons();
+  }
+
+  function patchRenderersSafely() {
+    if (typeof renderRecentChats === "function" && !renderRecentChats.__callibriRedesignPatched) {
+      const original = renderRecentChats;
+
+      renderRecentChats = function patchedRenderRecentChats() {
+        original();
+        decorateExistingUi();
+      };
+
+      renderRecentChats.__callibriRedesignPatched = true;
+    }
+
+    if (typeof renderGroups === "function" && !renderGroups.__callibriRedesignPatched) {
+      const original = renderGroups;
+
+      renderGroups = function patchedRenderGroups() {
+        original();
+        decorateExistingUi();
+      };
+
+      renderGroups.__callibriRedesignPatched = true;
+    }
+
+    if (typeof renderMessages === "function" && !renderMessages.__callibriRedesignPatched) {
+      const original = renderMessages;
+
+      renderMessages = function patchedRenderMessages() {
+        original();
+        decorateExistingUi();
+      };
+
+      renderMessages.__callibriRedesignPatched = true;
+    }
+
+    if (typeof showGroupActions === "function" && !showGroupActions.__callibriRedesignPatched) {
+      const original = showGroupActions;
+
+      showGroupActions = function patchedShowGroupActions(group) {
+        original(group);
+        decorateGroupButtons();
+      };
+
+      showGroupActions.__callibriRedesignPatched = true;
+    }
+
+    if (typeof startApp === "function" && !startApp.__callibriRedesignPatched) {
+      const original = startApp;
+
+      startApp = async function patchedStartApp() {
+        const result = await original.apply(this, arguments);
+        decorateExistingUi();
+        return result;
+      };
+
+      startApp.__callibriRedesignPatched = true;
+    }
+  }
+
+  function runRedesignBoot() {
+    patchRenderersSafely();
+    decorateExistingUi();
+
+    setTimeout(decorateExistingUi, 150);
+    setTimeout(decorateExistingUi, 500);
+    setTimeout(decorateExistingUi, 1200);
+  }
+
+  runRedesignBoot();
+
+  document.addEventListener("click", () => {
+    setTimeout(decorateExistingUi, 80);
+  });
+
+  window.addEventListener("focus", () => {
+    setTimeout(decorateExistingUi, 120);
+  });
+})();
