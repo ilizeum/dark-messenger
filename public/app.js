@@ -1720,15 +1720,21 @@ function renderChatTitle(user) {
   const name = escapeHtml(user.displayName || user.username);
 
   return `
-    <b class="chat-title-line">
+    <div class="chat-title-row">
       ${onlineDot(user.username)}
       <span class="chat-title-name">${name}</span>
       ${
         user.pinned
-          ? `<span class="chat-pin-icon" title="Закреплённый чат"></span>`
+          ? `
+            <span class="chat-pin-badge" title="Закреплённый чат">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 3C15.5523 3 16 3.44772 16 4V6.17157L18.7071 8.87868C19.0976 9.2692 19.0976 9.90237 18.7071 10.2929L14.5 14.5V20C14.5 20.4045 14.2564 20.7691 13.8827 20.9239C13.509 21.0787 13.0789 20.9931 12.7929 20.7071L11 18.9142L9.20711 20.7071C8.92111 20.9931 8.49097 21.0787 8.11732 20.9239C7.74367 20.7691 7.5 20.4045 7.5 20V14.5L3.29289 10.2929C2.90237 9.90237 2.90237 9.2692 3.29289 8.87868L6 6.17157V4C6 3.44772 6.44772 3 7 3H15Z"/>
+              </svg>
+            </span>
+          `
           : ""
       }
-    </b>
+    </div>
   `;
 }
 
