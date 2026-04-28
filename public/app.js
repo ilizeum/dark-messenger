@@ -3667,6 +3667,126 @@ window.addEventListener("beforeunload", () => {
 
 setupTelegramMessageMenu();
 
+/* =========================================================
+   CALLIBRI EMERGENCY UI FALLBACKS
+   Возвращает renderGroups и renderEmptyChat, если они пропали
+   ========================================================= */
+
+function renderGroups() {
+  if (!groupsBox) return;
+
+  groupsBox.innerHTML = "";
+
+  if (!Array.isArray(groupsCache) || !groupsCache.length) {
+    groupsBox.innerHTML = `<div class="empty small-empty">Групп пока нет</div>`;
+    return;
+  }
+
+  groupsCache.forEach((group) => {
+    const item = document.createElement("button");
+    item.className = "user group-item";
+
+    if (
+      selectedChatType === "group" &&
+      selectedGroup &&
+      String(selectedGroup.id) === String(group.id)
+    ) {
+      item.classList.add("active");
+    }
+
+    const count = unreadGroups[group.id] || 0;
+
+    item.innerHTML = `
+      <div class="avatar group-avatar">#</div>
+      <div class="user-info">
+        <b>${escapeHtml(group.name || "Группа")}</b>
+        <span>${Array.isArray(group.members) ? group.members.length : 0} участн.</span>
+      </div>
+      ${typeof unreadBadge === "function" ? unreadBadge(count) : ""}
+    `;
+
+    item.addEventListener("click", () => {
+      if (typeof openGroup === "function") {
+        openGroup(group);
+      }
+    });
+
+    item.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+
+      if (typeof openArchiveContextMenu === "function") {
+        openArchiveContextMenu(event, {
+          type: "group",
+          id: group.id
+        });
+      }
+    });
+
+    groupsBox.appendChild(item);
+  });
+}
+
+function renderEmptyChat() {
+  try {
+    if (typeof cancelVoiceRecording === "function") cancelVoiceRecording();
+    if (typeof stopTyping === "function") stopTyping();
+    if (typeof destroyAllVoicePlayers === "function") destroyAllVoicePlayers();
+  } catch {}
+
+  selectedUser = null;
+  selectedGroup = null;
+  selectedChatType = null;
+  messagesCache = [];
+
+  if (typeof clearTypingState === "function") {
+    clearTypingState();
+  }
+
+  if (typeof hideGroupActions === "function") {
+    hideGroupActions();
+  }
+
+  if (chatAvatar) {
+    chatAvatar.textContent = "?";
+    chatAvatar.innerHTML = "?";
+  }
+
+  if (chatName) {
+    chatName.textContent = "Выберите чат";
+  }
+
+  if (chatStatus) {
+    chatStatus.textContent = "Выберите личный чат, группу или найдите пользователя";
+  }
+
+  if (messagesBox) {
+    messagesBox.innerHTML = `
+      <div class="empty">
+        Выберите чат слева или найдите пользователя через поиск.
+      </div>
+    `;
+  }
+
+  if (messageInput) {
+    messageInput.value = "";
+    messageInput.disabled = true;
+  }
+
+  if (sendBtn) sendBtn.disabled = true;
+  if (typeof attachBtn !== "undefined" && attachBtn) attachBtn.disabled = true;
+  if (typeof voiceBtn !== "undefined" && voiceBtn) voiceBtn.disabled = true;
+
+  if (typeof renderRecentChats === "function") {
+    renderRecentChats();
+  }
+
+  renderGroups();
+
+  if (typeof renderSearchHint === "function") {
+    renderSearchHint();
+  }
+}
+
 const savedUser = loadSavedUser();
 
 if (savedUser) {
