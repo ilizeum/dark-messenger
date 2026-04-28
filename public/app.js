@@ -4374,3 +4374,125 @@ if (savedUser) {
     bootBeautifulSettings();
   }
 })();
+
+/* =========================================================
+   CALLIBRI — открыть красивые настройки по клику на аватарку
+   ========================================================= */
+
+(function openBeautifulSettingsByAvatar() {
+  function hideSeparateSettingsButtons() {
+    [
+      "#callibriBeautifulSettingsBtn",
+      "#profileBtn",
+      "#settingsBtn",
+      "#callibriPremiumGear",
+      "#callibriGlobalSettingsBtn",
+      "#callibriSingleSettingsBtn",
+      "#railSettingsBtn",
+      ".clean-settings-gear",
+      ".callibri-settings-gear"
+    ].forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => {
+        el.style.display = "none";
+        el.style.pointerEvents = "none";
+      });
+    });
+  }
+
+  function openBeautifulSettingsSafe() {
+    const beautifulOverlay = document.getElementById("cbSettingsOverlay");
+
+    if (beautifulOverlay) {
+      if (typeof currentUser === "undefined" || !currentUser) return;
+
+      if (typeof openBeautifulSettings === "function") {
+        openBeautifulSettings();
+        return;
+      }
+
+      beautifulOverlay.classList.remove("hidden");
+      beautifulOverlay.style.display = "flex";
+      beautifulOverlay.style.pointerEvents = "auto";
+      return;
+    }
+
+    const oldProfileButton = document.getElementById("profileBtn");
+
+    if (oldProfileButton && typeof oldProfileButton.click === "function") {
+      oldProfileButton.click();
+    }
+  }
+
+  function bindAvatarButton(avatar) {
+    if (!avatar) return;
+    if (avatar.dataset.openSettingsBound === "1") return;
+
+    avatar.dataset.openSettingsBound = "1";
+    avatar.title = "Открыть настройки";
+
+    avatar.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openBeautifulSettingsSafe();
+    });
+  }
+
+  function bindAllAvatars() {
+    hideSeparateSettingsButtons();
+
+    const avatars = [
+      document.getElementById("profileAvatarBtn"),
+      document.getElementById("callibriRailUser"),
+      document.querySelector(".callibri-rail-user")
+    ];
+
+    avatars.forEach(bindAvatarButton);
+  }
+
+  function patchSafe(functionName) {
+    const original = window[functionName];
+
+    if (typeof original !== "function") return;
+    if (original.__avatarSettingsPatched) return;
+
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+
+      setTimeout(bindAllAvatars, 0);
+      setTimeout(bindAllAvatars, 150);
+
+      return result;
+    };
+
+    wrapped.__avatarSettingsPatched = true;
+    window[functionName] = wrapped;
+  }
+
+  function bootAvatarSettings() {
+    [
+      "startApp",
+      "renderMyAvatar",
+      "renderRecentChats",
+      "renderGroups",
+      "renderUsers",
+      "openChat",
+      "openGroup",
+      "renderEmptyChat"
+    ].forEach(patchSafe);
+
+    bindAllAvatars();
+
+    setTimeout(bindAllAvatars, 300);
+    setTimeout(bindAllAvatars, 1000);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootAvatarSettings, { once: true });
+  } else {
+    bootAvatarSettings();
+  }
+
+  window.addEventListener("focus", () => {
+    setTimeout(bindAllAvatars, 120);
+  });
+})();

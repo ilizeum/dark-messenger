@@ -6699,3 +6699,73 @@ button {
     margin: 0 auto;
   }
 }
+
+/* =========================================================
+   CALLIBRI — настройки по клику на свою аватарку
+   ========================================================= */
+
+/* Убираем отдельные кнопки настроек, чтобы не было дублей */
+#callibriBeautifulSettingsBtn,
+#profileBtn,
+#settingsBtn,
+#callibriPremiumGear,
+#callibriGlobalSettingsBtn,
+#callibriSingleSettingsBtn,
+#railSettingsBtn,
+.clean-settings-gear,
+.callibri-settings-gear {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* Делаем свою аватарку красивой кнопкой настроек */
+#profileAvatarBtn,
+.callibri-rail-user,
+#callibriRailUser {
+  cursor: pointer !important;
+  position: relative !important;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    filter 0.16s ease !important;
+}
+
+/* Красивое свечение вокруг аватарки */
+#profileAvatarBtn:hover,
+.callibri-rail-user:hover,
+#callibriRailUser:hover {
+  transform: translateY(-1px) scale(1.03) !important;
+  filter: brightness(1.08) !important;
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.34),
+    0 0 24px rgba(34, 211, 238, 0.18) !important;
+}
+
+/* Маленькая подсказка-шестерёнка на аватарке */
+#profileAvatarBtn::after,
+.callibri-rail-user::after,
+#callibriRailUser::after {
+  content: "⚙";
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #0ea5e9, #10b981);
+  color: white;
+  font-size: 12px;
+  font-weight: 950;
+  border: 2px solid #03111f;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* Аккуратная подсказка */
+#profileAvatarBtn[title],
+.callibri-rail-user[title],
+#callibriRailUser[title] {
+  user-select: none;
+}
