@@ -10,63 +10,67 @@
 </head>
 <body>
   <!-- ВХОД / РЕГИСТРАЦИЯ -->
-  <div class="password-wrap">
-  <input
-    id="password"
-    type="password"
-    placeholder="Пароль"
-    autocomplete="current-password"
-  />
-  <button id="togglePassword" type="button">Показать</button>
-</div>
+ <!-- ВХОД / РЕГИСТРАЦИЯ -->
+<div id="auth">
+  <div class="auth-card">
+    <h1>Callibri</h1>
+    <p id="authSubtitle">Войди в аккаунт, чтобы продолжить общение</p>
 
-<label class="remember-row">
-  <input id="rememberMe" type="checkbox" />
-  <span>Не выходить</span>
-</label>
-
-<div class="auth-actions">
-  <button id="loginBtn" type="button">Войти</button>
-  <button id="registerBtn" class="hidden" type="button">Создать аккаунт</button>
-</div>
-
-<button id="authSwitchHint" class="auth-switch-hint" type="button">
-  Нет аккаунта? Зарегистрироваться
-</button>
-
-<div id="authError"></div>
-/>
-
-<input
-  id="phone"
-  type="tel"
-  placeholder="Телефон для регистрации, например +79991234567"
-  autocomplete="tel"
-/>
-
-      <div class="password-wrap">
-        <input
-          id="password"
-          type="password"
-          placeholder="Пароль"
-          autocomplete="current-password"
-        />
-        <button id="togglePassword" type="button">Показать</button>
-      </div>
-
-      <label class="remember-row">
-        <input id="rememberMe" type="checkbox" />
-        <span>Не выходить</span>
-      </label>
-
-      <div class="auth-actions">
-  <button id="loginBtn" type="button">Войти</button>
-  <button id="registerBtn" type="button">Регистрация</button>
-</div>
-
-      <div id="authError"></div>
+    <div class="auth-tabs">
+      <button id="authLoginTab" class="auth-tab active" type="button">Вход</button>
+      <button id="authRegisterTab" class="auth-tab" type="button">Регистрация</button>
     </div>
+
+    <div id="registerFields" class="auth-mode-fields hidden">
+      <input
+        id="displayName"
+        type="text"
+        placeholder="Имя, например Александр"
+        autocomplete="name"
+      />
+
+      <input
+        id="phone"
+        type="tel"
+        placeholder="Телефон, например +79991234567"
+        autocomplete="tel"
+      />
+    </div>
+
+    <input
+      id="username"
+      type="text"
+      placeholder="Логин или телефон"
+      autocomplete="username"
+    />
+
+    <div class="password-wrap">
+      <input
+        id="password"
+        type="password"
+        placeholder="Пароль"
+        autocomplete="current-password"
+      />
+      <button id="togglePassword" type="button">Показать</button>
+    </div>
+
+    <label class="remember-row">
+      <input id="rememberMe" type="checkbox" />
+      <span>Не выходить</span>
+    </label>
+
+    <div class="auth-actions">
+      <button id="loginBtn" type="button">Войти</button>
+      <button id="registerBtn" class="hidden" type="button">Создать аккаунт</button>
+    </div>
+
+    <button id="authSwitchHint" class="auth-switch-hint" type="button">
+      Нет аккаунта? Зарегистрироваться
+    </button>
+
+    <div id="authError"></div>
   </div>
+</div>
 
   <!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
   <div id="app" class="hidden">
@@ -130,6 +134,6 @@
 
   <script src="/socket.io/socket.io.js?v=callibri-8"></script>
   <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
-  <script src="app.js?v=callibri-19"></script>
+  <script src="app.js?v=callibri-20"></script>
 </body>
 </html>
