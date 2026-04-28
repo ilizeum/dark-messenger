@@ -4542,3 +4542,362 @@ if (savedUser) {
 
   setInterval(installBeautifulGear, 700);
 })();
+
+/* =========================================================
+   CALLIBRI READ RECEIPTS UI
+   Красивые галочки: отправлено / прочитано
+   ========================================================= */
+
+(function setupCallibriReadReceiptsUI() {
+  function injectReadReceiptStyles() {
+    if (document.getElementById("callibriReadReceiptsStyles")) return;
+
+    const style = document.createElement("style");
+    style.id = "callibriReadReceiptsStyles";
+
+    style.textContent = `
+      .callibri-read-row {
+        margin-top: 6px;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 6px;
+        user-select: none;
+        pointer-events: none;
+      }
+
+      .callibri-read-time {
+        font-size: 11px;
+        line-height: 1;
+        color: rgba(255, 255, 255, 0.66);
+      }
+
+      .message:not(.mine) .callibri-read-row {
+        display: none;
+      }
+
+      .callibri-checks {
+        position: relative;
+        width: 25px;
+        height: 15px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .callibri-check {
+        position: absolute;
+        top: -1px;
+        font-size: 15px;
+        line-height: 1;
+        font-weight: 900;
+        transform: rotate(-8deg);
+        transition:
+          color 0.18s ease,
+          text-shadow 0.18s ease,
+          opacity 0.18s ease,
+          transform 0.18s ease;
+      }
+
+      .callibri-check.first {
+        left: 2px;
+      }
+
+      .callibri-check.second {
+        left: 10px;
+      }
+
+      .callibri-checks.sent .callibri-check.first {
+        color: rgba(226, 232, 240, 0.78);
+      }
+
+      .callibri-checks.sent .callibri-check.second {
+        opacity: 0;
+        transform: translateX(-3px) rotate(-8deg);
+      }
+
+      .callibri-checks.read .callibri-check {
+        color: #b9f6ff;
+        text-shadow:
+          0 0 8px rgba(34, 211, 238, 0.42),
+          0 0 14px rgba(16, 185, 129, 0.24);
+      }
+
+      .callibri-checks.read .callibri-check.second {
+        opacity: 1;
+        transform: translateX(0) rotate(-8deg);
+      }
+
+      .callibri-checks.read {
+        animation: callibriReadPop 0.22s ease;
+      }
+
+      @keyframes callibriReadPop {
+        0% {
+          transform: scale(0.9);
+          opacity: 0.7;
+        }
+
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      .message.mine .message-time {
+        display: none;
+      }
+
+      .message.mine .callibri-read-row {
+        color: rgba(255, 255, 255, 0.72);
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function isOwnDirectMessage(message) {
+    if (!message || !currentUser) return false;
+
+    const from = normalizeUsername(message.from || message.username);
+    const type = String(message.type || selectedChatType || "");
+
+    return type === "direct" && from === currentUser.username;
+  }
+
+  function isMessageRead(message) {
+    return Boolean(
+      message &&
+        (
+          message.isRead === true ||
+          message.is_read === true ||
+          message.readAt ||
+          message.read_at
+        )
+    );
+  }
+
+  function getMessageCreatedTime(message) {
+    if (!message) return "";
+
+    if (typeof formatTime === "function") {
+      return formatTime(message.created_at || message.createdAt);
+    }
+
+    const value = message.created_at || message.createdAt;
+
+    if (!value) return "";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toLocaleTimeString("ru-RU", {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
+  function createChecksHtml(read) {
+    return `
+      <span class="callibri-checks ${read ? "read" : "sent"}" title="${read ? "Прочитано" : "Отправлено"}">
+        <span class="callibri-check first">✓</span>
+        <span class="callibri-check second">✓</span>
+      </span>
+    `;
+  }
+
+  function decorateReadReceipts() {
+    if (!messagesBox || !Array.isArray(messagesCache)) return;
+
+    const bubbles = Array.from(messagesBox.querySelectorAll(".message"));
+
+    bubbles.forEach((bubble, index) => {
+      const message = messagesCache[index];
+
+      if (!message || !message.id) return;
+
+      bubble.dataset.callibriMessageId = String(message.id);
+
+      const oldRow = bubble.querySelector(".callibri-read-row");
+
+      if (oldRow) oldRow.remove();
+
+      if (!isOwnDirectMessage(message)) return;
+
+      const read = isMessageRead(message);
+      const time = getMessageCreatedTime(message);
+
+      const row = document.createElement("div");
+      row.className = "callibri-read-row";
+      row.innerHTML = `
+        <span class="callibri-read-time">${escapeHtml(time)}</span>
+        ${createChecksHtml(read)}
+      `;
+
+      bubble.appendChild(row);
+    });
+  }
+
+  function markMessagesAsReadLocally(ids, readAt) {
+    if (!Array.isArray(messagesCache)) return;
+
+    const idSet = new Set((ids || []).map((id) => String(id)));
+
+    if (!idSet.size) return;
+
+    messagesCache = messagesCache.map((message) => {
+      if (!message || !message.id) return message;
+
+      if (!idSet.has(String(message.id))) return message;
+
+      return {
+        ...message,
+        isRead: true,
+        is_read: true,
+        readAt: readAt || new Date().toISOString(),
+        read_at: readAt || new Date().toISOString()
+      };
+    });
+  }
+
+  function emitReadForCurrentChat() {
+    if (!currentUser) return;
+    if (selectedChatType !== "direct") return;
+    if (!selectedUser || !selectedUser.username) return;
+    if (typeof socket === "undefined" || !socket || !socket.emit) return;
+
+    socket.emit("mark_messages_read", {
+      me: currentUser.username,
+      with: selectedUser.username
+    });
+  }
+
+  function patchRenderMessages() {
+    if (typeof renderMessages !== "function") return;
+    if (renderMessages.__callibriReadReceiptsPatched) return;
+
+    const originalRenderMessages = renderMessages;
+
+    renderMessages = function patchedRenderMessages() {
+      originalRenderMessages();
+      decorateReadReceipts();
+
+      setTimeout(() => {
+        decorateReadReceipts();
+      }, 50);
+    };
+
+    renderMessages.__callibriReadReceiptsPatched = true;
+  }
+
+  function patchOpenChat() {
+    if (typeof openChat !== "function") return;
+    if (openChat.__callibriReadReceiptsPatched) return;
+
+    const originalOpenChat = openChat;
+
+    openChat = async function patchedOpenChat(user) {
+      await originalOpenChat(user);
+
+      setTimeout(() => {
+        emitReadForCurrentChat();
+        decorateReadReceipts();
+      }, 350);
+    };
+
+    openChat.__callibriReadReceiptsPatched = true;
+  }
+
+  function setupSocketListeners() {
+    if (typeof socket === "undefined" || !socket || socket.__callibriReadReceiptsListener) {
+      return;
+    }
+
+    socket.__callibriReadReceiptsListener = true;
+
+    socket.on("messages_read", (payload) => {
+      if (!payload || !Array.isArray(payload.ids)) return;
+
+      markMessagesAsReadLocally(payload.ids, payload.readAt);
+
+      decorateReadReceipts();
+
+      if (typeof renderRecentChats === "function") {
+        renderRecentChats();
+      }
+    });
+
+    socket.on("new_message", () => {
+      setTimeout(() => {
+        emitReadForCurrentChat();
+        decorateReadReceipts();
+      }, 250);
+    });
+
+    socket.on("load_messages", () => {
+      setTimeout(() => {
+        emitReadForCurrentChat();
+        decorateReadReceipts();
+      }, 250);
+    });
+  }
+
+  function setupVisibilityListener() {
+    if (document.__callibriReadReceiptsVisibility) return;
+
+    document.__callibriReadReceiptsVisibility = true;
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        setTimeout(() => {
+          emitReadForCurrentChat();
+          decorateReadReceipts();
+        }, 250);
+      }
+    });
+
+    window.addEventListener("focus", () => {
+      setTimeout(() => {
+        emitReadForCurrentChat();
+        decorateReadReceipts();
+      }, 250);
+    });
+  }
+
+  function observeMessagesBox() {
+    if (!messagesBox || messagesBox.__callibriReadReceiptsObserver) return;
+
+    messagesBox.__callibriReadReceiptsObserver = true;
+
+    const observer = new MutationObserver(() => {
+      decorateReadReceipts();
+    });
+
+    observer.observe(messagesBox, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  function initReadReceiptsUI() {
+    injectReadReceiptStyles();
+    patchRenderMessages();
+    patchOpenChat();
+    setupSocketListeners();
+    setupVisibilityListener();
+    observeMessagesBox();
+    decorateReadReceipts();
+  }
+
+  initReadReceiptsUI();
+
+  setInterval(() => {
+    injectReadReceiptStyles();
+    patchRenderMessages();
+    patchOpenChat();
+    setupSocketListeners();
+    observeMessagesBox();
+    decorateReadReceipts();
+  }, 1200);
+})();
