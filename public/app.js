@@ -2128,21 +2128,11 @@ async function openChat(user) {
     with: selectedUser.username
   });
 
-  try {
-    const data = await request(
-      `/api/messages?me=${encodeURIComponent(currentUser.username)}&with=${encodeURIComponent(selectedUser.username)}`
-    );
-
-    messagesCache = data.messages || [];
-    renderMessages();
-    renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
-    renderRecentChats();
-    renderGroups();
-  } catch (error) {
-    if (messagesBox) {
-      messagesBox.innerHTML = `<div class="empty">Ошибка загрузки сообщений</div>`;
-    }
-  }
+  // Сообщения загружаются через socket-событие "load_messages".
+// HTTP-загрузка отключена, чтобы не было ложной ошибки "Ошибка загрузки сообщений".
+renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
+renderRecentChats();
+renderGroups();
 }
 
 async function openGroup(group) {
