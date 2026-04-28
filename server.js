@@ -330,6 +330,16 @@ await pool.query(`
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
+  
+
+  await pool.query(`
+    UPDATE messages
+    SET is_read = TRUE,
+        read_at = COALESCE(read_at, created_at)
+    WHERE type = 'group'
+      AND COALESCE(is_read, FALSE) = FALSE
+  `);
+
   await pool.query(`
   CREATE TABLE IF NOT EXISTS pinned_chats (
     user_username TEXT NOT NULL,
@@ -345,14 +355,6 @@ await pool.query(`
   CREATE INDEX IF NOT EXISTS pinned_chats_user_idx
   ON pinned_chats (user_username, pinned_at DESC)
 `);
-
-  await pool.query(`
-    UPDATE messages
-    SET is_read = TRUE,
-        read_at = COALESCE(read_at, created_at)
-    WHERE type = 'group'
-      AND COALESCE(is_read, FALSE) = FALSE
-  `);
 
   console.log("PostgreSQL tables are ready");
 }
@@ -1031,23 +1033,6 @@ app.put("/api/profile", async (req, res) => {
     );
     await client.query(`UPDATE groups SET owner = $1 WHERE owner = $2`, [newUsername, oldUsername]);
     await client.query(
-  `
-  UPDATE pinned_chats
-  SET user_username = $1
-  WHERE user_username = $2
-  `,
-  [newUsername, oldUsername]
-);
-
-await client.query(
-  `
-  UPDATE pinned_chats
-  SET other_username = $1
-  WHERE other_username = $2
-  `,
-  [newUsername, oldUsername]
-);
-    await client.query(
       `
       UPDATE groups
       SET members = array_replace(members, $1, $2)
@@ -1226,11 +1211,20 @@ app.get("/api/chats", async (req, res) => {
         m.text AS last_message_text,
         m.media AS last_message_media,
         m.created_at AS last_message_at,
-        m.is_read AS last_message_is_read
+        m.is_read AS last_message_is_read,
+        CASE WHEN p.chat_id IS NULL THEN FALSE ELSE TRUE END AS pinned,
+        p.pinned_at
       FROM direct_chats dc
       JOIN users u ON u.username = dc.other_username
       JOIN messages m ON m.id = dc.last_message_id
-      ORDER BY m.id DESC
+      LEFT JOIN pinned_chats p
+        ON p.user_username = $1
+       AND p.chat_type = 'direct'
+       AND p.chat_id = m.chat_id
+      ORDER BY
+        CASE WHEN p.chat_id IS NULL THEN 0 ELSE 1 END DESC,
+        p.pinned_at DESC NULLS LAST,
+        m.id DESC
       `,
       [me]
     );
@@ -1241,7 +1235,9 @@ app.get("/api/chats", async (req, res) => {
       lastMessageText: row.last_message_text || "",
       lastMessageMedia: row.last_message_media || null,
       lastMessageAt: row.last_message_at,
-      lastMessageIsRead: Boolean(row.last_message_is_read)
+      lastMessageIsRead: Boolean(row.last_message_is_read),
+      pinned: Boolean(row.pinned),
+      pinnedAt: row.pinned_at || null
     }));
 
     res.json({
@@ -1254,6 +1250,107 @@ app.get("/api/chats", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Ошибка загрузки личных чатов"
+    });
+  }
+});
+
+app.post("/api/pinned-chats", async (req, res) => {
+  try {
+    const me = normalizeUsername(req.body.me);
+    const otherUsername = normalizeUsername(req.body.otherUsername || req.body.username);
+
+    if (!me || !otherUsername) {
+      return res.status(400).json({
+        success: false,
+        error: "Не указан пользователь или чат"
+      });
+    }
+
+    if (me === otherUsername) {
+      return res.status(400).json({
+        success: false,
+        error: "Нельзя закрепить чат с самим собой"
+      });
+    }
+
+    const meUser = await findUser(me);
+    const otherUser = await findUser(otherUsername);
+
+    if (!meUser || !otherUser) {
+      return res.status(404).json({
+        success: false,
+        error: "Пользователь не найден"
+      });
+    }
+
+    const chatId = getDirectChatId(me, otherUsername);
+
+    const result = await pool.query(
+      `
+      INSERT INTO pinned_chats (
+        user_username,
+        chat_type,
+        chat_id,
+        other_username,
+        pinned_at
+      )
+      VALUES ($1, 'direct', $2, $3, NOW())
+      ON CONFLICT (user_username, chat_type, chat_id)
+      DO UPDATE SET pinned_at = NOW()
+      RETURNING *
+      `,
+      [me, chatId, otherUsername]
+    );
+
+    res.json({
+      success: true,
+      pinned: true,
+      chat: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Pin chat error:", error);
+
+    res.status(500).json({
+      success: false,
+      error: "Ошибка закрепления чата"
+    });
+  }
+});
+
+app.delete("/api/pinned-chats/:username", async (req, res) => {
+  try {
+    const me = normalizeUsername(req.query.me || req.body.me);
+    const otherUsername = normalizeUsername(req.params.username);
+
+    if (!me || !otherUsername) {
+      return res.status(400).json({
+        success: false,
+        error: "Не указан пользователь или чат"
+      });
+    }
+
+    const chatId = getDirectChatId(me, otherUsername);
+
+    await pool.query(
+      `
+      DELETE FROM pinned_chats
+      WHERE user_username = $1
+        AND chat_type = 'direct'
+        AND chat_id = $2
+      `,
+      [me, chatId]
+    );
+
+    res.json({
+      success: true,
+      pinned: false
+    });
+  } catch (error) {
+    console.error("Unpin chat error:", error);
+
+    res.status(500).json({
+      success: false,
+      error: "Ошибка открепления чата"
     });
   }
 });
