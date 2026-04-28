@@ -3399,3 +3399,502 @@ if (savedUser) {
     setTimeout(installBrand, 120);
   });
 })();
+
+/* =========================================================
+   CALLIBRI BEAUTIFUL SETTINGS MODAL RESTORE
+   Открываем новое красивое меню вместо старого
+   ========================================================= */
+
+(function restoreBeautifulCallibriSettings() {
+  const SETTINGS_KEY_PREFIX_NEW = "callibri_beautiful_settings_";
+  let avatarDraft = "";
+
+  function settingsKey() {
+    const username =
+      typeof currentUser !== "undefined" && currentUser && currentUser.username
+        ? normalizeUsername(currentUser.username)
+        : "guest";
+
+    return SETTINGS_KEY_PREFIX_NEW + username;
+  }
+
+  function loadBeautifulSettings() {
+    try {
+      const raw = localStorage.getItem(settingsKey());
+      const data = raw ? JSON.parse(raw) : {};
+
+      return {
+        favorites: data.favorites || "",
+        notificationSounds: data.notificationSounds !== false,
+        soundName: data.soundName || "hummingbird",
+        volume: Number(data.volume ?? 80),
+        microphoneId: data.microphoneId || ""
+      };
+    } catch {
+      return {
+        favorites: "",
+        notificationSounds: true,
+        soundName: "hummingbird",
+        volume: 80,
+        microphoneId: ""
+      };
+    }
+  }
+
+  function saveBeautifulSettings(data) {
+    localStorage.setItem(settingsKey(), JSON.stringify(data));
+  }
+
+  function meterBars() {
+    return Array.from({ length: 18 })
+      .map((_, index) => `<i style="height:${8 + (index % 8) * 2}px"></i>`)
+      .join("");
+  }
+
+  function createSettingsModal() {
+    if (document.getElementById("callibriSettingsOverlay")) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "callibriSettingsOverlay";
+    overlay.className = "hidden";
+
+    overlay.innerHTML = `
+      <div class="callibri-settings-window">
+        <div class="callibri-settings-head">
+          <div>
+            <h2>Настройки Callibri</h2>
+            <p>Профиль, избранное, микрофон, устройство входа и уведомления.</p>
+          </div>
+          <button id="callibriSettingsCloseX" type="button">×</button>
+        </div>
+
+        <div class="callibri-settings-body">
+          <nav class="callibri-settings-nav">
+            <button type="button" class="active" data-settings-scroll="profile"><span>👤</span>Профиль</button>
+            <button type="button" data-settings-scroll="favorites"><span>☆</span>Избранное</button>
+            <button type="button" data-settings-scroll="microphone"><span>🎙</span>Микрофон</button>
+            <button type="button" data-settings-scroll="device"><span>🖥</span>Устройство входа</button>
+            <button type="button" data-settings-scroll="sounds"><span>🔔</span>Звуки уведомлений</button>
+            <button type="button" data-settings-scroll="notifications"><span>◌</span>Уведомления</button>
+            <button type="button" data-settings-scroll="appearance"><span>🎨</span>Внешний вид</button>
+            <button type="button" data-settings-scroll="privacy"><span>🔒</span>Конфиденциальность</button>
+            <button type="button" data-settings-scroll="hotkeys"><span>⌨</span>Горячие клавиши</button>
+            <button type="button" data-settings-scroll="about"><span>ⓘ</span>О программе</button>
+          </nav>
+
+          <div class="callibri-settings-content">
+            <section class="callibri-settings-section" data-settings-section="profile">
+              <div class="callibri-settings-section-title">Профиль</div>
+
+              <div class="callibri-settings-profile-grid">
+                <div>
+                  <div class="callibri-settings-field">
+                    <label>Отображаемое имя</label>
+                    <input id="callibriSettingsDisplayName" class="callibri-settings-input" type="text">
+                  </div>
+
+                  <div class="callibri-settings-field">
+                    <label>Имя пользователя</label>
+                    <input id="callibriSettingsUsername" class="callibri-settings-input" type="text">
+                  </div>
+
+                  <input id="callibriSettingsAvatarInput" type="file" accept="image/*" style="display:none">
+                </div>
+
+                <div id="callibriSettingsAvatar" class="callibri-settings-avatar"></div>
+              </div>
+
+              <div id="callibriSettingsStatus"></div>
+            </section>
+
+            <section class="callibri-settings-section" data-settings-section="favorites">
+              <div class="callibri-settings-section-title">Избранное</div>
+              <textarea id="callibriSettingsFavorites" class="callibri-settings-textarea" placeholder="Заметки, ссылки, важные данные"></textarea>
+            </section>
+
+            <section class="callibri-settings-section" data-settings-section="microphone">
+              <div class="callibri-settings-section-title">Микрофон</div>
+              <div class="callibri-settings-row">
+                <div class="callibri-settings-row-icon">🎙</div>
+                <div class="callibri-settings-row-main">
+                  <select id="callibriSettingsMic" class="callibri-settings-select">
+                    <option value="">Микрофон (Realtek High Definition Audio)</option>
+                  </select>
+                </div>
+                <div class="callibri-settings-meter">${meterBars()}</div>
+              </div>
+            </section>
+
+            <section class="callibri-settings-section" data-settings-section="device">
+              <div class="callibri-settings-section-title">Устройство входа</div>
+              <div class="callibri-settings-row">
+                <div class="callibri-settings-row-icon">🖥</div>
+                <div class="callibri-settings-row-main">
+                  <b id="callibriSettingsDevice">Текущее устройство</b>
+                  <span>● Текущая сессия</span>
+                </div>
+                <div style="color:#8fb5c5;font-size:22px;">›</div>
+              </div>
+            </section>
+
+            <section class="callibri-settings-section" data-settings-section="sounds">
+              <div class="callibri-settings-section-title">Звуки уведомлений</div>
+
+              <div class="callibri-settings-row">
+                <div class="callibri-settings-row-icon">🔔</div>
+                <div class="callibri-settings-row-main">
+                  <b>Включить звуки уведомлений</b>
+                  <span>Получайте звуковые уведомления о новых сообщениях</span>
+                </div>
+                <button id="callibriSettingsSoundToggle" class="callibri-settings-toggle" type="button"></button>
+              </div>
+
+              <div class="callibri-settings-sound-grid">
+                <select id="callibriSettingsSoundName" class="callibri-settings-select">
+                  <option value="hummingbird">Звук колибри</option>
+                  <option value="soft">Мягкий сигнал</option>
+                  <option value="classic">Классический звук</option>
+                </select>
+
+                <input id="callibriSettingsVolume" class="callibri-settings-range" type="range" min="0" max="100">
+              </div>
+            </section>
+
+            <section class="callibri-settings-section" data-settings-section="notifications">
+              <div class="callibri-settings-section-title">Уведомления</div>
+              <div class="callibri-settings-row">
+                <div class="callibri-settings-row-icon">◌</div>
+                <div class="callibri-settings-row-main">
+                  <b>Уведомления о новых сообщениях</b>
+                  <span>Настройка уведомлений будет расширяться дальше</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="callibri-settings-section" data-settings-section="appearance">
+              <div class="callibri-settings-section-title">Внешний вид</div>
+              <div class="callibri-settings-row">
+                <div class="callibri-settings-row-icon">🎨</div>
+                <div class="callibri-settings-row-main">
+                  <b>Callibri Dark</b>
+                  <span>Тёмная тема с градиентами колибри</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="callibri-settings-section" data-settings-section="privacy">
+              <div class="callibri-settings-section-title">Конфиденциальность</div>
+              <div class="callibri-settings-row">
+                <div class="callibri-settings-row-icon">🔒</div>
+                <div class="callibri-settings-row-main">
+                  <b>Локальные настройки</b>
+                  <span>Избранное, звук и устройство хранятся на этом компьютере</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="callibri-settings-section" data-settings-section="hotkeys">
+              <div class="callibri-settings-section-title">Горячие клавиши</div>
+              <div class="callibri-settings-row">
+                <div class="callibri-settings-row-icon">⌨</div>
+                <div class="callibri-settings-row-main">
+                  <b>Enter — отправить сообщение</b>
+                  <span>Shift + Enter — новая строка</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="callibri-settings-section" data-settings-section="about">
+              <div class="callibri-settings-section-title">О программе</div>
+              <div class="callibri-settings-row">
+                <div class="callibri-settings-row-icon">🐦</div>
+                <div class="callibri-settings-row-main">
+                  <b>Callibri Messenger</b>
+                  <span>Версия 2.8.1 · Dark Messenger / Callibri</span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="callibri-settings-footer">
+          <button id="callibriSettingsLogout" class="danger" type="button">↪ Выйти</button>
+          <button id="callibriSettingsClose" type="button">Закрыть</button>
+          <button id="callibriSettingsSave" class="primary" type="button">Сохранить</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeBeautifulSettings();
+    });
+
+    document.getElementById("callibriSettingsCloseX").addEventListener("click", closeBeautifulSettings);
+    document.getElementById("callibriSettingsClose").addEventListener("click", closeBeautifulSettings);
+    document.getElementById("callibriSettingsSave").addEventListener("click", saveSettingsFromModal);
+    document.getElementById("callibriSettingsLogout").addEventListener("click", () => {
+      closeBeautifulSettings();
+      if (typeof logout === "function") logout();
+    });
+
+    document.getElementById("callibriSettingsSoundToggle").addEventListener("click", (event) => {
+      event.currentTarget.classList.toggle("active");
+    });
+
+    document.getElementById("callibriSettingsAvatarInput").addEventListener("change", async (event) => {
+      const file = event.target.files && event.target.files[0];
+
+      if (!file) return;
+
+      if (!file.type.startsWith("image/")) {
+        alert("Выбери изображение");
+        return;
+      }
+
+      if (typeof MAX_FILE_SIZE !== "undefined" && file.size > MAX_FILE_SIZE) {
+        alert("Файл слишком большой. Максимум 8 МБ.");
+        return;
+      }
+
+      avatarDraft = await fileToDataUrl(file);
+      renderSettingsAvatar();
+      event.target.value = "";
+    });
+
+    overlay.querySelectorAll("[data-settings-scroll]").forEach((button) => {
+      button.addEventListener("click", () => {
+        overlay.querySelectorAll("[data-settings-scroll]").forEach((item) => {
+          item.classList.remove("active");
+        });
+
+        button.classList.add("active");
+
+        const target = overlay.querySelector(`[data-settings-section="${button.dataset.settingsScroll}"]`);
+
+        if (target) {
+          target.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+          });
+        }
+      });
+    });
+  }
+
+  function renderSettingsAvatar() {
+    const box = document.getElementById("callibriSettingsAvatar");
+
+    if (!box) return;
+
+    const user = typeof currentUser !== "undefined" ? currentUser : null;
+    const src = avatarDraft || (user && user.avatar) || "";
+
+    if (src) {
+      box.innerHTML = `
+        <img src="${escapeHtml(src)}" alt="avatar">
+        <button id="callibriSettingsAvatarEdit" type="button">✎</button>
+      `;
+    } else {
+      const letter = user ? ((user.displayName || user.username || "C")[0] || "C").toUpperCase() : "C";
+      box.innerHTML = `
+        <div class="callibri-settings-avatar-mark">${escapeHtml(letter)}</div>
+        <button id="callibriSettingsAvatarEdit" type="button">✎</button>
+      `;
+    }
+
+    document.getElementById("callibriSettingsAvatarEdit").addEventListener("click", () => {
+      document.getElementById("callibriSettingsAvatarInput").click();
+    });
+  }
+
+  async function fillMicrophones() {
+    const select = document.getElementById("callibriSettingsMic");
+
+    if (!select) return;
+
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const mics = devices.filter((device) => device.kind === "audioinput");
+
+        if (mics.length) {
+          select.innerHTML = "";
+          mics.forEach((mic, index) => {
+            const option = document.createElement("option");
+            option.value = mic.deviceId;
+            option.textContent = mic.label || `Микрофон ${index + 1}`;
+            select.appendChild(option);
+          });
+        }
+      }
+    } catch {}
+  }
+
+  function openBeautifulSettings() {
+    if (typeof currentUser === "undefined" || !currentUser) return;
+
+    createSettingsModal();
+
+    const settings = loadBeautifulSettings();
+
+    avatarDraft = currentUser.avatar || "";
+
+    document.getElementById("callibriSettingsDisplayName").value =
+      currentUser.displayName || currentUser.username || "";
+
+    document.getElementById("callibriSettingsUsername").value =
+      currentUser.username || "";
+
+    document.getElementById("callibriSettingsFavorites").value =
+      settings.favorites || "";
+
+    document.getElementById("callibriSettingsSoundToggle").classList.toggle(
+      "active",
+      Boolean(settings.notificationSounds)
+    );
+
+    document.getElementById("callibriSettingsSoundName").value =
+      settings.soundName || "hummingbird";
+
+    document.getElementById("callibriSettingsVolume").value =
+      String(settings.volume ?? 80);
+
+    const device = document.getElementById("callibriSettingsDevice");
+    if (device) device.textContent = navigator.platform || "Текущее устройство";
+
+    const status = document.getElementById("callibriSettingsStatus");
+    if (status) status.textContent = "";
+
+    renderSettingsAvatar();
+    fillMicrophones();
+
+    document.getElementById("callibriSettingsOverlay").classList.remove("hidden");
+  }
+
+  function closeBeautifulSettings() {
+    const overlay = document.getElementById("callibriSettingsOverlay");
+    if (overlay) overlay.classList.add("hidden");
+  }
+
+  async function saveSettingsFromModal() {
+    if (typeof currentUser === "undefined" || !currentUser) return;
+
+    const status = document.getElementById("callibriSettingsStatus");
+    const displayName = document.getElementById("callibriSettingsDisplayName").value.trim();
+    const username = normalizeUsername(document.getElementById("callibriSettingsUsername").value);
+
+    if (!displayName) {
+      status.style.color = "#fda4af";
+      status.textContent = "Введите имя";
+      return;
+    }
+
+    if (!username) {
+      status.style.color = "#fda4af";
+      status.textContent = "Введите username";
+      return;
+    }
+
+    try {
+      const data = await request("/api/profile", {
+        method: "PUT",
+        body: JSON.stringify({
+          oldUsername: currentUser.username,
+          newUsername: username,
+          displayName,
+          avatar: avatarDraft || ""
+        })
+      });
+
+      if (typeof updateSavedUser === "function") {
+        updateSavedUser(data.user);
+      } else {
+        currentUser = data.user;
+      }
+
+      if (typeof meName !== "undefined" && meName) meName.textContent = currentUser.displayName || currentUser.username;
+      if (typeof meLogin !== "undefined" && meLogin) meLogin.textContent = "@" + currentUser.username;
+
+      const settings = loadBeautifulSettings();
+      settings.favorites = document.getElementById("callibriSettingsFavorites").value;
+      settings.notificationSounds = document.getElementById("callibriSettingsSoundToggle").classList.contains("active");
+      settings.soundName = document.getElementById("callibriSettingsSoundName").value;
+      settings.volume = Number(document.getElementById("callibriSettingsVolume").value || 80);
+      settings.microphoneId = document.getElementById("callibriSettingsMic").value;
+
+      saveBeautifulSettings(settings);
+
+      status.style.color = "#86efac";
+      status.textContent = "Настройки сохранены";
+
+      setTimeout(closeBeautifulSettings, 500);
+    } catch (error) {
+      status.style.color = "#fda4af";
+      status.textContent = error.message || "Ошибка сохранения";
+    }
+  }
+
+  function removeOldSettingsOverlays() {
+    document.querySelectorAll("#settingsModal, #callibriOldSettingsModal, .old-settings-modal").forEach((el) => {
+      if (el.id !== "callibriSettingsOverlay") {
+        el.classList.add("hidden");
+        el.style.display = "none";
+        el.style.pointerEvents = "none";
+      }
+    });
+  }
+
+  function bindSettingsButtons() {
+    const selectors = [
+      "#railSettingsBtn",
+      "#callibriSingleSettingsBtn",
+      "#settingsBtn",
+      "#profileBtn",
+      "#callibriPremiumGear",
+      "#callibriGlobalSettingsBtn",
+      ".settings-btn",
+      ".profile-settings-btn",
+      ".callibri-settings-btn"
+    ];
+
+    selectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((button) => {
+        if (button.dataset.beautifulSettingsBound === "1") return;
+
+        button.dataset.beautifulSettingsBound = "1";
+
+        button.addEventListener(
+          "click",
+          (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            removeOldSettingsOverlays();
+            openBeautifulSettings();
+          },
+          true
+        );
+      });
+    });
+  }
+
+  function bootBeautifulSettings() {
+    createSettingsModal();
+    bindSettingsButtons();
+
+    setTimeout(bindSettingsButtons, 300);
+    setTimeout(bindSettingsButtons, 900);
+    setTimeout(bindSettingsButtons, 1600);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootBeautifulSettings, { once: true });
+  } else {
+    bootBeautifulSettings();
+  }
+
+  window.addEventListener("focus", () => {
+    setTimeout(bindSettingsButtons, 120);
+  });
+})();

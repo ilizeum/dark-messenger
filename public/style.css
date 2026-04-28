@@ -5063,3 +5063,430 @@ button {
 .callibri-rail > div.callibri-rail-logo {
   display: none !important;
 }
+
+/* =========================================================
+   CALLIBRI BEAUTIFUL SETTINGS MODAL RESTORE
+   Возвращаем новое красивое меню настроек
+   ========================================================= */
+
+#callibriSettingsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(34, 211, 238, 0.12), transparent 34%),
+    radial-gradient(circle at 85% 12%, rgba(16, 185, 129, 0.10), transparent 32%),
+    rgba(2, 6, 23, 0.74);
+  backdrop-filter: blur(18px);
+}
+
+#callibriSettingsOverlay.hidden {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.callibri-settings-window {
+  width: min(94vw, 980px);
+  max-height: 90vh;
+  border-radius: 30px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.16), transparent 38%),
+    radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(7, 39, 65, 0.98), rgba(2, 18, 33, 0.98));
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  box-shadow: 0 32px 110px rgba(0, 0, 0, 0.58);
+  color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+}
+
+.callibri-settings-head {
+  padding: 24px 28px 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.callibri-settings-head h2 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.callibri-settings-head p {
+  margin: 7px 0 0;
+  color: #8fb5c5;
+  font-size: 14px;
+}
+
+#callibriSettingsCloseX {
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  font-size: 30px;
+  cursor: pointer;
+}
+
+#callibriSettingsCloseX:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+
+.callibri-settings-body {
+  min-height: 0;
+  padding: 0 28px 20px;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 16px;
+  overflow: hidden;
+}
+
+.callibri-settings-nav {
+  padding: 12px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(6, 45, 70, 0.74), rgba(2, 18, 33, 0.66));
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  overflow-y: auto;
+}
+
+.callibri-settings-nav button {
+  width: 100%;
+  height: 58px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 18px;
+  background: transparent;
+  color: #9fb8c6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 850;
+  font-size: 15px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.callibri-settings-nav button span {
+  width: 28px;
+  text-align: center;
+  font-size: 20px;
+}
+
+.callibri-settings-nav button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.callibri-settings-nav button.active {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.22), transparent 44%),
+    linear-gradient(135deg, rgba(14, 165, 233, 0.17), rgba(16, 185, 129, 0.14));
+  color: white;
+  box-shadow: inset 3px 0 0 #22d3ee;
+}
+
+.callibri-settings-content {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.callibri-settings-section {
+  padding: 18px;
+  margin-bottom: 12px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(2, 18, 33, 0.68), rgba(2, 18, 33, 0.48));
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.callibri-settings-section-title {
+  margin: 0 0 12px;
+  color: #a9dbe8;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.callibri-settings-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 18px;
+  align-items: center;
+}
+
+.callibri-settings-field {
+  margin-bottom: 12px;
+}
+
+.callibri-settings-field label {
+  display: block;
+  margin-bottom: 7px;
+  color: #9fb8c6;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.callibri-settings-input,
+.callibri-settings-textarea,
+.callibri-settings-select {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 12, 24, 0.58);
+  color: #f8fafc;
+  outline: none;
+}
+
+.callibri-settings-input,
+.callibri-settings-select {
+  height: 44px;
+  padding: 0 14px;
+}
+
+.callibri-settings-textarea {
+  min-height: 86px;
+  padding: 13px 14px;
+  resize: vertical;
+}
+
+.callibri-settings-input:focus,
+.callibri-settings-textarea:focus,
+.callibri-settings-select:focus {
+  border-color: rgba(34, 211, 238, 0.48);
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.08);
+}
+
+.callibri-settings-avatar {
+  width: 136px;
+  height: 136px;
+  border-radius: 50%;
+  margin-left: auto;
+  position: relative;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(34, 211, 238, 0.18), transparent 50%),
+    rgba(2, 12, 24, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  overflow: hidden;
+}
+
+.callibri-settings-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.callibri-settings-avatar-mark {
+  width: 78px;
+  height: 78px;
+  border-radius: 25px;
+  background:
+    radial-gradient(circle at 35% 25%, #67e8f9, transparent 32%),
+    linear-gradient(135deg, #0ea5e9, #10b981);
+  display: grid;
+  place-items: center;
+  color: white;
+  font-size: 34px;
+  font-weight: 950;
+}
+
+#callibriSettingsAvatarEdit {
+  position: absolute;
+  right: 8px;
+  bottom: 10px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  background: rgba(2, 12, 24, 0.82);
+  color: white;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.callibri-settings-row {
+  min-height: 64px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(2, 12, 24, 0.42);
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.callibri-settings-row-icon {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  border-radius: 14px;
+  background: rgba(34, 211, 238, 0.12);
+  color: #67e8f9;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+}
+
+.callibri-settings-row-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.callibri-settings-row-main b {
+  display: block;
+  color: white;
+  font-size: 14px;
+}
+
+.callibri-settings-row-main span {
+  display: block;
+  margin-top: 4px;
+  color: #8fb5c5;
+  font-size: 12px;
+}
+
+.callibri-settings-meter {
+  width: 150px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.callibri-settings-meter i {
+  width: 5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #22d3ee, #22c55e);
+  opacity: 0.35;
+}
+
+.callibri-settings-meter i:nth-child(n+8) {
+  opacity: 1;
+}
+
+.callibri-settings-toggle {
+  width: 54px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.42);
+  position: relative;
+  cursor: pointer;
+}
+
+.callibri-settings-toggle::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.16s ease;
+}
+
+.callibri-settings-toggle.active {
+  background: linear-gradient(135deg, #0ea5e9, #10b981);
+}
+
+.callibri-settings-toggle.active::after {
+  transform: translateX(24px);
+}
+
+.callibri-settings-sound-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.callibri-settings-range {
+  width: 100%;
+  accent-color: #22d3ee;
+}
+
+#callibriSettingsStatus {
+  min-height: 20px;
+  color: #86efac;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.callibri-settings-footer {
+  padding: 0 28px 26px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.1fr;
+  gap: 12px;
+}
+
+.callibri-settings-footer button {
+  height: 58px;
+  border-radius: 18px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  font-weight: 950;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.callibri-settings-footer .danger {
+  color: #fecdd3;
+  border-color: rgba(251, 113, 133, 0.34);
+  background: rgba(127, 29, 29, 0.16);
+}
+
+.callibri-settings-footer .primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #0ea5e9, #10b981);
+  box-shadow: 0 18px 42px rgba(14, 165, 233, 0.2);
+}
+
+/* старые модалки настроек прячем, если открылись */
+#settingsModal:not(#callibriSettingsOverlay),
+#callibriOldSettingsModal,
+.old-settings-modal {
+  display: none !important;
+}
+
+@media (max-width: 860px) {
+  .callibri-settings-body {
+    grid-template-columns: 1fr;
+  }
+
+  .callibri-settings-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    max-height: 190px;
+  }
+
+  .callibri-settings-profile-grid,
+  .callibri-settings-sound-grid,
+  .callibri-settings-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .callibri-settings-avatar {
+    margin: 0 auto;
+  }
+}
