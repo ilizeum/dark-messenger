@@ -2128,11 +2128,42 @@ async function openChat(user) {
     with: selectedUser.username
   });
 
-  // Сообщения загружаются через socket-событие "load_messages".
-// HTTP-загрузка отключена, чтобы не было ложной ошибки "Ошибка загрузки сообщений".
+  let httpMessagesLoaded = false;
+
+try {
+  const data = await request(
+    `/api/messages?me=${encodeURIComponent(currentUser.username)}&with=${encodeURIComponent(selectedUser.username)}`
+  );
+
+  if (
+    selectedChatType === "direct" &&
+    selectedUser &&
+    selectedUser.username === user.username
+  ) {
+    messagesCache = data.messages || [];
+    httpMessagesLoaded = true;
+    renderMessages();
+  }
+} catch (error) {
+  console.warn("HTTP messages load failed, waiting for socket:", error);
+}
+
 renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
 renderRecentChats();
 renderGroups();
+
+setTimeout(() => {
+  if (
+    !httpMessagesLoaded &&
+    selectedChatType === "direct" &&
+    selectedUser &&
+    selectedUser.username === user.username &&
+    messagesBox &&
+    !messagesCache.length
+  ) {
+    messagesBox.innerHTML = `<div class="empty">Сообщений пока нет или они ещё загружаются...</div>`;
+  }
+}, 4000);
 }
 
 async function openGroup(group) {
@@ -3194,6 +3225,8 @@ function handleMessageDeleted(data) {
    ========================================================= */
 
 socket.on("load_messages", (messages) => {
+  if (!selectedChatType) return;
+
   messagesCache = Array.isArray(messages) ? messages : [];
   renderMessages();
 });
