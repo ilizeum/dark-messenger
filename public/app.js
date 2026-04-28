@@ -3248,3 +3248,154 @@ if (savedUser) {
     setTimeout(runMoveSettings, 100);
   });
 })();
+
+/* =========================================================
+   CALLIBRI — логотип в левом баре
+   ========================================================= */
+
+(function installCallibriRailBrand() {
+  function getRail() {
+    return (
+      document.querySelector(".callibri-rail") ||
+      document.querySelector(".left-rail") ||
+      document.querySelector(".sidebar-rail")
+    );
+  }
+
+  function hideOldRawLogo(rail) {
+    if (!rail) return;
+
+    rail.querySelectorAll(".callibri-rail-logo").forEach((el) => {
+      el.style.display = "none";
+      el.setAttribute("aria-hidden", "true");
+    });
+
+    Array.from(rail.children).forEach((child) => {
+      const text = String(child.textContent || "").trim();
+
+      if (
+        child.id !== "callibriRailBrand" &&
+        child.classList.contains("callibri-rail-logo") &&
+        text.toLowerCase() === "c"
+      ) {
+        child.remove();
+      }
+    });
+  }
+
+  function createBrand() {
+    const brand = document.createElement("div");
+    brand.id = "callibriRailBrand";
+    brand.title = "Callibri Messenger";
+
+    brand.innerHTML = `
+      <div id="callibriRailBrandIcon">
+        <svg viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path
+            d="M15 55C27 43 39 40 52 42C46 34 44 25 47 14C61 20 72 31 77 45C86 42 91 37 94 32C93 47 85 59 72 66C66 80 54 89 33 92C43 82 47 73 47 66C35 68 24 64 15 55Z"
+            fill="url(#bodyGradient)"
+          />
+          <path
+            d="M15 55C27 43 39 40 52 42C40 49 31 58 25 71C21 67 18 62 15 55Z"
+            fill="url(#wingGradient)"
+          />
+          <path
+            d="M50 42C61 39 71 40 83 45C73 50 64 56 55 66C54 56 53 49 50 42Z"
+            fill="white"
+            fill-opacity="0.92"
+          />
+          <path
+            d="M72 35C78 27 86 22 94 20C86 29 80 38 76 46C75 42 74 38 72 35Z"
+            fill="#E0FBFF"
+          />
+          <circle cx="64" cy="29" r="3.2" fill="#06111F"/>
+          <defs>
+            <linearGradient id="bodyGradient" x1="18" y1="22" x2="82" y2="83" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#67E8F9"/>
+              <stop offset="0.45" stop-color="#0EA5E9"/>
+              <stop offset="1" stop-color="#10B981"/>
+            </linearGradient>
+            <linearGradient id="wingGradient" x1="15" y1="42" x2="55" y2="74" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#A7F3D0"/>
+              <stop offset="0.52" stop-color="#22D3EE"/>
+              <stop offset="1" stop-color="#0F766E"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      <div id="callibriRailBrandText">
+        calli<span>bri</span>
+      </div>
+    `;
+
+    return brand;
+  }
+
+  function installBrand() {
+    const rail = getRail();
+
+    if (!rail) return;
+
+    hideOldRawLogo(rail);
+
+    let brand = document.getElementById("callibriRailBrand");
+
+    if (!brand) {
+      brand = createBrand();
+      rail.prepend(brand);
+    } else if (brand.parentElement !== rail) {
+      rail.prepend(brand);
+    }
+
+    hideOldRawLogo(rail);
+  }
+
+  function patchSafe(functionName) {
+    const original = window[functionName];
+
+    if (typeof original !== "function") return;
+    if (original.__callibriRailBrandPatched) return;
+
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+
+      setTimeout(installBrand, 0);
+      setTimeout(installBrand, 180);
+
+      return result;
+    };
+
+    wrapped.__callibriRailBrandPatched = true;
+    window[functionName] = wrapped;
+  }
+
+  function bootBrand() {
+    [
+      "startApp",
+      "renderRecentChats",
+      "renderGroups",
+      "renderUsers",
+      "renderMessages",
+      "openChat",
+      "openGroup",
+      "renderEmptyChat"
+    ].forEach(patchSafe);
+
+    installBrand();
+
+    setTimeout(installBrand, 200);
+    setTimeout(installBrand, 800);
+    setTimeout(installBrand, 1500);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootBrand, { once: true });
+  } else {
+    bootBrand();
+  }
+
+  window.addEventListener("focus", () => {
+    setTimeout(installBrand, 120);
+  });
+})();
