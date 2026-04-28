@@ -2917,3 +2917,179 @@ if (savedUser) {
     setTimeout(runUiFix, 200);
   });
 })();
+
+/* =========================================================
+   CALLIBRI REDESIGN — ЭТАП 2 JS
+   Аккуратное оформление без зависаний
+   ========================================================= */
+
+(function callibriStageTwoRedesign() {
+  function appEl() {
+    return document.getElementById("app");
+  }
+
+  function applyStageClass() {
+    const app = appEl();
+
+    if (app) {
+      app.classList.add("callibri-stage-two");
+    }
+  }
+
+  function fixGroupButtonsText() {
+    const invite = document.getElementById("inviteGroupBtn");
+    const leave = document.getElementById("leaveGroupBtn");
+    const del = document.getElementById("deleteGroupBtn");
+
+    if (invite && invite.dataset.stageTwo !== "1") {
+      invite.dataset.stageTwo = "1";
+      invite.innerHTML = `<span>👥</span><b>Добавить</b>`;
+    }
+
+    if (leave && leave.dataset.stageTwo !== "1") {
+      leave.dataset.stageTwo = "1";
+      leave.innerHTML = `<span>↪</span><b>Выйти</b>`;
+    }
+
+    if (del && del.dataset.stageTwo !== "1") {
+      del.dataset.stageTwo = "1";
+      del.innerHTML = `<span>🗑</span><b>Удалить</b>`;
+    }
+  }
+
+  function polishComposerButtons() {
+    const attach = document.getElementById("attachBtn");
+    const voice = document.getElementById("voiceBtn");
+    const send = document.getElementById("sendBtn");
+
+    if (attach && attach.dataset.stageTwo !== "1") {
+      attach.dataset.stageTwo = "1";
+      attach.innerHTML = "📎";
+      attach.title = "Прикрепить файл";
+    }
+
+    if (voice && voice.dataset.stageTwo !== "1") {
+      voice.dataset.stageTwo = "1";
+      voice.innerHTML = "🎙";
+      voice.title = "Голосовое сообщение";
+    }
+
+    if (send && send.dataset.stageTwo !== "1") {
+      send.dataset.stageTwo = "1";
+      send.textContent = "Отправить";
+    }
+  }
+
+  function removeDuplicateSettingsAgain() {
+    const duplicates = [
+      "#callibriPremiumGear",
+      "#callibriGlobalSettingsBtn",
+      "#callibriRailSettings",
+      ".clean-settings-gear",
+      ".callibri-settings-gear"
+    ];
+
+    duplicates.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => el.remove());
+    });
+  }
+
+  function addChatHeaderMenuDots() {
+    const header = document.querySelector(".chat-header");
+
+    if (!header) return;
+    if (document.getElementById("callibriChatMoreBtn")) return;
+
+    const btn = document.createElement("button");
+    btn.id = "callibriChatMoreBtn";
+    btn.type = "button";
+    btn.title = "Дополнительно";
+    btn.textContent = "⋮";
+
+    btn.style.width = "46px";
+    btn.style.height = "46px";
+    btn.style.borderRadius = "16px";
+    btn.style.background = "rgba(255,255,255,0.045)";
+    btn.style.color = "#9fb8c6";
+    btn.style.fontSize = "24px";
+    btn.style.cursor = "pointer";
+    btn.style.border = "1px solid rgba(148,163,184,0.12)";
+
+    btn.addEventListener("click", () => {
+      alert("Дополнительное меню чата пока в разработке");
+    });
+
+    const groupActions = document.getElementById("groupActionsBox");
+
+    if (groupActions && groupActions.parentElement === header) {
+      groupActions.insertAdjacentElement("afterend", btn);
+    } else {
+      header.appendChild(btn);
+    }
+  }
+
+  function decorateChatItems() {
+    document.querySelectorAll(".user, .recent-chat-item, .group-item").forEach((item) => {
+      if (item.dataset.stageTwo === "1") return;
+      item.dataset.stageTwo = "1";
+    });
+  }
+
+  function runStageTwo() {
+    applyStageClass();
+    removeDuplicateSettingsAgain();
+    fixGroupButtonsText();
+    polishComposerButtons();
+    addChatHeaderMenuDots();
+    decorateChatItems();
+  }
+
+  function patchSafe(name) {
+    const fn = window[name];
+
+    if (typeof fn !== "function") return;
+    if (fn.__stageTwoPatched) return;
+
+    const wrapped = function () {
+      const result = fn.apply(this, arguments);
+
+      setTimeout(runStageTwo, 0);
+      setTimeout(runStageTwo, 120);
+
+      return result;
+    };
+
+    wrapped.__stageTwoPatched = true;
+    window[name] = wrapped;
+  }
+
+  function boot() {
+    [
+      "startApp",
+      "renderRecentChats",
+      "renderGroups",
+      "renderMessages",
+      "renderUsers",
+      "openChat",
+      "openGroup",
+      "showGroupActions",
+      "renderEmptyChat"
+    ].forEach(patchSafe);
+
+    runStageTwo();
+
+    setTimeout(runStageTwo, 200);
+    setTimeout(runStageTwo, 700);
+    setTimeout(runStageTwo, 1400);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("focus", () => {
+    setTimeout(runStageTwo, 120);
+  });
+})();

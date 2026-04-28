@@ -4514,3 +4514,354 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   CALLIBRI REDESIGN — ЭТАП 2
+   Шапка чата, список чатов, сообщения, composer, кнопки группы
+   ========================================================= */
+
+/* ---------- общий polish ---------- */
+
+#app.callibri-stage-two {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(34, 211, 238, 0.10), transparent 30%),
+    radial-gradient(circle at 82% 12%, rgba(16, 185, 129, 0.08), transparent 34%),
+    linear-gradient(135deg, #020617, #03111f 48%, #020617) !important;
+}
+
+#app.callibri-stage-two .sidebar,
+#app.callibri-stage-two .chat,
+#app.callibri-stage-two .callibri-rail {
+  backdrop-filter: blur(18px);
+}
+
+/* ---------- шапка чата ---------- */
+
+#app.callibri-stage-two .chat-header {
+  min-height: 92px !important;
+  padding: 16px 18px !important;
+  display: grid !important;
+  grid-template-columns: 64px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 14px !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.13), transparent 35%),
+    linear-gradient(180deg, rgba(8, 47, 73, 0.52), rgba(2, 12, 24, 0.28)) !important;
+  border-bottom: 1px solid rgba(34, 211, 238, 0.13) !important;
+}
+
+#app.callibri-stage-two #chatAvatar {
+  width: 62px !important;
+  height: 62px !important;
+  min-width: 62px !important;
+  border-radius: 20px !important;
+  background:
+    radial-gradient(circle at 35% 22%, rgba(103, 232, 249, 0.45), transparent 34%),
+    linear-gradient(135deg, #0ea5e9, #10b981) !important;
+  color: #fff !important;
+  font-size: 26px !important;
+  font-weight: 950 !important;
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.20) !important;
+  overflow: hidden !important;
+}
+
+#app.callibri-stage-two #chatAvatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+#app.callibri-stage-two #chatName {
+  color: #f8fafc !important;
+  font-size: 22px !important;
+  line-height: 1.15 !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.03em !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+#app.callibri-stage-two #chatStatus {
+  margin-top: 5px !important;
+  color: #8fb5c5 !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* ---------- красивые кнопки группы ---------- */
+
+#app.callibri-stage-two #groupActionsBox {
+  display: none;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  margin: 0 !important;
+}
+
+#app.callibri-stage-two #inviteGroupBtn,
+#app.callibri-stage-two #leaveGroupBtn,
+#app.callibri-stage-two #deleteGroupBtn {
+  height: 46px !important;
+  min-height: 46px !important;
+  padding: 0 18px !important;
+  border-radius: 16px !important;
+  font-size: 14px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease !important;
+}
+
+#app.callibri-stage-two #inviteGroupBtn {
+  color: #ecfeff !important;
+  border: 1px solid rgba(16, 185, 129, 0.38) !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.18), transparent 42%),
+    linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(16, 185, 129, 0.12)) !important;
+}
+
+#app.callibri-stage-two #leaveGroupBtn {
+  color: #d9f7ff !important;
+  border: 1px solid rgba(14, 165, 233, 0.38) !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.18), transparent 42%),
+    rgba(14, 165, 233, 0.08) !important;
+}
+
+#app.callibri-stage-two #deleteGroupBtn {
+  color: #fecdd3 !important;
+  border: 1px solid rgba(251, 113, 133, 0.38) !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(251, 113, 133, 0.16), transparent 42%),
+    rgba(127, 29, 29, 0.16) !important;
+}
+
+#app.callibri-stage-two #inviteGroupBtn:hover,
+#app.callibri-stage-two #leaveGroupBtn:hover,
+#app.callibri-stage-two #deleteGroupBtn:hover {
+  transform: translateY(-1px) !important;
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255,255,255,0.08) !important;
+}
+
+/* ---------- список чатов ---------- */
+
+#app.callibri-stage-two .user,
+#app.callibri-stage-two .recent-chat-item,
+#app.callibri-stage-two .group-item {
+  min-height: 74px !important;
+  padding: 11px !important;
+  margin-bottom: 10px !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(148, 163, 184, 0.10) !important;
+  background:
+    linear-gradient(180deg, rgba(2, 12, 24, 0.58), rgba(2, 12, 24, 0.42)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.025) !important;
+}
+
+#app.callibri-stage-two .user:hover,
+#app.callibri-stage-two .recent-chat-item:hover,
+#app.callibri-stage-two .group-item:hover,
+#app.callibri-stage-two .user.active,
+#app.callibri-stage-two .recent-chat-item.active,
+#app.callibri-stage-two .group-item.active {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.15), transparent 42%),
+    linear-gradient(180deg, rgba(8, 47, 73, 0.62), rgba(2, 22, 39, 0.58)) !important;
+  border-color: rgba(34, 211, 238, 0.25) !important;
+  transform: translateY(-1px) !important;
+}
+
+#app.callibri-stage-two .avatar,
+#app.callibri-stage-two .group-avatar {
+  width: 52px !important;
+  height: 52px !important;
+  min-width: 52px !important;
+  border-radius: 18px !important;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.24) !important;
+}
+
+#app.callibri-stage-two .user-info b {
+  font-size: 15px !important;
+  font-weight: 950 !important;
+  color: #f8fafc !important;
+}
+
+#app.callibri-stage-two .user-info span {
+  color: #93a9b8 !important;
+  font-size: 12px !important;
+}
+
+/* ---------- пустое состояние ---------- */
+
+#app.callibri-stage-two #messages .empty {
+  margin: auto !important;
+  width: min(92%, 520px) !important;
+  padding: 26px !important;
+  border-radius: 24px !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.10), transparent 42%),
+    rgba(2, 12, 24, 0.32) !important;
+  border: 1px solid rgba(34, 211, 238, 0.12) !important;
+  color: #9fb8c6 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.025) !important;
+}
+
+/* ---------- сообщения ---------- */
+
+#app.callibri-stage-two #messages {
+  padding: 24px !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.055), transparent 34%),
+    radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.04), transparent 28%) !important;
+}
+
+#app.callibri-stage-two .message {
+  max-width: min(68%, 720px) !important;
+  padding: 13px 15px !important;
+  margin-bottom: 13px !important;
+  border-radius: 22px 22px 22px 8px !important;
+  background:
+    linear-gradient(180deg, rgba(8, 47, 73, 0.70), rgba(2, 22, 39, 0.82)) !important;
+  border: 1px solid rgba(103, 232, 249, 0.13) !important;
+  color: #e2e8f0 !important;
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.025) !important;
+}
+
+#app.callibri-stage-two .message.mine {
+  margin-left: auto !important;
+  border-radius: 22px 22px 8px 22px !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.20), transparent 42%),
+    linear-gradient(180deg, rgba(13, 92, 104, 0.78), rgba(4, 55, 67, 0.84)) !important;
+  border-color: rgba(45, 212, 191, 0.24) !important;
+}
+
+#app.callibri-stage-two .message-name {
+  color: #93e7ff !important;
+  font-size: 12px !important;
+  font-weight: 950 !important;
+  margin-bottom: 5px !important;
+}
+
+#app.callibri-stage-two .message-text {
+  line-height: 1.48 !important;
+  font-size: 14px !important;
+}
+
+#app.callibri-stage-two .message-time {
+  margin-top: 7px !important;
+  color: rgba(226, 232, 240, 0.62) !important;
+  font-size: 11px !important;
+}
+
+#app.callibri-stage-two .message-media img,
+#app.callibri-stage-two .message-media video {
+  border-radius: 18px !important;
+  overflow: hidden !important;
+}
+
+/* ---------- composer ---------- */
+
+#app.callibri-stage-two .chat-input {
+  padding: 16px !important;
+  gap: 10px !important;
+  border-top: 1px solid rgba(34, 211, 238, 0.12) !important;
+  background:
+    linear-gradient(180deg, rgba(2, 12, 24, 0.22), rgba(2, 12, 24, 0.42)) !important;
+}
+
+#app.callibri-stage-two #messageInput {
+  min-height: 58px !important;
+  padding: 17px 18px !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(148, 163, 184, 0.13) !important;
+  background: rgba(2, 10, 22, 0.72) !important;
+  color: #f8fafc !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.025) !important;
+}
+
+#app.callibri-stage-two #messageInput:focus {
+  border-color: rgba(34, 211, 238, 0.48) !important;
+  box-shadow:
+    0 0 0 4px rgba(34, 211, 238, 0.08),
+    inset 0 1px 0 rgba(255,255,255,0.025) !important;
+}
+
+#app.callibri-stage-two #attachBtn,
+#app.callibri-stage-two #voiceBtn,
+#app.callibri-stage-two #sendBtn {
+  height: 56px !important;
+  min-width: 56px !important;
+  border-radius: 18px !important;
+  font-weight: 950 !important;
+}
+
+#app.callibri-stage-two #attachBtn,
+#app.callibri-stage-two #voiceBtn {
+  color: #dbe8f3 !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  border: 1px solid rgba(148, 163, 184, 0.13) !important;
+}
+
+#app.callibri-stage-two #voiceBtn {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.16), transparent 42%),
+    rgba(16, 185, 129, 0.08) !important;
+  color: #bbf7d0 !important;
+}
+
+#app.callibri-stage-two #sendBtn {
+  min-width: 124px !important;
+  padding: 0 22px !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0ea5e9, #10b981) !important;
+  border: none !important;
+  box-shadow: 0 14px 30px rgba(14, 165, 233, 0.18) !important;
+}
+
+/* ---------- archive / create group polish ---------- */
+
+#app.callibri-stage-two .archive-btn,
+#app.callibri-stage-two #createGroupBtn {
+  min-height: 58px !important;
+  border-radius: 20px !important;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease !important;
+}
+
+#app.callibri-stage-two .archive-btn:hover,
+#app.callibri-stage-two #createGroupBtn:hover {
+  transform: translateY(-1px) !important;
+}
+
+/* ---------- если появилась лишняя старая шестерёнка ---------- */
+
+#app.callibri-stage-two #callibriPremiumGear,
+#app.callibri-stage-two #callibriGlobalSettingsBtn,
+#app.callibri-stage-two #callibriRailSettings,
+#app.callibri-stage-two .clean-settings-gear,
+#app.callibri-stage-two .callibri-settings-gear {
+  display: none !important;
+  pointer-events: none !important;
+}
