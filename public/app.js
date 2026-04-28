@@ -57,6 +57,14 @@ const loginBtn = document.getElementById("loginBtn");
 const registerBtn = document.getElementById("registerBtn");
 const authError = document.getElementById("authError");
 
+const authLoginTab = document.getElementById("authLoginTab");
+const authRegisterTab = document.getElementById("authRegisterTab");
+const registerFields = document.getElementById("registerFields");
+const authSubtitle = document.getElementById("authSubtitle");
+const authSwitchHint = document.getElementById("authSwitchHint");
+
+let authMode = "login";
+
 const meName = document.getElementById("meName");
 const meLogin = document.getElementById("meLogin");
 const logoutBtn = document.getElementById("logoutBtn");
@@ -105,6 +113,61 @@ let messageContextMenu = null;
 let replyPanel = null;
 let editPanel = null;
 let replyPanelText = null;
+
+function setAuthMode(mode) {
+  authMode = mode === "register" ? "register" : "login";
+
+  const isRegister = authMode === "register";
+  const authCard = document.querySelector(".auth-card");
+
+  if (authCard) {
+    authCard.classList.toggle("auth-register-mode", isRegister);
+  }
+
+  if (authLoginTab) {
+    authLoginTab.classList.toggle("active", !isRegister);
+  }
+
+  if (authRegisterTab) {
+    authRegisterTab.classList.toggle("active", isRegister);
+  }
+
+  if (registerFields) {
+    registerFields.classList.toggle("hidden", !isRegister);
+  }
+
+  if (loginBtn) {
+    loginBtn.classList.toggle("hidden", isRegister);
+  }
+
+  if (registerBtn) {
+    registerBtn.classList.toggle("hidden", !isRegister);
+  }
+
+  if (authSubtitle) {
+    authSubtitle.textContent = isRegister
+      ? "Создай аккаунт, чтобы начать общение"
+      : "Войди в аккаунт, чтобы продолжить общение";
+  }
+
+  if (authSwitchHint) {
+    authSwitchHint.textContent = isRegister
+      ? "Уже есть аккаунт? Войти"
+      : "Нет аккаунта? Зарегистрироваться";
+  }
+
+  if (usernameInput) {
+    usernameInput.placeholder = isRegister
+      ? "Придумай username, например d1mang0"
+      : "Логин или телефон";
+  }
+
+  if (passwordInput) {
+    passwordInput.autocomplete = isRegister ? "new-password" : "current-password";
+  }
+
+  clearError();
+}
 
 function normalizeUsername(username) {
   return String(username || "")
@@ -3364,6 +3427,23 @@ function formatTime(value) {
 
 if (loginBtn) loginBtn.addEventListener("click", login);
 if (registerBtn) registerBtn.addEventListener("click", register);
+if (authLoginTab) {
+  authLoginTab.addEventListener("click", () => {
+    setAuthMode("login");
+  });
+}
+
+if (authRegisterTab) {
+  authRegisterTab.addEventListener("click", () => {
+    setAuthMode("register");
+  });
+}
+
+if (authSwitchHint) {
+  authSwitchHint.addEventListener("click", () => {
+    setAuthMode(authMode === "login" ? "register" : "login");
+  });
+}
 if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
 if (togglePasswordBtn && passwordInput) {
@@ -3416,6 +3496,7 @@ window.addEventListener("beforeunload", () => {
 /* =========================================================
    START
    ========================================================= */
+   setAuthMode("login");
 
 setupTelegramMessageMenu();
 

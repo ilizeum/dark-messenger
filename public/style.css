@@ -1676,3 +1676,82 @@ button {
   justify-content: center;
   flex-shrink: 0;
 }
+
+/* =========================
+   AUTH TABS
+========================= */
+
+.auth-tabs {
+  width: 100%;
+  height: 48px;
+  margin: 0 0 16px;
+  padding: 5px;
+  border-radius: 18px;
+  background: rgba(2, 12, 24, 0.45);
+  border: 1px solid rgba(125, 211, 252, 0.12);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.auth-tab {
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 900;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.auth-tab:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.auth-tab.active {
+  color: white;
+  background: linear-gradient(135deg, #0ea5e9, #10b981);
+  box-shadow: 0 10px 22px rgba(14, 165, 233, 0.18);
+}
+
+.auth-mode-fields {
+  width: 100%;
+}
+
+.auth-card.auth-register-mode #username::placeholder {
+  color: transparent;
+}
+
+.auth-switch-hint {
+  width: 100%;
+  margin-top: 12px;
+  padding: 0;
+  background: transparent;
+  color: #9bd8e6;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.auth-switch-hint:hover {
+  color: #d9f99d;
+}
+
+.auth-card.auth-register-mode .remember-row {
+  display: none;
+}
+
+.auth-card.auth-register-mode #username::placeholder {
+  color: rgba(203, 213, 225, 0.48);
+}
+
+.auth-card.auth-register-mode #username {
+  margin-bottom: 12px;
+}
+
+.auth-card.auth-register-mode #username + .password-wrap {
+  margin-top: 0;
+}

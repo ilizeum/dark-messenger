@@ -10,23 +10,31 @@
 </head>
 <body>
   <!-- ВХОД / РЕГИСТРАЦИЯ -->
-  <div id="auth">
-    <div class="auth-card">
-      <h1>Callibri</h1>
-      <p>Войди в аккаунт или зарегистрируйся, чтобы начать общение</p>
+  <div class="password-wrap">
+  <input
+    id="password"
+    type="password"
+    placeholder="Пароль"
+    autocomplete="current-password"
+  />
+  <button id="togglePassword" type="button">Показать</button>
+</div>
 
-      <input
-        id="displayName"
-        type="text"
-        placeholder="Имя, например Александр"
-        autocomplete="name"
-      />
+<label class="remember-row">
+  <input id="rememberMe" type="checkbox" />
+  <span>Не выходить</span>
+</label>
 
-      <input
-  id="username"
-  type="text"
-  placeholder="Логин или телефон"
-  autocomplete="username"
+<div class="auth-actions">
+  <button id="loginBtn" type="button">Войти</button>
+  <button id="registerBtn" class="hidden" type="button">Создать аккаунт</button>
+</div>
+
+<button id="authSwitchHint" class="auth-switch-hint" type="button">
+  Нет аккаунта? Зарегистрироваться
+</button>
+
+<div id="authError"></div>
 />
 
 <input
@@ -122,6 +130,6 @@
 
   <script src="/socket.io/socket.io.js?v=callibri-8"></script>
   <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
-  <script src="app.js?v=callibri-18"></script>
+  <script src="app.js?v=callibri-19"></script>
 </body>
 </html>
