@@ -4292,5 +4292,1610 @@ if (savedUser) {
   createBeautifulSettingsModal();
   installBeautifulGear();
 
+<<<<<<< HEAD
   setInterval(installBeautifulGear, 700);
 })();
+=======
+  setInterval(installCleanGear, 700);
+})();
+
+/* =========================================================
+   CALLIBRI GROUP INVITE
+   Добавление участников в уже существующую группу
+   ========================================================= */
+
+(function setupCallibriGroupInvite() {
+  let inviteModal = null;
+  let inviteBtn = null;
+
+  function injectInviteStyles() {
+    if (document.getElementById("callibriInviteStyles")) return;
+
+    const style = document.createElement("style");
+    style.id = "callibriInviteStyles";
+
+    style.textContent = `
+      #inviteGroupBtn {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #0ea5e9, #10b981);
+        color: white;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        cursor: pointer;
+      }
+
+      #inviteGroupBtn:hover {
+        filter: brightness(1.08);
+      }
+
+      .invite-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        background: rgba(2, 6, 23, 0.72);
+        backdrop-filter: blur(12px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .invite-modal.hidden {
+        display: none;
+      }
+
+      .invite-modal-card {
+        width: min(94vw, 460px);
+        padding: 24px;
+        border-radius: 24px;
+        color: #e2e8f0;
+        background:
+          radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.18), transparent 34%),
+          radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.16), transparent 34%),
+          linear-gradient(180deg, rgba(7, 37, 67, 0.98), rgba(5, 55, 64, 0.98));
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 34px 100px rgba(0,0,0,0.55);
+      }
+
+      .invite-modal-card h2 {
+        margin: 0 0 8px;
+        color: white;
+        font-size: 24px;
+        font-weight: 950;
+      }
+
+      .invite-modal-card p {
+        margin: 0 0 16px;
+        color: #8aa6b7;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      #inviteMembersInput {
+        width: 100%;
+        min-height: 120px;
+        resize: vertical;
+        box-sizing: border-box;
+        padding: 12px 14px;
+        border-radius: 15px;
+        border: 1px solid rgba(255,255,255,0.1);
+        background: rgba(2, 6, 23, 0.45);
+        color: #f8fafc;
+        outline: none;
+      }
+
+      #inviteMembersInput::placeholder {
+        color: rgba(203, 213, 225, 0.45);
+      }
+
+      #inviteError {
+        min-height: 20px;
+        margin-top: 10px;
+        color: #fb7185;
+        font-size: 13px;
+      }
+
+      .invite-actions {
+        margin-top: 14px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      .invite-actions button {
+        min-height: 40px;
+        padding: 0 15px;
+        border-radius: 14px;
+        border: none;
+        color: white;
+        font-weight: 850;
+        cursor: pointer;
+      }
+
+      #cancelInviteBtn {
+        background: rgba(255,255,255,0.1);
+      }
+
+      #saveInviteBtn {
+        background: linear-gradient(135deg, #0ea5e9, #10b981);
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function createInviteModal() {
+    if (document.getElementById("inviteGroupModal")) {
+      inviteModal = document.getElementById("inviteGroupModal");
+      return;
+    }
+
+    inviteModal = document.createElement("div");
+    inviteModal.id = "inviteGroupModal";
+    inviteModal.className = "invite-modal hidden";
+
+    inviteModal.innerHTML = `
+      <div class="invite-modal-card">
+        <h2>Добавить участников</h2>
+        <p>
+          Введи @id пользователей через запятую.<br>
+          Например: <b>@test1, @test2, test3</b>
+        </p>
+
+        <textarea
+          id="inviteMembersInput"
+          placeholder="@username1, @username2"
+        ></textarea>
+
+        <div id="inviteError"></div>
+
+        <div class="invite-actions">
+          <button id="cancelInviteBtn" type="button">Отмена</button>
+          <button id="saveInviteBtn" type="button">Добавить</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(inviteModal);
+
+    document.getElementById("cancelInviteBtn").addEventListener("click", closeInviteModal);
+    document.getElementById("saveInviteBtn").addEventListener("click", inviteMembersToCurrentGroup);
+
+    inviteModal.addEventListener("click", (event) => {
+      if (event.target === inviteModal) closeInviteModal();
+    });
+  }
+
+  function openInviteModal() {
+    if (!selectedGroup || !currentUser) {
+      alert("Сначала открой группу");
+      return;
+    }
+
+    createInviteModal();
+
+    const input = document.getElementById("inviteMembersInput");
+    const error = document.getElementById("inviteError");
+
+    if (input) input.value = "";
+    if (error) error.textContent = "";
+
+    inviteModal.classList.remove("hidden");
+
+    setTimeout(() => {
+      if (input) input.focus();
+    }, 50);
+  }
+
+  function closeInviteModal() {
+    if (inviteModal) {
+      inviteModal.classList.add("hidden");
+    }
+  }
+
+  function parseInviteMembers(text) {
+    return String(text || "")
+      .split(/[,\n;]/)
+      .map((item) => item.trim().toLowerCase().replace(/^@/, ""))
+      .filter(Boolean);
+  }
+
+  async function inviteMembersToCurrentGroup() {
+    if (!currentUser || !selectedGroup) return;
+
+    const input = document.getElementById("inviteMembersInput");
+    const error = document.getElementById("inviteError");
+
+    const members = parseInviteMembers(input ? input.value : "");
+
+    if (error) error.textContent = "";
+
+    if (!members.length) {
+      if (error) error.textContent = "Введите хотя бы одного пользователя";
+      return;
+    }
+
+    const uniqueMembers = Array.from(new Set(members));
+
+    try {
+      const data = await request(`/api/groups/${encodeURIComponent(selectedGroup.id)}/invite`, {
+        method: "POST",
+        body: JSON.stringify({
+          me: currentUser.username,
+          members: uniqueMembers
+        })
+      });
+
+      if (data.group) {
+        selectedGroup = data.group;
+
+        groupsCache = groupsCache.map((group) => {
+          return group.id === data.group.id ? data.group : group;
+        });
+
+        const exists = groupsCache.some((group) => group.id === data.group.id);
+
+        if (!exists) {
+          groupsCache.unshift(data.group);
+        }
+
+        if (typeof renderGroups === "function") renderGroups();
+        if (typeof updateChatStatusText === "function") updateChatStatusText();
+        if (typeof showGroupActions === "function") showGroupActions(data.group);
+      }
+
+      closeInviteModal();
+      alert("Участники добавлены");
+    } catch (err) {
+      if (error) error.textContent = err.message || "Ошибка добавления участников";
+    }
+  }
+
+  function ensureInviteButton() {
+    injectInviteStyles();
+    createInviteModal();
+
+    let actionsBox = document.getElementById("groupActionsBox");
+
+    if (!actionsBox && chatStatus && chatStatus.parentElement) {
+      actionsBox = document.createElement("div");
+      actionsBox.id = "groupActionsBox";
+      actionsBox.style.display = "none";
+      actionsBox.style.marginTop = "8px";
+      actionsBox.style.gap = "8px";
+      actionsBox.style.flexWrap = "wrap";
+      chatStatus.parentElement.appendChild(actionsBox);
+    }
+
+    if (!actionsBox) return;
+
+    if (!document.getElementById("inviteGroupBtn")) {
+      inviteBtn = document.createElement("button");
+      inviteBtn.id = "inviteGroupBtn";
+      inviteBtn.type = "button";
+      inviteBtn.textContent = "+ Добавить";
+      inviteBtn.title = "Добавить участников в группу";
+      inviteBtn.addEventListener("click", openInviteModal);
+      actionsBox.prepend(inviteBtn);
+    }
+
+    const btn = document.getElementById("inviteGroupBtn");
+
+    if (!btn) return;
+
+    if (selectedChatType === "group" && selectedGroup && currentUser) {
+      btn.style.display = "inline-flex";
+    } else {
+      btn.style.display = "none";
+    }
+  }
+
+  const oldShowGroupActions =
+    typeof showGroupActions === "function" ? showGroupActions : null;
+
+  if (oldShowGroupActions) {
+    showGroupActions = function patchedShowGroupActions(group) {
+      oldShowGroupActions(group);
+      ensureInviteButton();
+    };
+  }
+
+  const oldHideGroupActions =
+    typeof hideGroupActions === "function" ? hideGroupActions : null;
+
+  if (oldHideGroupActions) {
+    hideGroupActions = function patchedHideGroupActions() {
+      oldHideGroupActions();
+      ensureInviteButton();
+    };
+  }
+
+  injectInviteStyles();
+  createInviteModal();
+  ensureInviteButton();
+
+  setInterval(ensureInviteButton, 700);
+})();
+
+/* =========================================================
+   CALLIBRI MESSAGE MULTI SELECT
+   Выделение сообщений как в Telegram
+   ========================================================= */
+
+(function setupCallibriMessageSelection() {
+  const selectedMessageIds = new Set();
+
+  let selectionMode = false;
+  let selectionToolbar = null;
+  let selectAllBtn = null;
+  let copyBtn = null;
+  let deleteBtn = null;
+  let cancelBtn = null;
+  let selectedCountText = null;
+  let longPressTimer = null;
+
+  function injectSelectionStyles() {
+    if (document.getElementById("callibriSelectionStyles")) return;
+
+    const style = document.createElement("style");
+    style.id = "callibriSelectionStyles";
+
+    style.textContent = `
+      .message {
+        user-select: text;
+      }
+
+      .message.callibri-selectable {
+        cursor: pointer;
+      }
+
+      .message.callibri-selection-mode {
+        padding-left: 42px !important;
+      }
+
+      .message.callibri-selected {
+        outline: 2px solid rgba(34, 211, 238, 0.82);
+        box-shadow:
+          0 0 0 5px rgba(34, 211, 238, 0.13),
+          0 16px 34px rgba(0, 0, 0, 0.24) !important;
+      }
+
+      .callibri-select-circle {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid rgba(203, 213, 225, 0.55);
+        background: rgba(2, 12, 24, 0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 14px;
+        font-weight: 950;
+        z-index: 4;
+      }
+
+      .message.callibri-selection-mode .callibri-select-circle {
+        display: flex;
+      }
+
+      .message.callibri-selected .callibri-select-circle {
+        border-color: #67e8f9;
+        background: linear-gradient(135deg, #0ea5e9, #10b981);
+      }
+
+      .message.callibri-selected .callibri-select-circle::before {
+        content: "✓";
+      }
+
+      .callibri-selection-toolbar {
+        position: fixed;
+        left: 50%;
+        top: 18px;
+        transform: translateX(-50%);
+        z-index: 999999;
+        min-height: 58px;
+        max-width: calc(100vw - 28px);
+        padding: 10px;
+        border-radius: 22px;
+        background:
+          radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.16), transparent 40%),
+          linear-gradient(180deg, rgba(15, 42, 61, 0.97), rgba(4, 20, 34, 0.97));
+        border: 1px solid rgba(125, 211, 252, 0.18);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+        backdrop-filter: blur(18px);
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: #e2e8f0;
+      }
+
+      .callibri-selection-toolbar.hidden {
+        display: none;
+      }
+
+      .callibri-selected-count {
+        padding: 0 10px;
+        color: #f8fafc;
+        font-size: 14px;
+        font-weight: 950;
+        white-space: nowrap;
+      }
+
+      .callibri-selection-toolbar button {
+        height: 38px;
+        padding: 0 13px;
+        border: none;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #e2e8f0;
+        font-size: 13px;
+        font-weight: 850;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .callibri-selection-toolbar button:hover {
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .callibri-selection-toolbar button.primary {
+        background: linear-gradient(135deg, #0ea5e9, #10b981);
+        color: white;
+      }
+
+      .callibri-selection-toolbar button.danger {
+        background: rgba(190, 24, 93, 0.22);
+        color: #fecdd3;
+      }
+
+      .callibri-selection-toolbar button.danger:hover {
+        background: rgba(190, 24, 93, 0.34);
+      }
+
+      .callibri-select-hint {
+        position: fixed;
+        left: 50%;
+        bottom: 22px;
+        transform: translateX(-50%);
+        z-index: 999998;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.94);
+        color: #cbd5e1;
+        font-size: 13px;
+        font-weight: 750;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.18s ease;
+      }
+
+      .callibri-select-hint.visible {
+        opacity: 1;
+      }
+
+      @media (max-width: 720px) {
+        .callibri-selection-toolbar {
+          top: 10px;
+          left: 10px;
+          right: 10px;
+          transform: none;
+          overflow-x: auto;
+          justify-content: flex-start;
+        }
+
+        .callibri-selection-toolbar button {
+          padding: 0 11px;
+        }
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function createToolbar() {
+    if (document.getElementById("callibriSelectionToolbar")) {
+      selectionToolbar = document.getElementById("callibriSelectionToolbar");
+      selectedCountText = document.getElementById("callibriSelectedCount");
+      selectAllBtn = document.getElementById("callibriSelectAllBtn");
+      copyBtn = document.getElementById("callibriCopySelectedBtn");
+      deleteBtn = document.getElementById("callibriDeleteSelectedBtn");
+      cancelBtn = document.getElementById("callibriCancelSelectionBtn");
+      return;
+    }
+
+    selectionToolbar = document.createElement("div");
+    selectionToolbar.id = "callibriSelectionToolbar";
+    selectionToolbar.className = "callibri-selection-toolbar hidden";
+
+    selectionToolbar.innerHTML = `
+      <div id="callibriSelectedCount" class="callibri-selected-count">Выбрано: 0</div>
+      <button id="callibriCopySelectedBtn" type="button" class="primary">Копировать</button>
+      <button id="callibriDeleteSelectedBtn" type="button" class="danger">Удалить</button>
+      <button id="callibriSelectAllBtn" type="button">Выбрать все</button>
+      <button id="callibriCancelSelectionBtn" type="button">Отмена</button>
+    `;
+
+    document.body.appendChild(selectionToolbar);
+
+    selectedCountText = document.getElementById("callibriSelectedCount");
+    selectAllBtn = document.getElementById("callibriSelectAllBtn");
+    copyBtn = document.getElementById("callibriCopySelectedBtn");
+    deleteBtn = document.getElementById("callibriDeleteSelectedBtn");
+    cancelBtn = document.getElementById("callibriCancelSelectionBtn");
+
+    selectAllBtn.addEventListener("click", selectAllMessages);
+    copyBtn.addEventListener("click", copySelectedMessages);
+    deleteBtn.addEventListener("click", deleteSelectedMessages);
+    cancelBtn.addEventListener("click", exitSelectionMode);
+  }
+
+  function getMessageIdFromBubble(bubble) {
+    if (!bubble) return "";
+
+    return String(bubble.dataset.callibriMessageId || "");
+  }
+
+  function getMessageById(messageId) {
+    if (!Array.isArray(messagesCache)) return null;
+
+    return messagesCache.find((message) => {
+      return String(message.id || "") === String(messageId || "");
+    }) || null;
+  }
+
+  function isMine(message) {
+    if (!message || !currentUser) return false;
+
+    return (
+      normalizeUsername(message.from || message.username) === currentUser.username ||
+      normalizeUsername(message.username) === currentUser.username
+    );
+  }
+
+  function getMessageTextForCopy(message) {
+    if (!message) return "";
+
+    const author = message.displayName || message.username || message.from || "Пользователь";
+    const text = message.text || message.message || "";
+
+    let body = text;
+
+    if (!body && message.media) {
+      if (message.media.type === "image") body = "[Фото]";
+      else if (message.media.type === "video") body = "[Видео]";
+      else if (message.media.type === "audio") body = "[Голосовое сообщение]";
+      else body = "[Медиа]";
+    }
+
+    const time = message.created_at ? formatTime(message.created_at) : "";
+
+    return `${author}${time ? " • " + time : ""}: ${body}`;
+  }
+
+  function annotateMessages() {
+    if (!messagesBox) return;
+
+    const bubbles = Array.from(messagesBox.querySelectorAll(".message"));
+
+    bubbles.forEach((bubble, index) => {
+      const message = messagesCache[index];
+
+      if (!message || !message.id) return;
+
+      bubble.dataset.callibriMessageId = String(message.id);
+      bubble.classList.add("callibri-selectable");
+
+      if (!bubble.querySelector(".callibri-select-circle")) {
+        const circle = document.createElement("div");
+        circle.className = "callibri-select-circle";
+        bubble.appendChild(circle);
+      }
+
+      bubble.classList.toggle("callibri-selection-mode", selectionMode);
+      bubble.classList.toggle("callibri-selected", selectedMessageIds.has(String(message.id)));
+    });
+  }
+
+  function updateToolbar() {
+    createToolbar();
+
+    const count = selectedMessageIds.size;
+
+    if (selectedCountText) {
+      selectedCountText.textContent = `Выбрано: ${count}`;
+    }
+
+    if (selectionToolbar) {
+      selectionToolbar.classList.toggle("hidden", !selectionMode);
+    }
+
+    if (deleteBtn) {
+      const hasOwnSelected = Array.from(selectedMessageIds).some((id) => {
+        return isMine(getMessageById(id));
+      });
+
+      deleteBtn.disabled = !hasOwnSelected;
+      deleteBtn.style.opacity = hasOwnSelected ? "1" : "0.45";
+    }
+
+    annotateMessages();
+  }
+
+  function enterSelectionMode(messageId) {
+    selectionMode = true;
+
+    if (messageId) {
+      selectedMessageIds.add(String(messageId));
+    }
+
+    updateToolbar();
+    showHint("Нажимай на сообщения, чтобы выделять несколько");
+  }
+
+  function exitSelectionMode() {
+    selectionMode = false;
+    selectedMessageIds.clear();
+    updateToolbar();
+  }
+
+  function toggleMessageSelection(messageId) {
+    const id = String(messageId || "");
+
+    if (!id) return;
+
+    if (selectedMessageIds.has(id)) {
+      selectedMessageIds.delete(id);
+    } else {
+      selectedMessageIds.add(id);
+    }
+
+    if (selectedMessageIds.size === 0) {
+      exitSelectionMode();
+      return;
+    }
+
+    updateToolbar();
+  }
+
+  function selectAllMessages() {
+    if (!Array.isArray(messagesCache)) return;
+
+    messagesCache.forEach((message) => {
+      if (message && message.id) {
+        selectedMessageIds.add(String(message.id));
+      }
+    });
+
+    selectionMode = true;
+    updateToolbar();
+  }
+
+  async function copySelectedMessages() {
+    const selected = Array.from(selectedMessageIds)
+      .map(getMessageById)
+      .filter(Boolean);
+
+    if (!selected.length) return;
+
+    const text = selected.map(getMessageTextForCopy).join("\n");
+
+    try {
+      await navigator.clipboard.writeText(text);
+      showHint("Сообщения скопированы");
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+
+      try {
+        document.execCommand("copy");
+        showHint("Сообщения скопированы");
+      } catch {
+        alert("Не удалось скопировать");
+      }
+
+      textarea.remove();
+    }
+  }
+
+  async function deleteSelectedMessages() {
+    const selectedOwn = Array.from(selectedMessageIds)
+      .map(getMessageById)
+      .filter((message) => message && isMine(message));
+
+    const selectedForeignCount = selectedMessageIds.size - selectedOwn.length;
+
+    if (!selectedOwn.length) {
+      alert("Можно удалить только свои сообщения");
+      return;
+    }
+
+    const text =
+      selectedForeignCount > 0
+        ? `Удалить ${selectedOwn.length} своих сообщений? Чужие сообщения удалены не будут.`
+        : `Удалить выбранные сообщения: ${selectedOwn.length}?`;
+
+    const ok = confirm(text);
+
+    if (!ok) return;
+
+    selectedOwn.forEach((message) => {
+      const messageId = String(message.id);
+
+      try {
+        if (typeof destroyVoicePlayer === "function") {
+          destroyVoicePlayer(messageId);
+        }
+      } catch {}
+
+      if (typeof socket !== "undefined" && socket && socket.emit) {
+        socket.emit("delete_message", {
+          messageId,
+          id: messageId,
+          me: currentUser.username,
+          username: currentUser.username,
+          from: currentUser.username
+        });
+      } else if (typeof request === "function") {
+        request(`/api/messages/${encodeURIComponent(messageId)}?me=${encodeURIComponent(currentUser.username)}`, {
+          method: "DELETE"
+        }).catch((error) => alert(error.message));
+      }
+    });
+
+    exitSelectionMode();
+  }
+
+  function showHint(text) {
+    let hint = document.getElementById("callibriSelectHint");
+
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.id = "callibriSelectHint";
+      hint.className = "callibri-select-hint";
+      document.body.appendChild(hint);
+    }
+
+    hint.textContent = text;
+    hint.classList.add("visible");
+
+    clearTimeout(hint._timer);
+
+    hint._timer = setTimeout(() => {
+      hint.classList.remove("visible");
+    }, 1800);
+  }
+
+  function handleBubbleClick(event) {
+    const bubble = event.target.closest(".message");
+
+    if (!bubble || !messagesBox || !messagesBox.contains(bubble)) return;
+
+    const messageId = getMessageIdFromBubble(bubble);
+
+    if (!messageId) return;
+
+    if (selectionMode) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleMessageSelection(messageId);
+      return;
+    }
+
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      enterSelectionMode(messageId);
+    }
+  }
+
+  function handlePointerDown(event) {
+    const bubble = event.target.closest(".message");
+
+    if (!bubble || !messagesBox || !messagesBox.contains(bubble)) return;
+
+    const messageId = getMessageIdFromBubble(bubble);
+
+    if (!messageId) return;
+
+    clearTimeout(longPressTimer);
+
+    longPressTimer = setTimeout(() => {
+      if (!selectionMode) {
+        enterSelectionMode(messageId);
+      }
+    }, 450);
+  }
+
+  function clearLongPressTimer() {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+
+  function patchRenderMessages() {
+    if (typeof renderMessages !== "function") return;
+    if (renderMessages.__callibriSelectionPatched) return;
+
+    const originalRenderMessages = renderMessages;
+
+    renderMessages = function patchedRenderMessages() {
+      originalRenderMessages();
+
+      if (selectionMode) {
+        const existingIds = new Set(
+          Array.isArray(messagesCache)
+            ? messagesCache.map((message) => String(message.id || "")).filter(Boolean)
+            : []
+        );
+
+        Array.from(selectedMessageIds).forEach((id) => {
+          if (!existingIds.has(id)) {
+            selectedMessageIds.delete(id);
+          }
+        });
+
+        if (selectedMessageIds.size === 0) {
+          selectionMode = false;
+        }
+      }
+
+      annotateMessages();
+      updateToolbar();
+    };
+
+    renderMessages.__callibriSelectionPatched = true;
+  }
+
+  function observeMessages() {
+    if (!messagesBox) return;
+
+    const observer = new MutationObserver(() => {
+      annotateMessages();
+    });
+
+    observer.observe(messagesBox, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  function installSelectionEvents() {
+    if (!messagesBox) return;
+    if (messagesBox.__callibriSelectionEvents) return;
+
+    messagesBox.__callibriSelectionEvents = true;
+
+    messagesBox.addEventListener("click", handleBubbleClick, true);
+    messagesBox.addEventListener("pointerdown", handlePointerDown, true);
+    messagesBox.addEventListener("pointerup", clearLongPressTimer, true);
+    messagesBox.addEventListener("pointermove", clearLongPressTimer, true);
+    messagesBox.addEventListener("pointercancel", clearLongPressTimer, true);
+    messagesBox.addEventListener("mouseleave", clearLongPressTimer, true);
+  }
+
+  function addHeaderSelectButton() {
+    if (!chatStatus || !chatStatus.parentElement) return;
+    if (document.getElementById("callibriStartSelectBtn")) return;
+
+    const btn = document.createElement("button");
+    btn.id = "callibriStartSelectBtn";
+    btn.type = "button";
+    btn.textContent = "Выбрать";
+    btn.title = "Выделить сообщения";
+
+    btn.style.marginTop = "8px";
+    btn.style.height = "32px";
+    btn.style.padding = "0 12px";
+    btn.style.borderRadius = "10px";
+    btn.style.background = "rgba(255,255,255,0.08)";
+    btn.style.color = "#cbd5e1";
+    btn.style.fontWeight = "800";
+
+    btn.addEventListener("click", () => {
+      if (!Array.isArray(messagesCache) || !messagesCache.length) {
+        showHint("В этом чате пока нет сообщений");
+        return;
+      }
+
+      selectionMode = true;
+      updateToolbar();
+      showHint("Нажми на сообщения, которые хочешь выбрать");
+    });
+
+    chatStatus.parentElement.appendChild(btn);
+  }
+
+  function init() {
+    injectSelectionStyles();
+    createToolbar();
+    patchRenderMessages();
+    installSelectionEvents();
+    observeMessages();
+    addHeaderSelectButton();
+    annotateMessages();
+    updateToolbar();
+  }
+
+  init();
+
+  setInterval(() => {
+    patchRenderMessages();
+    installSelectionEvents();
+    addHeaderSelectButton();
+    annotateMessages();
+  }, 900);
+})();
+
+ HEAD
+/* =========================================================
+   CALLIBRI TELEGRAM-LIKE ARCHIVE MENU
+   ПКМ по чату/группе слева → Архивировать / Вернуть
+   ========================================================= */
+
+(function setupCallibriTelegramArchive() {
+  const ARCHIVE_KEY_PREFIX = "callibri_telegram_archive_";
+
+  let archiveModeLocal = false;
+  let archiveMenu = null;
+  let archiveTarget = null;
+  let archiveMainButton = null;
+
+  function getArchiveUserKey() {
+    const username =
+      currentUser && currentUser.username
+        ? normalizeUsername(currentUser.username)
+        : "guest";
+
+    return ARCHIVE_KEY_PREFIX + username;
+  }
+
+  function loadArchiveData() {
+    try {
+      const raw = localStorage.getItem(getArchiveUserKey());
+      const data = raw ? JSON.parse(raw) : {};
+
+      return {
+        direct: data.direct || {},
+        groups: data.groups || {}
+      };
+    } catch {
+      return {
+        direct: {},
+        groups: {}
+      };
+    }
+  }
+
+  function saveArchiveData(data) {
+    localStorage.setItem(getArchiveUserKey(), JSON.stringify(data));
+  }
+
+  function isDirectInArchive(username) {
+    const data = loadArchiveData();
+    return Boolean(data.direct[normalizeUsername(username)]);
+  }
+
+  function isGroupInArchive(groupId) {
+    const data = loadArchiveData();
+    return Boolean(data.groups[String(groupId)]);
+  }
+
+  function archiveDirect(username) {
+    const clean = normalizeUsername(username);
+    if (!clean) return;
+
+    const data = loadArchiveData();
+    data.direct[clean] = true;
+    saveArchiveData(data);
+
+    if (
+      selectedChatType === "direct" &&
+      selectedUser &&
+      selectedUser.username === clean
+    ) {
+      renderEmptyChat();
+    }
+
+    redrawArchiveUI();
+  }
+
+  function unarchiveDirect(username) {
+    const clean = normalizeUsername(username);
+    if (!clean) return;
+
+    const data = loadArchiveData();
+    delete data.direct[clean];
+    saveArchiveData(data);
+
+    redrawArchiveUI();
+  }
+
+  function archiveGroup(groupId) {
+    const id = String(groupId || "");
+    if (!id) return;
+
+    const data = loadArchiveData();
+    data.groups[id] = true;
+    saveArchiveData(data);
+
+    if (
+      selectedChatType === "group" &&
+      selectedGroup &&
+      String(selectedGroup.id) === id
+    ) {
+      renderEmptyChat();
+    }
+
+    redrawArchiveUI();
+  }
+
+  function unarchiveGroup(groupId) {
+    const id = String(groupId || "");
+    if (!id) return;
+
+    const data = loadArchiveData();
+    delete data.groups[id];
+    saveArchiveData(data);
+
+    redrawArchiveUI();
+  }
+
+  function getArchiveCount() {
+    const directCount = Array.isArray(recentChatsCache)
+      ? recentChatsCache.filter((chat) => isDirectInArchive(chat.username)).length
+      : 0;
+
+    const groupCount = Array.isArray(groupsCache)
+      ? groupsCache.filter((group) => isGroupInArchive(group.id)).length
+      : 0;
+
+    return directCount + groupCount;
+  }
+
+  function injectArchiveStyles() {
+    if (document.getElementById("callibriTelegramArchiveStyles")) return;
+
+    const style = document.createElement("style");
+    style.id = "callibriTelegramArchiveStyles";
+
+    style.textContent = `
+      .callibri-archive-main-btn {
+        width: 100%;
+        min-height: 62px;
+        margin: 10px 0 12px;
+        padding: 10px 12px;
+        border: 1px solid rgba(34, 211, 238, 0.22);
+        border-radius: 20px;
+        background:
+          radial-gradient(circle at 90% 0%, rgba(16, 185, 129, 0.15), transparent 42%),
+          linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(16, 185, 129, 0.09));
+        color: #f8fafc;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-align: left;
+        cursor: pointer;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+        transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+      }
+
+      .callibri-archive-main-btn:hover {
+        transform: translateY(-1px);
+        border-color: rgba(125, 211, 252, 0.38);
+        background:
+          radial-gradient(circle at 90% 0%, rgba(16, 185, 129, 0.22), transparent 42%),
+          linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(16, 185, 129, 0.13));
+      }
+
+      .callibri-archive-main-btn.active {
+        border-color: rgba(163, 230, 53, 0.36);
+        background:
+          radial-gradient(circle at 90% 0%, rgba(163, 230, 53, 0.16), transparent 42%),
+          linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(16, 185, 129, 0.16));
+      }
+
+      .callibri-archive-main-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 15px;
+        background: rgba(2, 12, 24, 0.52);
+        color: #67e8f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 19px;
+        font-weight: 950;
+        border: 1px solid rgba(125, 211, 252, 0.18);
+        flex-shrink: 0;
+      }
+
+      .callibri-archive-main-info {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .callibri-archive-main-info b {
+        display: block;
+        color: #f8fafc;
+        font-size: 14px;
+        font-weight: 950;
+        margin-bottom: 3px;
+      }
+
+      .callibri-archive-main-info span {
+        display: block;
+        color: #9bd8e6;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .callibri-archive-main-badge {
+        min-width: 24px;
+        height: 24px;
+        padding: 0 7px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #06b6d4, #10b981);
+        color: white;
+        font-size: 12px;
+        font-weight: 950;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .callibri-sidebar-context-menu {
+        position: fixed;
+        z-index: 999999;
+        width: 270px;
+        padding: 7px;
+        border-radius: 16px;
+        background: rgba(15, 23, 42, 0.97);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(18px);
+      }
+
+      .callibri-sidebar-context-menu.hidden {
+        display: none;
+      }
+
+      .callibri-sidebar-context-menu button {
+        width: 100%;
+        height: 42px;
+        border: none;
+        outline: none;
+        background: transparent;
+        color: #e5e7eb;
+        border-radius: 11px;
+        padding: 0 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        font-weight: 800;
+        text-align: left;
+      }
+
+      .callibri-sidebar-context-menu button:hover {
+        background: rgba(148, 163, 184, 0.13);
+      }
+
+      .callibri-sidebar-context-menu button.archive {
+        color: #d9f99d;
+      }
+
+      .callibri-sidebar-context-menu button.archive:hover {
+        background: rgba(163, 230, 53, 0.12);
+      }
+
+      .callibri-sidebar-context-menu button.danger {
+        color: #fb7185;
+      }
+
+      .callibri-sidebar-context-menu button.danger:hover {
+        background: rgba(251, 113, 133, 0.13);
+      }
+
+      .callibri-sidebar-context-separator {
+        height: 1px;
+        margin: 6px 4px;
+        background: rgba(148, 163, 184, 0.16);
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function createArchiveButton() {
+    if (!usersBox || !usersBox.parentElement) return;
+
+    const existing =
+      document.getElementById("archiveToggleBtn") ||
+      document.getElementById("archiveBtn") ||
+      document.getElementById("callibriArchiveMainBtn");
+
+    if (existing) {
+      const cleanButton = existing.cloneNode(false);
+      cleanButton.id = "callibriArchiveMainBtn";
+      cleanButton.className = "callibri-archive-main-btn";
+      existing.replaceWith(cleanButton);
+      archiveMainButton = cleanButton;
+    } else {
+      archiveMainButton = document.createElement("button");
+      archiveMainButton.id = "callibriArchiveMainBtn";
+      archiveMainButton.type = "button";
+      archiveMainButton.className = "callibri-archive-main-btn";
+
+      usersBox.parentElement.insertBefore(archiveMainButton, usersBox);
+    }
+
+    archiveMainButton.addEventListener("click", () => {
+      archiveModeLocal = !archiveModeLocal;
+      redrawArchiveUI();
+    });
+
+    renderArchiveButton();
+  }
+
+  function renderArchiveButton() {
+    if (!archiveMainButton) return;
+
+    const count = getArchiveCount();
+
+    archiveMainButton.classList.toggle("active", archiveModeLocal);
+
+    archiveMainButton.innerHTML = `
+      <div class="callibri-archive-main-icon">${archiveModeLocal ? "←" : "🗂"}</div>
+
+      <div class="callibri-archive-main-info">
+        <b>${archiveModeLocal ? "Все чаты" : "Архив"}</b>
+        <span>${
+          archiveModeLocal
+            ? "Вернуться к обычному списку"
+            : count > 0
+              ? `${count} в архиве`
+              : "Скрытые чаты"
+        }</span>
+      </div>
+
+      ${
+        count > 0 && !archiveModeLocal
+          ? `<div class="callibri-archive-main-badge">${count > 99 ? "99+" : count}</div>`
+          : ""
+      }
+    `;
+  }
+
+  function createContextMenu() {
+    if (document.getElementById("callibriSidebarContextMenu")) {
+      archiveMenu = document.getElementById("callibriSidebarContextMenu");
+      return;
+    }
+
+    archiveMenu = document.createElement("div");
+    archiveMenu.id = "callibriSidebarContextMenu";
+    archiveMenu.className = "callibri-sidebar-context-menu hidden";
+
+    archiveMenu.innerHTML = `
+      <button id="callibriSidebarOpenBtn" type="button">
+        <span>↗</span>
+        Открыть чат
+      </button>
+
+      <button id="callibriSidebarArchiveBtn" type="button" class="archive">
+        <span>🗂</span>
+        Архивировать
+      </button>
+
+      <div class="callibri-sidebar-context-separator"></div>
+
+      <button id="callibriSidebarCopyBtn" type="button">
+        <span>📋</span>
+        Скопировать @id
+      </button>
+    `;
+
+    document.body.appendChild(archiveMenu);
+
+    document.getElementById("callibriSidebarOpenBtn").addEventListener("click", () => {
+      if (!archiveTarget) return;
+
+      if (archiveTarget.type === "direct") {
+        const chat = recentChatsCache.find((item) => item.username === archiveTarget.id);
+        if (chat) openChat(chat);
+      }
+
+      if (archiveTarget.type === "group") {
+        const group = groupsCache.find((item) => String(item.id) === String(archiveTarget.id));
+        if (group) openGroup(group);
+      }
+
+      hideArchiveMenu();
+    });
+
+    document.getElementById("callibriSidebarArchiveBtn").addEventListener("click", () => {
+      if (!archiveTarget) return;
+
+      if (archiveTarget.type === "direct") {
+        if (isDirectInArchive(archiveTarget.id)) {
+          unarchiveDirect(archiveTarget.id);
+        } else {
+          archiveDirect(archiveTarget.id);
+        }
+      }
+
+      if (archiveTarget.type === "group") {
+        if (isGroupInArchive(archiveTarget.id)) {
+          unarchiveGroup(archiveTarget.id);
+        } else {
+          archiveGroup(archiveTarget.id);
+        }
+      }
+
+      hideArchiveMenu();
+    });
+
+    document.getElementById("callibriSidebarCopyBtn").addEventListener("click", async () => {
+      if (!archiveTarget) return;
+
+      const text =
+        archiveTarget.type === "direct"
+          ? "@" + archiveTarget.id
+          : archiveTarget.title || "Группа";
+
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+
+      hideArchiveMenu();
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest("#callibriSidebarContextMenu")) {
+        hideArchiveMenu();
+      }
+    });
+
+    window.addEventListener("resize", hideArchiveMenu);
+    window.addEventListener("scroll", hideArchiveMenu, true);
+  }
+
+  function openArchiveMenu(event, target) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    createContextMenu();
+
+    archiveTarget = target;
+
+    const archiveBtn = document.getElementById("callibriSidebarArchiveBtn");
+
+    if (archiveBtn) {
+      const isArchived =
+        target.type === "direct"
+          ? isDirectInArchive(target.id)
+          : isGroupInArchive(target.id);
+
+      archiveBtn.innerHTML = isArchived
+        ? `<span>↩</span> Вернуть из архива`
+        : `<span>🗂</span> Архивировать`;
+    }
+
+    archiveMenu.classList.remove("hidden");
+
+    const rect = archiveMenu.getBoundingClientRect();
+
+    let x = event.clientX;
+    let y = event.clientY;
+
+    if (x + rect.width > window.innerWidth) {
+      x = window.innerWidth - rect.width - 10;
+    }
+
+    if (y + rect.height > window.innerHeight) {
+      y = window.innerHeight - rect.height - 10;
+    }
+
+    archiveMenu.style.left = `${x}px`;
+    archiveMenu.style.top = `${y}px`;
+  }
+
+  function hideArchiveMenu() {
+    if (archiveMenu) {
+      archiveMenu.classList.add("hidden");
+    }
+  }
+
+  function patchedRenderRecentChats() {
+    if (!recentChatsBox) return;
+
+    recentChatsBox.innerHTML = "";
+
+    const visibleChats = (recentChatsCache || []).filter((chat) => {
+      const archived = isDirectInArchive(chat.username);
+      return archiveModeLocal ? archived : !archived;
+    });
+
+    if (!visibleChats.length) {
+      recentChatsBox.innerHTML = `
+        <div class="empty small-empty">
+          ${archiveModeLocal ? "В архиве личных чатов пока нет" : "Личных чатов пока нет"}
+        </div>
+      `;
+      renderArchiveButton();
+      return;
+    }
+
+    visibleChats.forEach((user) => {
+      const item = document.createElement("button");
+      item.className = "user recent-chat-item";
+
+      if (
+        selectedChatType === "direct" &&
+        selectedUser &&
+        selectedUser.username === user.username
+      ) {
+        item.classList.add("active");
+      }
+
+      const count = unreadDirect[user.username] || 0;
+      const preview = typeof getChatPreview === "function"
+        ? getChatPreview(user)
+        : user.lastMessageText || "";
+
+      item.innerHTML = `
+        ${renderAvatar(user)}
+        <div class="user-info">
+          <b>${onlineDot(user.username)}${escapeHtml(user.displayName || user.username)}</b>
+          <span>${escapeHtml(preview)}</span>
+        </div>
+        ${unreadBadge(count)}
+      `;
+
+      item.addEventListener("click", () => {
+        openChat(user);
+      });
+
+      item.addEventListener("contextmenu", (event) => {
+        openArchiveMenu(event, {
+          type: "direct",
+          id: user.username,
+          title: user.displayName || user.username
+        });
+      });
+
+      recentChatsBox.appendChild(item);
+    });
+
+    renderArchiveButton();
+  }
+
+  function patchedRenderGroups() {
+    if (!groupsBox) return;
+
+    groupsBox.innerHTML = "";
+
+    const visibleGroups = (groupsCache || []).filter((group) => {
+      const archived = isGroupInArchive(group.id);
+      return archiveModeLocal ? archived : !archived;
+    });
+
+    if (!visibleGroups.length) {
+      groupsBox.innerHTML = `
+        <div class="empty small-empty">
+          ${archiveModeLocal ? "В архиве групп пока нет" : "Групп пока нет"}
+        </div>
+      `;
+      renderArchiveButton();
+      return;
+    }
+
+    visibleGroups.forEach((group) => {
+      const item = document.createElement("button");
+      item.className = "user group-item";
+
+      if (
+        selectedChatType === "group" &&
+        selectedGroup &&
+        selectedGroup.id === group.id
+      ) {
+        item.classList.add("active");
+      }
+
+      const count = unreadGroups[group.id] || 0;
+
+      item.innerHTML = `
+        <div class="avatar group-avatar">#</div>
+        <div class="user-info">
+          <b>${escapeHtml(group.name)}</b>
+          <span>${group.members.length} участн.</span>
+        </div>
+        ${unreadBadge(count)}
+      `;
+
+      item.addEventListener("click", () => {
+        openGroup(group);
+      });
+
+      item.addEventListener("contextmenu", (event) => {
+        openArchiveMenu(event, {
+          type: "group",
+          id: group.id,
+          title: group.name
+        });
+      });
+
+      groupsBox.appendChild(item);
+    });
+
+    renderArchiveButton();
+  }
+
+  function patchRenderFunctions() {
+    renderRecentChats = patchedRenderRecentChats;
+    renderGroups = patchedRenderGroups;
+  }
+
+  function redrawArchiveUI() {
+    renderArchiveButton();
+
+    if (typeof renderRecentChats === "function") {
+      renderRecentChats();
+    }
+
+    if (typeof renderGroups === "function") {
+      renderGroups();
+    }
+
+    if (typeof renderUsers === "function") {
+      renderUsers(searchInput ? searchInput.value.replace(/^@/, "") : "");
+    }
+  }
+
+  function initArchive() {
+    injectArchiveStyles();
+    createContextMenu();
+    createArchiveButton();
+    patchRenderFunctions();
+    redrawArchiveUI();
+  }
+
+  initArchive();
+
+  setInterval(() => {
+    injectArchiveStyles();
+    createArchiveButton();
+    patchRenderFunctions();
+    renderArchiveButton();
+  }, 1000);
+})();
+>>>>>>> efe2bb7e994e7582ad1ddad97fd285de40fcffa3
