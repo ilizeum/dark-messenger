@@ -474,19 +474,34 @@ function selectMessageSql() {
 async function getMessagesByChatId(chatId, limit = 80) {
   const result = await pool.query(
     `
-    SELECT *
-    FROM (
-      ${selectMessageSql()}
-      WHERE chat_id = $1
-      ORDER BY id DESC
-      LIMIT $2
-    ) recent_messages
-    ORDER BY id ASC
+    SELECT
+      id::text AS id,
+      type,
+      chat_id AS "chatId",
+      group_id AS "groupId",
+      from_username AS "from",
+      to_username AS "to",
+      username,
+      display_name AS "displayName",
+      avatar,
+      text,
+      text AS message,
+      media,
+      reply_to AS "replyTo",
+      COALESCE(edited, FALSE) AS edited,
+      COALESCE(is_read, FALSE) AS "isRead",
+      read_at AS "readAt",
+      updated_at AS "updatedAt",
+      created_at
+    FROM messages
+    WHERE chat_id = $1
+    ORDER BY id DESC
+    LIMIT $2
     `,
     [chatId, limit]
   );
 
-  return result.rows;
+  return result.rows.reverse();
 }
 
 async function getMessageById(messageId) {
@@ -1416,17 +1431,37 @@ app.get("/api/messages", async (req, res) => {
       });
     }
 
-    // Сообщения грузим через /api/messages, чтобы не было двойной загрузки.
+    const chatId = getDirectChatId(me, withUser);
+
+    let messages = [];
+
+    try {
+      messages = await getMessagesByChatId(chatId);
+    } catch (dbError) {
+      console.error("Get direct messages DB error:", dbError);
+
+      return res.status(500).json({
+        success: false,
+        error: "Ошибка базы данных при загрузке сообщений"
+      });
+    }
 
     res.json({
       success: true,
       messages
     });
 
-    const readResult = await markDirectMessagesAsRead(me, withUser);
-    emitMessagesRead(chatId, me, withUser, readResult.rows);
+    // Отметку прочитано делаем после ответа, чтобы чат не зависал
+    setTimeout(async () => {
+      try {
+        const readResult = await markDirectMessagesAsRead(me, withUser);
+        emitMessagesRead(chatId, me, withUser, readResult.rows);
+      } catch (readError) {
+        console.error("Mark messages read after response error:", readError);
+      }
+    }, 0);
   } catch (error) {
-    console.error("Messages error:", error);
+    console.error("Messages route error:", error);
 
     res.status(500).json({
       success: false,
@@ -1843,29 +1878,29 @@ io.on("connection", (socket) => {
   });
 
   socket.on("open_chat", async (data) => {
-  try {
-    const me = normalizeUsername(data && data.me);
-    const withUser = normalizeUsername(data && data.with);
+    try {
+      const me = normalizeUsername(data && data.me);
+      const withUser = normalizeUsername(data && data.with);
 
-    if (!me || !withUser) return;
+      if (!me || !withUser) return;
 
-    const chatId = getDirectChatId(me, withUser);
-    socket.join(`chat:${chatId}`);
+      const chatId = getDirectChatId(me, withUser);
+      socket.join(`chat:${chatId}`);
 
-    const messages = await getMessagesByChatId(chatId);
-    socket.emit("load_messages", messages);
+      const messages = await getMessagesByChatId(chatId);
+      socket.emit("load_messages", messages);
 
-    socket.emit("user_status", {
-      username: withUser,
-      online: isUserOnline(withUser)
-    });
+      socket.emit("user_status", {
+        username: withUser,
+        online: isUserOnline(withUser)
+      });
 
-    const readResult = await markDirectMessagesAsRead(me, withUser);
-    emitMessagesRead(chatId, me, withUser, readResult.rows);
-  } catch (error) {
-    console.error("Open chat error:", error);
-  }
-});
+      const readResult = await markDirectMessagesAsRead(me, withUser);
+      emitMessagesRead(chatId, me, withUser, readResult.rows);
+    } catch (error) {
+      console.error("Open chat error:", error);
+    }
+  });
 
   socket.on("mark_messages_read", async (data) => {
     try {
@@ -1882,24 +1917,24 @@ io.on("connection", (socket) => {
   });
 
   socket.on("open_group", async (data) => {
-  try {
-    const me = normalizeUsername(data && data.me);
-    const groupId = String((data && data.groupId) || "");
+    try {
+      const me = normalizeUsername(data && data.me);
+      const groupId = String((data && data.groupId) || "");
 
-    const groupResult = await pool.query("SELECT * FROM groups WHERE id = $1", [groupId]);
-    const group = groupResult.rows[0];
+      const groupResult = await pool.query("SELECT * FROM groups WHERE id = $1", [groupId]);
+      const group = groupResult.rows[0];
 
-    if (!group || !(group.members || []).includes(me)) return;
+      if (!group || !(group.members || []).includes(me)) return;
 
-    const chatId = getGroupChatId(groupId);
-    socket.join(`chat:${chatId}`);
+      const chatId = getGroupChatId(groupId);
+      socket.join(`chat:${chatId}`);
 
-    const messages = await getMessagesByChatId(chatId);
-    socket.emit("load_messages", messages);
-  } catch (error) {
-    console.error("Open group error:", error);
-  }
-});
+      // Сообщения группы грузим через /api/groups/:id/messages, чтобы не было двойной загрузки.
+
+    } catch (error) {
+      console.error("Open group error:", error);
+    }
+  });
 
   socket.on("send_message", async (data) => {
     try {
