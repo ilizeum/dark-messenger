@@ -3898,3 +3898,479 @@ if (savedUser) {
     setTimeout(bindSettingsButtons, 120);
   });
 })();
+
+/* =========================================================
+   CALLIBRI SAFE BEAUTIFUL SETTINGS
+   Новая модалка настроек без замены index.html
+   ========================================================= */
+
+(function callibriSafeBeautifulSettings() {
+  const BEAUTIFUL_SETTINGS_KEY = "callibri_safe_beautiful_settings_";
+  let avatarDraft = "";
+
+  function getSettingsKey() {
+    return BEAUTIFUL_SETTINGS_KEY + (currentUser ? currentUser.username : "guest");
+  }
+
+  function loadLocalSettings() {
+    try {
+      const raw = localStorage.getItem(getSettingsKey());
+      const data = raw ? JSON.parse(raw) : {};
+
+      return {
+        favorites: data.favorites || "",
+        notificationSounds: data.notificationSounds !== false,
+        soundName: data.soundName || "hummingbird",
+        volume: Number(data.volume ?? 80),
+        microphoneId: data.microphoneId || ""
+      };
+    } catch {
+      return {
+        favorites: "",
+        notificationSounds: true,
+        soundName: "hummingbird",
+        volume: 80,
+        microphoneId: ""
+      };
+    }
+  }
+
+  function saveLocalSettings(data) {
+    localStorage.setItem(getSettingsKey(), JSON.stringify(data));
+  }
+
+  function makeMeterBars() {
+    return Array.from({ length: 18 })
+      .map((_, index) => `<i style="height:${8 + (index % 8) * 2}px"></i>`)
+      .join("");
+  }
+
+  function createSettingsButton() {
+    if (!meName) return;
+
+    const profile = meName.closest(".profile");
+
+    if (!profile) return;
+
+    if (document.getElementById("callibriBeautifulSettingsBtn")) return;
+
+    const btn = document.createElement("button");
+    btn.id = "callibriBeautifulSettingsBtn";
+    btn.type = "button";
+    btn.title = "Настройки";
+    btn.textContent = "⚙";
+
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openBeautifulSettings();
+    });
+
+    profile.appendChild(btn);
+  }
+
+  function createModal() {
+    if (document.getElementById("cbSettingsOverlay")) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "cbSettingsOverlay";
+    overlay.className = "hidden";
+
+    overlay.innerHTML = `
+      <div class="cb-settings-window">
+        <div class="cb-settings-head">
+          <div>
+            <h2>Настройки Callibri</h2>
+            <p>Профиль, избранное, микрофон, устройство входа и уведомления.</p>
+          </div>
+          <button id="cbSettingsCloseX" type="button">×</button>
+        </div>
+
+        <div class="cb-settings-body">
+          <nav class="cb-settings-nav">
+            <button type="button" class="active" data-cb-scroll="profile"><span>👤</span>Профиль</button>
+            <button type="button" data-cb-scroll="favorites"><span>☆</span>Избранное</button>
+            <button type="button" data-cb-scroll="microphone"><span>🎙</span>Микрофон</button>
+            <button type="button" data-cb-scroll="device"><span>🖥</span>Устройство входа</button>
+            <button type="button" data-cb-scroll="sounds"><span>🔔</span>Звуки уведомлений</button>
+            <button type="button" data-cb-scroll="appearance"><span>🎨</span>Внешний вид</button>
+            <button type="button" data-cb-scroll="privacy"><span>🔒</span>Конфиденциальность</button>
+            <button type="button" data-cb-scroll="hotkeys"><span>⌨</span>Горячие клавиши</button>
+            <button type="button" data-cb-scroll="about"><span>ⓘ</span>О программе</button>
+          </nav>
+
+          <div class="cb-settings-content">
+            <section class="cb-settings-section" data-cb-section="profile">
+              <div class="cb-settings-title">Профиль</div>
+
+              <div class="cb-settings-profile-grid">
+                <div>
+                  <div class="cb-settings-field">
+                    <label>Отображаемое имя</label>
+                    <input id="cbSettingsDisplayName" class="cb-settings-input" type="text">
+                  </div>
+
+                  <div class="cb-settings-field">
+                    <label>Имя пользователя</label>
+                    <input id="cbSettingsUsername" class="cb-settings-input" type="text">
+                  </div>
+
+                  <input id="cbSettingsAvatarInput" type="file" accept="image/*" style="display:none">
+                </div>
+
+                <div id="cbSettingsAvatar" class="cb-settings-avatar"></div>
+              </div>
+
+              <div id="cbSettingsStatus"></div>
+            </section>
+
+            <section class="cb-settings-section" data-cb-section="favorites">
+              <div class="cb-settings-title">Избранное</div>
+              <textarea id="cbSettingsFavorites" class="cb-settings-textarea" placeholder="Заметки, ссылки, важные данные"></textarea>
+            </section>
+
+            <section class="cb-settings-section" data-cb-section="microphone">
+              <div class="cb-settings-title">Микрофон</div>
+
+              <div class="cb-settings-row">
+                <div class="cb-settings-row-icon">🎙</div>
+                <div class="cb-settings-row-main">
+                  <select id="cbSettingsMic" class="cb-settings-select">
+                    <option value="">Микрофон по умолчанию</option>
+                  </select>
+                </div>
+                <div class="cb-settings-meter">${makeMeterBars()}</div>
+              </div>
+            </section>
+
+            <section class="cb-settings-section" data-cb-section="device">
+              <div class="cb-settings-title">Устройство входа</div>
+
+              <div class="cb-settings-row">
+                <div class="cb-settings-row-icon">🖥</div>
+                <div class="cb-settings-row-main">
+                  <b id="cbSettingsDeviceName">Текущее устройство</b>
+                  <span>● Текущая сессия</span>
+                </div>
+                <div style="color:#8fb5c5;font-size:22px;">›</div>
+              </div>
+            </section>
+
+            <section class="cb-settings-section" data-cb-section="sounds">
+              <div class="cb-settings-title">Звуки уведомлений</div>
+
+              <div class="cb-settings-row">
+                <div class="cb-settings-row-icon">🔔</div>
+                <div class="cb-settings-row-main">
+                  <b>Включить звуки уведомлений</b>
+                  <span>Получайте звуковые уведомления о новых сообщениях</span>
+                </div>
+                <button id="cbSettingsSoundToggle" class="cb-settings-toggle" type="button"></button>
+              </div>
+
+              <div class="cb-settings-sound-grid">
+                <select id="cbSettingsSoundName" class="cb-settings-select">
+                  <option value="hummingbird">Звук колибри</option>
+                  <option value="soft">Мягкий сигнал</option>
+                  <option value="classic">Классический звук</option>
+                </select>
+
+                <input id="cbSettingsVolume" class="cb-settings-range" type="range" min="0" max="100">
+              </div>
+            </section>
+
+            <section class="cb-settings-section" data-cb-section="appearance">
+              <div class="cb-settings-title">Внешний вид</div>
+              <div class="cb-settings-row">
+                <div class="cb-settings-row-icon">🎨</div>
+                <div class="cb-settings-row-main">
+                  <b>Callibri Dark</b>
+                  <span>Тёмная тема с градиентами колибри</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="cb-settings-section" data-cb-section="privacy">
+              <div class="cb-settings-title">Конфиденциальность</div>
+              <div class="cb-settings-row">
+                <div class="cb-settings-row-icon">🔒</div>
+                <div class="cb-settings-row-main">
+                  <b>Локальные настройки</b>
+                  <span>Избранное, звук и устройство хранятся на этом компьютере</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="cb-settings-section" data-cb-section="hotkeys">
+              <div class="cb-settings-title">Горячие клавиши</div>
+              <div class="cb-settings-row">
+                <div class="cb-settings-row-icon">⌨</div>
+                <div class="cb-settings-row-main">
+                  <b>Enter — отправить сообщение</b>
+                  <span>Shift + Enter — новая строка</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="cb-settings-section" data-cb-section="about">
+              <div class="cb-settings-title">О программе</div>
+              <div class="cb-settings-row">
+                <div class="cb-settings-row-icon">🐦</div>
+                <div class="cb-settings-row-main">
+                  <b>Callibri Messenger</b>
+                  <span>Версия 2.8.1 · Dark Messenger / Callibri</span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="cb-settings-footer">
+          <button id="cbSettingsLogout" class="danger" type="button">↪ Выйти</button>
+          <button id="cbSettingsClose" type="button">Закрыть</button>
+          <button id="cbSettingsSave" class="primary" type="button">Сохранить</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeBeautifulSettings();
+    });
+
+    document.getElementById("cbSettingsCloseX").addEventListener("click", closeBeautifulSettings);
+    document.getElementById("cbSettingsClose").addEventListener("click", closeBeautifulSettings);
+    document.getElementById("cbSettingsSave").addEventListener("click", saveBeautifulSettings);
+    document.getElementById("cbSettingsLogout").addEventListener("click", () => {
+      closeBeautifulSettings();
+      logout();
+    });
+
+    document.getElementById("cbSettingsSoundToggle").addEventListener("click", (event) => {
+      event.currentTarget.classList.toggle("active");
+    });
+
+    document.getElementById("cbSettingsAvatarInput").addEventListener("change", async (event) => {
+      const file = event.target.files && event.target.files[0];
+
+      if (!file) return;
+
+      if (!file.type.startsWith("image/")) {
+        alert("Выбери изображение");
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        alert("Файл слишком большой. Максимум 8 МБ.");
+        return;
+      }
+
+      avatarDraft = await fileToDataUrl(file);
+      renderAvatarPreview();
+      event.target.value = "";
+    });
+
+    overlay.querySelectorAll("[data-cb-scroll]").forEach((button) => {
+      button.addEventListener("click", () => {
+        overlay.querySelectorAll("[data-cb-scroll]").forEach((item) => {
+          item.classList.remove("active");
+        });
+
+        button.classList.add("active");
+
+        const target = overlay.querySelector(`[data-cb-section="${button.dataset.cbScroll}"]`);
+
+        if (target) {
+          target.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+          });
+        }
+      });
+    });
+  }
+
+  function renderAvatarPreview() {
+    const box = document.getElementById("cbSettingsAvatar");
+
+    if (!box) return;
+
+    const src = avatarDraft || (currentUser && currentUser.avatar) || "";
+
+    if (src) {
+      box.innerHTML = `
+        <img src="${escapeHtml(src)}" alt="avatar">
+        <button id="cbSettingsAvatarEdit" type="button">✎</button>
+      `;
+    } else {
+      const letter = currentUser
+        ? ((currentUser.displayName || currentUser.username || "C")[0] || "C").toUpperCase()
+        : "C";
+
+      box.innerHTML = `
+        <div class="cb-settings-avatar-mark">${escapeHtml(letter)}</div>
+        <button id="cbSettingsAvatarEdit" type="button">✎</button>
+      `;
+    }
+
+    document.getElementById("cbSettingsAvatarEdit").addEventListener("click", () => {
+      document.getElementById("cbSettingsAvatarInput").click();
+    });
+  }
+
+  async function fillMicrophones() {
+    const select = document.getElementById("cbSettingsMic");
+
+    if (!select) return;
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const microphones = devices.filter((device) => device.kind === "audioinput");
+
+      if (!microphones.length) return;
+
+      select.innerHTML = "";
+
+      microphones.forEach((mic, index) => {
+        const option = document.createElement("option");
+        option.value = mic.deviceId;
+        option.textContent = mic.label || `Микрофон ${index + 1}`;
+        select.appendChild(option);
+      });
+    } catch {}
+  }
+
+  function openBeautifulSettings() {
+    if (!currentUser) return;
+
+    createModal();
+
+    const settings = loadLocalSettings();
+
+    avatarDraft = currentUser.avatar || "";
+
+    document.getElementById("cbSettingsDisplayName").value =
+      currentUser.displayName || currentUser.username || "";
+
+    document.getElementById("cbSettingsUsername").value =
+      currentUser.username || "";
+
+    document.getElementById("cbSettingsFavorites").value =
+      settings.favorites || "";
+
+    document.getElementById("cbSettingsSoundToggle").classList.toggle(
+      "active",
+      Boolean(settings.notificationSounds)
+    );
+
+    document.getElementById("cbSettingsSoundName").value =
+      settings.soundName || "hummingbird";
+
+    document.getElementById("cbSettingsVolume").value =
+      String(settings.volume ?? 80);
+
+    const device = document.getElementById("cbSettingsDeviceName");
+    if (device) device.textContent = navigator.platform || "Текущее устройство";
+
+    const status = document.getElementById("cbSettingsStatus");
+    if (status) status.textContent = "";
+
+    renderAvatarPreview();
+    fillMicrophones();
+
+    document.getElementById("cbSettingsOverlay").classList.remove("hidden");
+  }
+
+  function closeBeautifulSettings() {
+    const overlay = document.getElementById("cbSettingsOverlay");
+
+    if (overlay) overlay.classList.add("hidden");
+  }
+
+  async function saveBeautifulSettings() {
+    if (!currentUser) return;
+
+    const status = document.getElementById("cbSettingsStatus");
+    const displayName = document.getElementById("cbSettingsDisplayName").value.trim();
+    const newUsername = normalizeUsername(document.getElementById("cbSettingsUsername").value);
+
+    if (!displayName) {
+      status.style.color = "#fda4af";
+      status.textContent = "Введите имя";
+      return;
+    }
+
+    if (!newUsername) {
+      status.style.color = "#fda4af";
+      status.textContent = "Введите username";
+      return;
+    }
+
+    try {
+      const data = await request("/api/profile", {
+        method: "PUT",
+        body: JSON.stringify({
+          oldUsername: currentUser.username,
+          newUsername,
+          displayName,
+          avatar: avatarDraft || ""
+        })
+      });
+
+      updateSavedUser(data.user);
+
+      if (meName) meName.textContent = currentUser.displayName || currentUser.username;
+      if (meLogin) meLogin.textContent = "@" + currentUser.username;
+
+      const settings = loadLocalSettings();
+      settings.favorites = document.getElementById("cbSettingsFavorites").value;
+      settings.notificationSounds = document.getElementById("cbSettingsSoundToggle").classList.contains("active");
+      settings.soundName = document.getElementById("cbSettingsSoundName").value;
+      settings.volume = Number(document.getElementById("cbSettingsVolume").value || 80);
+      settings.microphoneId = document.getElementById("cbSettingsMic").value;
+
+      saveLocalSettings(settings);
+
+      status.style.color = "#86efac";
+      status.textContent = "Настройки сохранены";
+
+      setTimeout(closeBeautifulSettings, 500);
+    } catch (error) {
+      status.style.color = "#fda4af";
+      status.textContent = error.message || "Ошибка сохранения";
+    }
+  }
+
+  function patchStartApp() {
+    if (typeof startApp !== "function") return;
+    if (startApp.__beautifulSettingsPatched) return;
+
+    const originalStartApp = startApp;
+
+    startApp = async function patchedStartApp() {
+      const result = await originalStartApp.apply(this, arguments);
+
+      createSettingsButton();
+      createModal();
+
+      return result;
+    };
+
+    startApp.__beautifulSettingsPatched = true;
+  }
+
+  function bootBeautifulSettings() {
+    patchStartApp();
+    createSettingsButton();
+    createModal();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootBeautifulSettings, { once: true });
+  } else {
+    bootBeautifulSettings();
+  }
+})();
