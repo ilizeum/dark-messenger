@@ -2589,3 +2589,19 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/* Убираем старые кнопки настроек/профиля, оставляем только premium-шестерёнку */
+#profileAvatarBtn,
+#profileBtn,
+#logoutBtn,
+#callibriCleanGear,
+#callibriSettingsGear,
+#settingsBtn,
+.clean-settings-gear,
+.callibri-settings-gear {
+  display: none !important;
+}
+
+#callibriPremiumGear {
+  display: inline-flex !important;
+}
