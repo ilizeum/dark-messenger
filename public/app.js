@@ -1720,21 +1720,21 @@ function renderChatTitle(user) {
   const name = escapeHtml(user.displayName || user.username);
 
   return `
-    <div class="chat-title-row">
+    <b class="chat-title-line">
       ${onlineDot(user.username)}
       <span class="chat-title-name">${name}</span>
       ${
         user.pinned
           ? `
-            <span class="chat-pin-wing" title="Закреплённый чат" aria-label="Закреплённый чат">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4.4 15.7c2.1-6 6.5-9.8 14.1-11.3-.8 1.5-1.4 2.9-1.7 4.3 2.1.2 3.9 1.1 5.2 2.8-2.2-.2-4 .1-5.5.8-.8 1.9-2.8 5-7.9 6.5 1.4-1.3 2.4-2.8 3-4.3-2 .7-4.1 1-7.2 1.2z"></path>
+            <span class="hummingbird-pin" title="Закреплённый чат">
+              <svg viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M5.2 20.6C8.7 11.4 15.9 6.2 27.5 4.5C25.8 7 24.8 9.4 24.4 11.7C27 12 29 13.1 30.5 15.1C26.9 14.6 24.1 15.1 21.9 16.5C20.3 20.1 16.6 24.7 8.5 26.6C10.9 24.7 12.7 22.4 13.6 20C10.9 20.7 8.3 20.9 5.2 20.6Z"></path>
               </svg>
             </span>
           `
           : ""
       }
-    </div>
+    </b>
   `;
 }
 
@@ -1881,6 +1881,10 @@ function renderRecentChats() {
   sortRecentChatsForRender(recentChatsCache).forEach((user) => {
     const item = document.createElement("button");
     item.className = "user recent-chat-item";
+    
+    if (user.pinned) {
+  item.classList.add("pinned-chat-item");
+}
 
     if (selectedChatType === "direct" && selectedUser && selectedUser.username === user.username) {
       item.classList.add("active");

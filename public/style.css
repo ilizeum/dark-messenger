@@ -1897,3 +1897,108 @@ button {
   display: block;
   fill: currentColor;
 }
+
+.chat-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.chat-title-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-pin-wing {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #67f2dd;
+  opacity: 0.95;
+}
+
+.chat-pin-wing svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: currentColor;
+  transform: rotate(-14deg);
+  filter: drop-shadow(0 0 8px rgba(103, 242, 221, 0.35));
+  transition: transform 0.18s ease, filter 0.18s ease, opacity 0.18s ease;
+}
+
+.recent-chat-item:hover .chat-pin-wing svg {
+  transform: rotate(-10deg) scale(1.06);
+  filter: drop-shadow(0 0 10px rgba(103, 242, 221, 0.5));
+}
+
+/* =========================
+   HUMMINGBIRD PIN ICON
+========================= */
+
+.recent-chat-item.pinned-chat-item {
+  position: relative;
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.13), rgba(16, 185, 129, 0.11)),
+    rgba(255, 255, 255, 0.035);
+  box-shadow:
+    inset 3px 0 0 rgba(103, 242, 221, 0.9),
+    inset 0 0 0 1px rgba(103, 242, 221, 0.12);
+}
+
+.chat-title-line {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.chat-title-name {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.hummingbird-pin {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #7df9e5;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.26), transparent 28%),
+    linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(16, 185, 129, 0.16));
+  border: 1px solid rgba(125, 249, 229, 0.24);
+  box-shadow:
+    0 0 0 2px rgba(103, 242, 221, 0.07),
+    0 8px 18px rgba(0, 0, 0, 0.22),
+    0 0 16px rgba(103, 242, 221, 0.16);
+  flex-shrink: 0;
+}
+
+.hummingbird-pin svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: currentColor;
+  transform: rotate(-16deg);
+  filter: drop-shadow(0 0 7px rgba(125, 249, 229, 0.45));
+}
+
+.recent-chat-item:hover .hummingbird-pin svg {
+  transform: rotate(-10deg) scale(1.08);
+}
