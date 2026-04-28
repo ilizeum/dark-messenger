@@ -2364,14 +2364,15 @@ if (savedUser) {
 
   initPremiumUi();
 
-  const premiumObserver = new MutationObserver(() => {
-    installPremiumGear();
-    patchGroupActions();
-  });
-
-  premiumObserver.observe(document.body, {
-    childList: true,
-    subtree: true
+  // ВАЖНО:
+  // MutationObserver по всему document.body отключён,
+  // потому что он вызывал зависание страницы.
+  // Обновляем кнопки безопасно только после основных действий.
+  document.addEventListener("click", () => {
+    setTimeout(() => {
+      installPremiumGear();
+      patchGroupActions();
+    }, 100);
   });
 
   window.addEventListener("beforeunload", stopMicMeter);
