@@ -355,6 +355,35 @@ await pool.query(`
   CREATE INDEX IF NOT EXISTS pinned_chats_user_idx
   ON pinned_chats (user_username, pinned_at DESC)
 `);
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS messages_chat_id_id_idx
+  ON messages (chat_id, id)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS messages_direct_users_idx
+  ON messages (type, from_username, to_username, id)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS messages_direct_to_from_read_idx
+  ON messages (type, chat_id, to_username, from_username, is_read)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS messages_group_id_idx
+  ON messages (group_id, id)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS messages_created_at_idx
+  ON messages (created_at DESC)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS groups_members_gin_idx
+  ON groups USING GIN (members)
+`);
 
   console.log("PostgreSQL tables are ready");
 }
