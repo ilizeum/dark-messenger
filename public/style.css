@@ -6771,10 +6771,10 @@ button {
 }
 
 /* =========================================================
-   CALLIBRI — аватарка без шестерёнки + индикатор online/offline
+   CALLIBRI — стабильная круглая аватарка + online indicator
    ========================================================= */
 
-/* Убираем шестерёнку на своей аватарке */
+/* Убираем визуальную шестерёнку, но НЕ ломаем настройки */
 #profileAvatarBtn::after,
 .callibri-rail-user::after,
 #callibriRailUser::after {
@@ -6782,70 +6782,114 @@ button {
   display: none !important;
 }
 
-/* Аватарка остаётся кликабельной для настроек */
+/* Принудительно возвращаем круглую аватарку */
 #profileAvatarBtn,
 .callibri-rail-user,
 #callibriRailUser {
-  cursor: pointer !important;
-  position: relative !important;
+  width: 52px !important;
+  height: 52px !important;
+  min-width: 52px !important;
+  min-height: 52px !important;
+  max-width: 52px !important;
+  max-height: 52px !important;
+  border-radius: 50% !important;
   overflow: visible !important;
-}
-
-/* Контейнер статуса */
-.callibri-self-status-dot {
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  border: 3px solid #03111f;
-  background: #64748b;
+  position: relative !important;
+  display: grid !important;
+  place-items: center !important;
+  cursor: pointer !important;
+  background: linear-gradient(135deg, #0ea5e9, #10b981) !important;
+  border: 2px solid rgba(34, 211, 238, 0.22) !important;
   box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.38),
-    0 0 0 0 rgba(34, 197, 94, 0);
-  z-index: 5;
+    0 12px 30px rgba(0, 0, 0, 0.28),
+    0 0 18px rgba(34, 211, 238, 0.08) !important;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease !important;
 }
 
-/* В сети */
-.callibri-self-status-dot.online {
-  background: #22c55e;
+/* Картинка внутри аватарки тоже круглая */
+#profileAvatarBtn img,
+.callibri-rail-user img,
+#callibriRailUser img {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+/* Ховер без превращения в квадрат */
+#profileAvatarBtn:hover,
+.callibri-rail-user:hover,
+#callibriRailUser:hover {
+  transform: translateY(-1px) scale(1.03) !important;
+  border-color: rgba(34, 211, 238, 0.38) !important;
   box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.38),
-    0 0 18px rgba(34, 197, 94, 0.45);
+    0 16px 36px rgba(0, 0, 0, 0.34),
+    0 0 24px rgba(34, 211, 238, 0.16) !important;
 }
 
-/* Не в сети */
-.callibri-self-status-dot.offline {
-  background: #64748b;
+/* Одна стабильная точка статуса */
+.callibri-avatar-status-dot {
+  position: absolute !important;
+  right: -1px !important;
+  bottom: -1px !important;
+  width: 15px !important;
+  height: 15px !important;
+  border-radius: 50% !important;
+  border: 3px solid #03111f !important;
+  background: #64748b !important;
+  z-index: 10 !important;
+  pointer-events: none !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.38) !important;
 }
 
-/* Текстовая подсказка рядом с аватаркой, если есть место */
-.callibri-self-status-label {
-  margin-top: 4px;
-  color: #8fb5c5;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
+.callibri-avatar-status-dot.online {
+  background: #22c55e !important;
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.38),
+    0 0 16px rgba(34, 197, 94, 0.5) !important;
 }
 
-/* В профиле статус красиво под логином */
-.profile .callibri-self-status-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.callibri-avatar-status-dot.offline {
+  background: #64748b !important;
 }
 
-.profile .callibri-self-status-label::before {
+/* Текст под логином */
+#callibriSelfStatusLabel {
+  margin-top: 4px !important;
+  color: #8fb5c5 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+#callibriSelfStatusLabel::before {
   content: "";
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: 50%;
   background: #22c55e;
   box-shadow: 0 0 12px rgba(34, 197, 94, 0.45);
 }
 
-.profile .callibri-self-status-label.offline::before {
+#callibriSelfStatusLabel.offline::before {
   background: #64748b;
   box-shadow: none;
 }
+
+/* ВАЖНО: не скрываем настройки целиком */
+#cbSettingsOverlay.hidden {
+  display: none !important;
+}
+
+#cbSettingsOverlay:not(.hidden) {
+  display: flex !important;
+}
+
+

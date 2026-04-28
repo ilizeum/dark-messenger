@@ -4498,66 +4498,72 @@ if (savedUser) {
 })();
 
 /* =========================================================
-   CALLIBRI — статус на своей аватарке вместо шестерёнки
+   CALLIBRI — стабильный статус на аватарке без поломки настроек
    ========================================================= */
 
-(function callibriSelfAvatarStatus() {
-  function isSelfOnline() {
+(function callibriStableAvatarStatus() {
+  function getOnlineState() {
     try {
       if (typeof socket !== "undefined" && socket && socket.connected) {
         return true;
       }
     } catch {}
 
-    return Boolean(navigator.onLine);
+    return navigator.onLine !== false;
   }
 
-  function getSelfAvatarElements() {
-    return [
-      document.getElementById("profileAvatarBtn"),
-      document.getElementById("callibriRailUser"),
-      document.querySelector(".callibri-rail-user")
-    ].filter(Boolean);
+  function getAvatarTargets() {
+    const targets = [];
+
+    const profileAvatar = document.getElementById("profileAvatarBtn");
+    const railAvatarById = document.getElementById("callibriRailUser");
+    const railAvatarByClass = document.querySelector(".callibri-rail-user");
+
+    if (profileAvatar) targets.push(profileAvatar);
+    if (railAvatarById && !targets.includes(railAvatarById)) targets.push(railAvatarById);
+    if (railAvatarByClass && !targets.includes(railAvatarByClass)) targets.push(railAvatarByClass);
+
+    return targets;
   }
 
-  function removeGearVisuals() {
-    [
-      "#callibriBeautifulSettingsBtn",
-      "#profileBtn",
-      "#settingsBtn",
-      "#callibriPremiumGear",
-      "#callibriGlobalSettingsBtn",
-      "#callibriSingleSettingsBtn",
-      "#railSettingsBtn",
-      ".clean-settings-gear",
-      ".callibri-settings-gear"
-    ].forEach((selector) => {
-      document.querySelectorAll(selector).forEach((el) => {
-        el.style.display = "none";
-        el.style.pointerEvents = "none";
-      });
-    });
-  }
-
-  function ensureStatusDot(avatar) {
+  function normalizeAvatarShape(avatar) {
     if (!avatar) return;
 
-    let dot = avatar.querySelector(".callibri-self-status-dot");
+    avatar.style.borderRadius = "50%";
+    avatar.style.overflow = "visible";
+    avatar.style.position = "relative";
+
+    const img = avatar.querySelector("img");
+
+    if (img) {
+      img.style.borderRadius = "50%";
+      img.style.objectFit = "cover";
+    }
+  }
+
+  function ensureOneDot(avatar) {
+    if (!avatar) return;
+
+    avatar.querySelectorAll(".callibri-avatar-status-dot").forEach((dot, index) => {
+      if (index > 0) dot.remove();
+    });
+
+    let dot = avatar.querySelector(".callibri-avatar-status-dot");
 
     if (!dot) {
       dot = document.createElement("span");
-      dot.className = "callibri-self-status-dot";
+      dot.className = "callibri-avatar-status-dot";
       avatar.appendChild(dot);
     }
 
-    const online = isSelfOnline();
+    const online = getOnlineState();
 
     dot.classList.toggle("online", online);
     dot.classList.toggle("offline", !online);
     dot.title = online ? "В сети" : "Не в сети";
   }
 
-  function ensureProfileStatusText() {
+  function ensureStatusText() {
     const meLoginEl = document.getElementById("meLogin");
 
     if (!meLoginEl) return;
@@ -4567,44 +4573,79 @@ if (savedUser) {
     if (!label) {
       label = document.createElement("div");
       label.id = "callibriSelfStatusLabel";
-      label.className = "callibri-self-status-label";
       meLoginEl.insertAdjacentElement("afterend", label);
     }
 
-    const online = isSelfOnline();
+    const online = getOnlineState();
 
     label.textContent = online ? "в сети" : "не в сети";
     label.classList.toggle("online", online);
     label.classList.toggle("offline", !online);
   }
 
-  function updateSelfStatus() {
-    removeGearVisuals();
+  function keepBeautifulSettingsButtonLogic() {
+    const avatars = getAvatarTargets();
 
-    getSelfAvatarElements().forEach((avatar) => {
-      ensureStatusDot(avatar);
+    avatars.forEach((avatar) => {
+      if (avatar.dataset.settingsClickStable === "1") return;
+
+      avatar.dataset.settingsClickStable = "1";
       avatar.title = "Открыть настройки";
+
+      avatar.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (typeof openBeautifulSettings === "function") {
+          openBeautifulSettings();
+          return;
+        }
+
+        const overlay = document.getElementById("cbSettingsOverlay");
+
+        if (overlay) {
+          overlay.classList.remove("hidden");
+          overlay.style.display = "flex";
+          return;
+        }
+
+        const profileBtn = document.getElementById("profileBtn");
+
+        if (profileBtn) {
+          profileBtn.click();
+        }
+      });
+    });
+  }
+
+  function updateAvatarStatus() {
+    const avatars = getAvatarTargets();
+
+    avatars.forEach((avatar) => {
+      normalizeAvatarShape(avatar);
+      ensureOneDot(avatar);
     });
 
-    ensureProfileStatusText();
+    ensureStatusText();
+    keepBeautifulSettingsButtonLogic();
   }
 
   function patchSafe(functionName) {
     const original = window[functionName];
 
     if (typeof original !== "function") return;
-    if (original.__selfStatusPatched) return;
+    if (original.__stableAvatarStatusPatched) return;
 
     const wrapped = function () {
       const result = original.apply(this, arguments);
 
-      setTimeout(updateSelfStatus, 0);
-      setTimeout(updateSelfStatus, 150);
+      setTimeout(updateAvatarStatus, 0);
+      setTimeout(updateAvatarStatus, 150);
 
       return result;
     };
 
-    wrapped.__selfStatusPatched = true;
+    wrapped.__stableAvatarStatusPatched = true;
     window[functionName] = wrapped;
   }
 
@@ -4620,10 +4661,10 @@ if (savedUser) {
       "renderEmptyChat"
     ].forEach(patchSafe);
 
-    updateSelfStatus();
+    updateAvatarStatus();
 
-    setTimeout(updateSelfStatus, 300);
-    setTimeout(updateSelfStatus, 1000);
+    setTimeout(updateAvatarStatus, 300);
+    setTimeout(updateAvatarStatus, 1000);
   }
 
   if (document.readyState === "loading") {
@@ -4632,16 +4673,16 @@ if (savedUser) {
     boot();
   }
 
-  window.addEventListener("online", updateSelfStatus);
-  window.addEventListener("offline", updateSelfStatus);
+  window.addEventListener("online", updateAvatarStatus);
+  window.addEventListener("offline", updateAvatarStatus);
   window.addEventListener("focus", () => {
-    setTimeout(updateSelfStatus, 120);
+    setTimeout(updateAvatarStatus, 120);
   });
 
   try {
     if (typeof socket !== "undefined" && socket) {
-      socket.on("connect", updateSelfStatus);
-      socket.on("disconnect", updateSelfStatus);
+      socket.on("connect", updateAvatarStatus);
+      socket.on("disconnect", updateAvatarStatus);
     }
   } catch {}
 })();
