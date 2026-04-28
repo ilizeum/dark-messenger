@@ -1720,21 +1720,15 @@ function renderChatTitle(user) {
   const name = escapeHtml(user.displayName || user.username);
 
   return `
-    <b class="chat-title-line">
+    <div class="chat-title-line">
       ${onlineDot(user.username)}
       <span class="chat-title-name">${name}</span>
       ${
         user.pinned
-          ? `
-            <span class="hummingbird-pin" title="Закреплённый чат">
-              <svg viewBox="0 0 32 32" aria-hidden="true">
-                <path d="M5.2 20.6C8.7 11.4 15.9 6.2 27.5 4.5C25.8 7 24.8 9.4 24.4 11.7C27 12 29 13.1 30.5 15.1C26.9 14.6 24.1 15.1 21.9 16.5C20.3 20.1 16.6 24.7 8.5 26.6C10.9 24.7 12.7 22.4 13.6 20C10.9 20.7 8.3 20.9 5.2 20.6Z"></path>
-              </svg>
-            </span>
-          `
+          ? `<span class="chat-pin-badge">закреплён</span>`
           : ""
       }
-    </b>
+    </div>
   `;
 }
 
@@ -1882,6 +1876,10 @@ function renderRecentChats() {
     const item = document.createElement("button");
     item.className = "user recent-chat-item";
     
+    if (user.pinned) {
+  item.classList.add("pinned-chat-item");
+}
+
     if (user.pinned) {
   item.classList.add("pinned-chat-item");
 }
