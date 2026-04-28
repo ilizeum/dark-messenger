@@ -2632,3 +2632,288 @@ if (savedUser) {
     setTimeout(decorateExistingUi, 120);
   });
 })();
+
+/* =========================================================
+   CALLIBRI UI RECOVERY FIX
+   Убираем дубли шестерёнок, добавляем бренд, возвращаем клики
+   ========================================================= */
+
+(function callibriUiRecoveryFix() {
+  const PATCHED_FLAG = "__callibriUiRecoveryFixPatched";
+
+  function getCurrentUserSafe() {
+    try {
+      if (typeof currentUser !== "undefined" && currentUser) return currentUser;
+    } catch (e) {}
+    return null;
+  }
+
+  function makeBrandCard() {
+    const card = document.createElement("div");
+    card.id = "callibriBrandCard";
+
+    card.innerHTML = `
+      <div class="callibri-brand-logo">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M12 36C20 30 27 29 34 30C31 25 30 20 31 15C39 18 45 24 48 31C54 29 58 26 60 23C59 31 55 38 48 42C45 52 38 58 26 60C32 54 34 49 34 45C26 46 18 43 12 36Z" fill="white"/>
+        </svg>
+      </div>
+      <div class="callibri-brand-text">
+        <strong>callibri</strong>
+        <span>messenger</span>
+      </div>
+    `;
+
+    return card;
+  }
+
+  function ensureBrandCard() {
+    const sidebar = document.querySelector(".sidebar");
+    if (!sidebar) return;
+
+    const old = document.getElementById("callibriBrandCard");
+    if (!old) {
+      sidebar.insertBefore(makeBrandCard(), sidebar.firstChild);
+    }
+  }
+
+  function removeInjectedDuplicates() {
+    const selectorsToRemoveCompletely = [
+      "#callibriPremiumGear",
+      "#callibriGlobalSettingsBtn",
+      "#callibriRailSettings",
+      ".clean-settings-gear",
+      ".callibri-settings-gear"
+    ];
+
+    selectorsToRemoveCompletely.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => el.remove());
+    });
+
+    const originalSettings = document.getElementById("profileBtn");
+    if (originalSettings) {
+      originalSettings.style.display = "none";
+      originalSettings.style.pointerEvents = "none";
+    }
+
+    const secondarySettings = document.getElementById("settingsBtn");
+    if (secondarySettings) {
+      secondarySettings.style.display = "none";
+      secondarySettings.style.pointerEvents = "none";
+    }
+  }
+
+  function openSettingsSafely() {
+    const originalSettings = document.getElementById("profileBtn");
+    if (originalSettings && typeof originalSettings.click === "function") {
+      originalSettings.click();
+      return;
+    }
+
+    const secondarySettings = document.getElementById("settingsBtn");
+    if (secondarySettings && typeof secondarySettings.click === "function") {
+      secondarySettings.click();
+      return;
+    }
+
+    if (typeof openProfileModal === "function") {
+      openProfileModal();
+      return;
+    }
+
+    console.warn("Не удалось открыть настройки: не найдена функция или кнопка.");
+  }
+
+  function ensureSingleSettingsButton() {
+    const profile = document.querySelector(".profile");
+    if (!profile) return;
+
+    profile.querySelectorAll("#callibriSingleSettingsBtn").forEach((el, index) => {
+      if (index > 0) el.remove();
+    });
+
+    Array.from(profile.querySelectorAll("button")).forEach((btn) => {
+      if (btn.id === "callibriSingleSettingsBtn") return;
+      if (btn.id === "profileBtn") return;
+      if (btn.id === "settingsBtn") return;
+
+      const text = (btn.textContent || "").trim();
+      const title = (btn.title || "").toLowerCase();
+
+      if (text === "⚙" || text === "☸" || title.includes("настрой")) {
+        btn.remove();
+      }
+    });
+
+    let settingsBtn = document.getElementById("callibriSingleSettingsBtn");
+
+    if (!settingsBtn) {
+      settingsBtn = document.createElement("button");
+      settingsBtn.id = "callibriSingleSettingsBtn";
+      settingsBtn.type = "button";
+      settingsBtn.title = "Настройки";
+      settingsBtn.textContent = "⚙";
+      settingsBtn.addEventListener("click", openSettingsSafely);
+      profile.appendChild(settingsBtn);
+    }
+  }
+
+  function makeRailUserContent() {
+    const user = getCurrentUserSafe();
+    if (!user) return "C";
+
+    if (user.avatar) {
+      const img = document.createElement("img");
+      img.src = user.avatar;
+      img.alt = "avatar";
+      return img;
+    }
+
+    return ((user.displayName || user.username || "C")[0] || "C").toUpperCase();
+  }
+
+  function ensureRailUser() {
+    const railUser = document.getElementById("callibriRailUser");
+    if (!railUser) return;
+
+    railUser.innerHTML = "";
+
+    const content = makeRailUserContent();
+    if (typeof content === "string") {
+      railUser.textContent = content;
+    } else {
+      railUser.appendChild(content);
+    }
+  }
+
+  function ensureFilterRow() {
+    const search = document.getElementById("search");
+    if (!search || !search.parentElement) return;
+
+    let row = document.getElementById("callibriFilterRow");
+
+    if (!row) {
+      row = document.createElement("div");
+      row.id = "callibriFilterRow";
+      row.className = "callibri-filter-row";
+      row.innerHTML = `
+        <button class="callibri-filter-chip active" type="button">Все</button>
+        <button class="callibri-filter-chip" type="button">Непрочитанные</button>
+        <button class="callibri-filter-chip" type="button">Группы</button>
+      `;
+
+      search.insertAdjacentElement("afterend", row);
+
+      row.querySelectorAll(".callibri-filter-chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          row.querySelectorAll(".callibri-filter-chip").forEach((el) => {
+            el.classList.remove("active");
+          });
+          chip.classList.add("active");
+        });
+      });
+    }
+  }
+
+  function unblockHiddenLayers() {
+    const hiddenSelectors = [
+      ".modal.hidden",
+      ".callibri-premium-settings.hidden",
+      ".message-context-menu.hidden",
+      ".callibri-sidebar-context-menu.hidden"
+    ];
+
+    hiddenSelectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => {
+        el.style.display = "none";
+        el.style.pointerEvents = "none";
+        el.style.opacity = "0";
+        el.style.visibility = "hidden";
+      });
+    });
+  }
+
+  function restorePointerEvents() {
+    [
+      "#app",
+      ".callibri-rail",
+      ".sidebar",
+      ".chat",
+      ".chat-header",
+      "#messages",
+      ".chat-input",
+      ".profile"
+    ].forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => {
+        el.style.pointerEvents = "auto";
+      });
+    });
+  }
+
+  function cleanupTopLeftRawLook() {
+    const railLogo = document.querySelector(".callibri-rail-logo");
+    if (railLogo) {
+      railLogo.style.display = "none";
+    }
+  }
+
+  function runUiFix() {
+    removeInjectedDuplicates();
+    ensureBrandCard();
+    ensureSingleSettingsButton();
+    ensureFilterRow();
+    ensureRailUser();
+    unblockHiddenLayers();
+    restorePointerEvents();
+    cleanupTopLeftRawLook();
+  }
+
+  function patchFunction(functionName) {
+    const fn = window[functionName];
+    if (typeof fn !== "function") return;
+    if (fn[PATCHED_FLAG]) return;
+
+    const wrapped = function () {
+      const result = fn.apply(this, arguments);
+      setTimeout(runUiFix, 0);
+      setTimeout(runUiFix, 150);
+      setTimeout(runUiFix, 500);
+      return result;
+    };
+
+    wrapped[PATCHED_FLAG] = true;
+    window[functionName] = wrapped;
+  }
+
+  function patchKnownFunctions() {
+    [
+      "startApp",
+      "renderRecentChats",
+      "renderGroups",
+      "renderMessages",
+      "renderUsers",
+      "openChat",
+      "openGroupChat",
+      "renderArchiveButton",
+      "showGroupActions"
+    ].forEach(patchFunction);
+  }
+
+  function boot() {
+    patchKnownFunctions();
+    runUiFix();
+    setTimeout(runUiFix, 200);
+    setTimeout(runUiFix, 800);
+    setTimeout(runUiFix, 1600);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("load", () => {
+    setTimeout(runUiFix, 200);
+  });
+})();
