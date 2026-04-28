@@ -330,6 +330,21 @@ await pool.query(`
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
+
+  await pool.query(`
+  CREATE INDEX IF NOT EXISTS messages_chat_id_id_idx
+  ON messages (chat_id, id)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS messages_direct_users_idx
+  ON messages (type, from_username, to_username, id)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS messages_read_status_idx
+  ON messages (type, chat_id, to_username, from_username, is_read)
+`);
   
 
   await pool.query(`
@@ -456,14 +471,19 @@ function selectMessageSql() {
   `;
 }
 
-async function getMessagesByChatId(chatId) {
+async function getMessagesByChatId(chatId, limit = 80) {
   const result = await pool.query(
     `
-    ${selectMessageSql()}
-    WHERE chat_id = $1
+    SELECT *
+    FROM (
+      ${selectMessageSql()}
+      WHERE chat_id = $1
+      ORDER BY id DESC
+      LIMIT $2
+    ) recent_messages
     ORDER BY id ASC
     `,
-    [chatId]
+    [chatId, limit]
   );
 
   return result.rows;
@@ -1823,29 +1843,29 @@ io.on("connection", (socket) => {
   });
 
   socket.on("open_chat", async (data) => {
-    try {
-      const me = normalizeUsername(data && data.me);
-      const withUser = normalizeUsername(data && data.with);
+  try {
+    const me = normalizeUsername(data && data.me);
+    const withUser = normalizeUsername(data && data.with);
 
-      if (!me || !withUser) return;
+    if (!me || !withUser) return;
 
-      const chatId = getDirectChatId(me, withUser);
-      socket.join(`chat:${chatId}`);
+    const chatId = getDirectChatId(me, withUser);
+    socket.join(`chat:${chatId}`);
 
-      const messages = await getMessagesByChatId(chatId);
-      socket.emit("load_messages", messages);
+    const messages = await getMessagesByChatId(chatId);
+    socket.emit("load_messages", messages);
 
-      socket.emit("user_status", {
-        username: withUser,
-        online: isUserOnline(withUser)
-      });
+    socket.emit("user_status", {
+      username: withUser,
+      online: isUserOnline(withUser)
+    });
 
-      const readResult = await markDirectMessagesAsRead(me, withUser);
-      emitMessagesRead(chatId, me, withUser, readResult.rows);
-    } catch (error) {
-      console.error("Open chat error:", error);
-    }
-  });
+    const readResult = await markDirectMessagesAsRead(me, withUser);
+    emitMessagesRead(chatId, me, withUser, readResult.rows);
+  } catch (error) {
+    console.error("Open chat error:", error);
+  }
+});
 
   socket.on("mark_messages_read", async (data) => {
     try {
@@ -1862,24 +1882,24 @@ io.on("connection", (socket) => {
   });
 
   socket.on("open_group", async (data) => {
-    try {
-      const me = normalizeUsername(data && data.me);
-      const groupId = String((data && data.groupId) || "");
+  try {
+    const me = normalizeUsername(data && data.me);
+    const groupId = String((data && data.groupId) || "");
 
-      const groupResult = await pool.query("SELECT * FROM groups WHERE id = $1", [groupId]);
-      const group = groupResult.rows[0];
+    const groupResult = await pool.query("SELECT * FROM groups WHERE id = $1", [groupId]);
+    const group = groupResult.rows[0];
 
-      if (!group || !(group.members || []).includes(me)) return;
+    if (!group || !(group.members || []).includes(me)) return;
 
-      const chatId = getGroupChatId(groupId);
-      socket.join(`chat:${chatId}`);
+    const chatId = getGroupChatId(groupId);
+    socket.join(`chat:${chatId}`);
 
-      // Сообщения группы грузим через /api/groups/:id/messages, чтобы не было двойной загрузки.
-
-    } catch (error) {
-      console.error("Open group error:", error);
-    }
-  });
+    const messages = await getMessagesByChatId(chatId);
+    socket.emit("load_messages", messages);
+  } catch (error) {
+    console.error("Open group error:", error);
+  }
+});
 
   socket.on("send_message", async (data) => {
     try {
