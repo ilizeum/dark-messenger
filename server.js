@@ -330,6 +330,21 @@ await pool.query(`
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
+  await pool.query(`
+  CREATE TABLE IF NOT EXISTS pinned_chats (
+    user_username TEXT NOT NULL,
+    chat_type TEXT NOT NULL DEFAULT 'direct',
+    chat_id TEXT NOT NULL,
+    other_username TEXT,
+    pinned_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (user_username, chat_type, chat_id)
+  )
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS pinned_chats_user_idx
+  ON pinned_chats (user_username, pinned_at DESC)
+`);
 
   await pool.query(`
     UPDATE messages
@@ -1015,6 +1030,23 @@ app.put("/api/profile", async (req, res) => {
       [newUsername, displayName, avatar, oldUsername]
     );
     await client.query(`UPDATE groups SET owner = $1 WHERE owner = $2`, [newUsername, oldUsername]);
+    await client.query(
+  `
+  UPDATE pinned_chats
+  SET user_username = $1
+  WHERE user_username = $2
+  `,
+  [newUsername, oldUsername]
+);
+
+await client.query(
+  `
+  UPDATE pinned_chats
+  SET other_username = $1
+  WHERE other_username = $2
+  `,
+  [newUsername, oldUsername]
+);
     await client.query(
       `
       UPDATE groups

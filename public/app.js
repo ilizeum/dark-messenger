@@ -84,6 +84,8 @@ let recentChatsBox = null;
 let groupsBox = null;
 let createGroupBtn = null;
 let groupModal = null;
+let chatContextMenu = null;
+let chatContextSelectedUser = null;
 
 let avatarInput = null;
 let fileInput = null;
@@ -1635,6 +1637,7 @@ async function startApp() {
   setupGroupActionsUI();
   setupMessageTools();
   setupTelegramMessageMenu();
+  setupChatContextMenu();
   setupWindowsNotifications();
 
   if (auth) auth.classList.add("hidden");
@@ -1696,6 +1699,169 @@ async function loadGroups() {
   }
 }
 
+function sortRecentChatsForRender(chats) {
+  return [...chats].sort((a, b) => {
+    const aPinned = a.pinned ? 1 : 0;
+    const bPinned = b.pinned ? 1 : 0;
+
+    if (aPinned !== bPinned) {
+      return bPinned - aPinned;
+    }
+
+    if (a.pinned && b.pinned) {
+      return new Date(b.pinnedAt || 0) - new Date(a.pinnedAt || 0);
+    }
+
+    return new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0);
+  });
+}
+
+function renderChatTitle(user) {
+  const name = escapeHtml(user.displayName || user.username);
+
+  return `
+    <b class="chat-title-line">
+      ${onlineDot(user.username)}
+      <span class="chat-title-name">${name}</span>
+      ${
+        user.pinned
+          ? `<span class="chat-pin-icon" title="Закреплённый чат"></span>`
+          : ""
+      }
+    </b>
+  `;
+}
+
+function setupChatContextMenu() {
+  if (document.getElementById("chatContextMenu")) {
+    chatContextMenu = document.getElementById("chatContextMenu");
+    return;
+  }
+
+  chatContextMenu = document.createElement("div");
+  chatContextMenu.id = "chatContextMenu";
+  chatContextMenu.className = "chat-context-menu hidden";
+
+  chatContextMenu.innerHTML = `
+    <button id="togglePinChatBtn" type="button">
+      <span class="chat-context-icon">
+        <span class="chat-context-pin"></span>
+      </span>
+      <span id="togglePinChatText">Закрепить</span>
+    </button>
+  `;
+
+  document.body.appendChild(chatContextMenu);
+
+  const toggleBtn = document.getElementById("togglePinChatBtn");
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", async () => {
+      if (!chatContextSelectedUser) return;
+
+      await togglePinChat(chatContextSelectedUser);
+      hideChatContextMenu();
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#chatContextMenu")) {
+      hideChatContextMenu();
+    }
+  });
+
+  window.addEventListener("resize", hideChatContextMenu);
+  window.addEventListener("scroll", hideChatContextMenu);
+}
+
+function openChatContextMenu(event, user) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  setupChatContextMenu();
+
+  chatContextSelectedUser = user;
+
+  const text = document.getElementById("togglePinChatText");
+
+  if (text) {
+    text.textContent = user.pinned ? "Открепить" : "Закрепить";
+  }
+
+  if (!chatContextMenu) return;
+
+  chatContextMenu.classList.remove("hidden");
+
+  const rect = chatContextMenu.getBoundingClientRect();
+
+  let x = event.clientX;
+  let y = event.clientY;
+
+  if (x + rect.width > window.innerWidth) {
+    x = window.innerWidth - rect.width - 10;
+  }
+
+  if (y + rect.height > window.innerHeight) {
+    y = window.innerHeight - rect.height - 10;
+  }
+
+  chatContextMenu.style.left = x + "px";
+  chatContextMenu.style.top = y + "px";
+}
+
+function hideChatContextMenu() {
+  if (chatContextMenu) {
+    chatContextMenu.classList.add("hidden");
+  }
+}
+
+async function togglePinChat(user) {
+  if (!currentUser || !user || !user.username) return;
+
+  try {
+    if (user.pinned) {
+      await request(
+        `/api/pinned-chats/${encodeURIComponent(user.username)}?me=${encodeURIComponent(currentUser.username)}`,
+        {
+          method: "DELETE"
+        }
+      );
+
+      recentChatsCache = recentChatsCache.map((chat) => {
+        if (chat.username !== user.username) return chat;
+
+        return {
+          ...chat,
+          pinned: false,
+          pinnedAt: null
+        };
+      });
+    } else {
+      const data = await request("/api/pinned-chats", {
+        method: "POST",
+        body: JSON.stringify({
+          me: currentUser.username,
+          otherUsername: user.username
+        })
+      });
+
+      recentChatsCache = recentChatsCache.map((chat) => {
+        if (chat.username !== user.username) return chat;
+
+        return {
+          ...chat,
+          pinned: true,
+          pinnedAt: data.chat && data.chat.pinned_at ? data.chat.pinned_at : new Date().toISOString()
+        };
+      });
+    }
+
+    renderRecentChats();
+  } catch (error) {
+    alert(error.message || "Не удалось изменить закрепление");
+  }
+}
+
 function renderRecentChats() {
   if (!recentChatsBox) return;
 
@@ -1706,7 +1872,7 @@ function renderRecentChats() {
     return;
   }
 
-  recentChatsCache.forEach((user) => {
+  sortRecentChatsForRender(recentChatsCache).forEach((user) => {
     const item = document.createElement("button");
     item.className = "user recent-chat-item";
 
@@ -1720,7 +1886,7 @@ function renderRecentChats() {
     item.innerHTML = `
       ${renderAvatar(user)}
       <div class="user-info">
-        <b>${onlineDot(user.username)}${escapeHtml(user.displayName || user.username)}</b>
+        ${renderChatTitle(user)}
         <span>${escapeHtml(preview)}</span>
       </div>
       ${unreadBadge(count)}
@@ -1729,6 +1895,9 @@ function renderRecentChats() {
     item.addEventListener("click", () => {
       openChat(user);
     });
+    item.addEventListener("contextmenu", (event) => {
+  openChatContextMenu(event, user);
+});
 
     recentChatsBox.appendChild(item);
   });
@@ -1750,6 +1919,8 @@ function getChatPreview(user) {
 function upsertRecentChat(user, message) {
   if (!user || !user.username) return;
 
+  const existingChat = recentChatsCache.find((item) => item.username === user.username);
+
   recentChatsCache = recentChatsCache.filter((item) => item.username !== user.username);
 
   recentChatsCache.unshift({
@@ -1760,47 +1931,12 @@ function upsertRecentChat(user, message) {
     online: onlineUsers[user.username] || user.online || false,
     lastMessageText: message ? (message.text || message.message || "") : (user.lastMessageText || ""),
     lastMessageMedia: message ? (message.media || null) : (user.lastMessageMedia || null),
-    lastMessageAt: message ? message.created_at : user.lastMessageAt
+    lastMessageAt: message ? message.created_at : user.lastMessageAt,
+    pinned: existingChat ? Boolean(existingChat.pinned) : Boolean(user.pinned),
+    pinnedAt: existingChat ? existingChat.pinnedAt : (user.pinnedAt || null)
   });
 
   renderRecentChats();
-}
-
-function renderGroups() {
-  if (!groupsBox) return;
-
-  groupsBox.innerHTML = "";
-
-  if (!groupsCache.length) {
-    groupsBox.innerHTML = `<div class="empty small-empty">Групп пока нет</div>`;
-    return;
-  }
-
-  groupsCache.forEach((group) => {
-    const item = document.createElement("button");
-    item.className = "user group-item";
-
-    if (selectedChatType === "group" && selectedGroup && selectedGroup.id === group.id) {
-      item.classList.add("active");
-    }
-
-    const count = unreadGroups[group.id] || 0;
-
-    item.innerHTML = `
-      <div class="avatar group-avatar">#</div>
-      <div class="user-info">
-        <b>${escapeHtml(group.name)}</b>
-        <span>${group.members.length} участн.</span>
-      </div>
-      ${unreadBadge(count)}
-    `;
-
-    item.addEventListener("click", () => {
-      openGroup(group);
-    });
-
-    groupsBox.appendChild(item);
-  });
 }
 
 async function loadUsers(query = "") {

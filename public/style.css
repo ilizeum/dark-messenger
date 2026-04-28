@@ -1755,3 +1755,108 @@ button {
 .auth-card.auth-register-mode #username + .password-wrap {
   margin-top: 0;
 }
+
+/* =========================
+   PINNED CHATS
+========================= */
+
+.chat-title-line {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+}
+
+.chat-title-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-pin-icon {
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  border-radius: 5px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.95), rgba(16, 185, 129, 0.95));
+  box-shadow:
+    0 0 0 2px rgba(34, 211, 238, 0.12),
+    0 6px 14px rgba(0, 0, 0, 0.22);
+  transform: rotate(45deg);
+}
+
+.chat-pin-icon::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.45);
+}
+
+.chat-context-menu {
+  position: fixed;
+  z-index: 999999;
+  width: 190px;
+  padding: 7px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(18px);
+}
+
+.chat-context-menu.hidden {
+  display: none;
+}
+
+.chat-context-menu button {
+  width: 100%;
+  height: 42px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #e5e7eb;
+  border-radius: 12px;
+  padding: 0 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: left;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.chat-context-menu button:hover {
+  background: rgba(34, 211, 238, 0.12);
+  color: #d9f99d;
+}
+
+.chat-context-icon {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-context-pin {
+  width: 13px;
+  height: 13px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #22d3ee, #10b981);
+  transform: rotate(45deg);
+  box-shadow:
+    0 0 0 2px rgba(34, 211, 238, 0.12),
+    0 6px 12px rgba(0, 0, 0, 0.25);
+}
