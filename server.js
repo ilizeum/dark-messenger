@@ -1396,8 +1396,7 @@ app.get("/api/messages", async (req, res) => {
       });
     }
 
-    const chatId = getDirectChatId(me, withUser);
-    const messages = await getMessagesByChatId(chatId);
+    // Сообщения грузим через /api/messages, чтобы не было двойной загрузки.
 
     res.json({
       success: true,
@@ -1875,8 +1874,8 @@ io.on("connection", (socket) => {
       const chatId = getGroupChatId(groupId);
       socket.join(`chat:${chatId}`);
 
-      const messages = await getMessagesByChatId(chatId);
-      socket.emit("load_messages", messages);
+      // Сообщения группы грузим через /api/groups/:id/messages, чтобы не было двойной загрузки.
+
     } catch (error) {
       console.error("Open group error:", error);
     }

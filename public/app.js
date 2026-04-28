@@ -885,7 +885,7 @@ async function saveProfile() {
     selectedChatType = null;
     messagesCache = [];
 
-    await loadRecentChats();
+    await renderRecentChats();
     await loadGroups();
 
     renderEmptyChat();
