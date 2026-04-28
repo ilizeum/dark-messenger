@@ -3093,3 +3093,158 @@ if (savedUser) {
     setTimeout(runStageTwo, 120);
   });
 })();
+
+/* =========================================================
+   CALLIBRI — перенос настроек в левый бар
+   ========================================================= */
+
+(function moveSettingsButtonToRail() {
+  function removeOldProfileSettings() {
+    const selectors = [
+      '.profile #settingsBtn',
+      '.profile #openSettingsBtn',
+      '.profile #profileSettingsBtn',
+      '.profile .profile-settings-btn',
+      '.profile .settings-btn',
+      '.profile .clean-settings-gear',
+      '.profile .callibri-settings-btn',
+      '.profile .callibri-profile-gear',
+      '.profile button[title="Настройки"]'
+    ];
+
+    selectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => el.remove());
+    });
+  }
+
+  function getRail() {
+    return (
+      document.querySelector('.callibri-rail') ||
+      document.querySelector('.left-rail') ||
+      document.querySelector('.sidebar-rail')
+    );
+  }
+
+  function ensureRailBottom(rail) {
+    let bottom = rail.querySelector('.callibri-rail-bottom');
+
+    if (!bottom) {
+      bottom = document.createElement('div');
+      bottom.className = 'callibri-rail-bottom';
+      rail.appendChild(bottom);
+    }
+
+    return bottom;
+  }
+
+  function openSettingsSafe() {
+    if (typeof window.openSettingsModal === 'function') {
+      window.openSettingsModal();
+      return;
+    }
+
+    if (typeof window.openSettings === 'function') {
+      window.openSettings();
+      return;
+    }
+
+    if (typeof window.showSettingsModal === 'function') {
+      window.showSettingsModal();
+      return;
+    }
+
+    const modal =
+      document.getElementById('settingsModal') ||
+      document.getElementById('callibriSettingsModal') ||
+      document.querySelector('.settings-modal');
+
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+    }
+  }
+
+  function createRailSettingsButton(bottom) {
+    let btn = document.getElementById('railSettingsBtn');
+
+    if (btn) return btn;
+
+    btn = document.createElement('button');
+    btn.id = 'railSettingsBtn';
+    btn.type = 'button';
+    btn.title = 'Настройки';
+    btn.setAttribute('aria-label', 'Настройки');
+
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3.2"></circle>
+        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.55V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-1.04-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1.04H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.64 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.04-1.55V3a2 2 0 0 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.64a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c0 .66.38 1.25.98 1.55.18.09.38.14.57.14H21a2 2 0 0 1 0 4h-.05c-.19 0-.39.05-.57.14-.6.3-.98.89-.98 1.55z"></path>
+      </svg>
+    `;
+
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openSettingsSafe();
+    });
+
+    bottom.prepend(btn);
+
+    return btn;
+  }
+
+  function runMoveSettings() {
+    removeOldProfileSettings();
+
+    const rail = getRail();
+    if (!rail) return;
+
+    const bottom = ensureRailBottom(rail);
+    createRailSettingsButton(bottom);
+  }
+
+  function patchRender(fnName) {
+    const original = window[fnName];
+
+    if (typeof original !== 'function') return;
+    if (original.__settingsRailPatched) return;
+
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+      setTimeout(runMoveSettings, 0);
+      setTimeout(runMoveSettings, 120);
+      return result;
+    };
+
+    wrapped.__settingsRailPatched = true;
+    window[fnName] = wrapped;
+  }
+
+  function boot() {
+    [
+      'startApp',
+      'renderRecentChats',
+      'renderGroups',
+      'renderUsers',
+      'renderProfile',
+      'openChat',
+      'openGroup'
+    ].forEach(patchRender);
+
+    runMoveSettings();
+
+    setTimeout(runMoveSettings, 200);
+    setTimeout(runMoveSettings, 800);
+    setTimeout(runMoveSettings, 1500);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener('focus', () => {
+    setTimeout(runMoveSettings, 100);
+  });
+})();
