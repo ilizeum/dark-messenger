@@ -6769,3 +6769,83 @@ button {
 #callibriRailUser[title] {
   user-select: none;
 }
+
+/* =========================================================
+   CALLIBRI — аватарка без шестерёнки + индикатор online/offline
+   ========================================================= */
+
+/* Убираем шестерёнку на своей аватарке */
+#profileAvatarBtn::after,
+.callibri-rail-user::after,
+#callibriRailUser::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Аватарка остаётся кликабельной для настроек */
+#profileAvatarBtn,
+.callibri-rail-user,
+#callibriRailUser {
+  cursor: pointer !important;
+  position: relative !important;
+  overflow: visible !important;
+}
+
+/* Контейнер статуса */
+.callibri-self-status-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 3px solid #03111f;
+  background: #64748b;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.38),
+    0 0 0 0 rgba(34, 197, 94, 0);
+  z-index: 5;
+}
+
+/* В сети */
+.callibri-self-status-dot.online {
+  background: #22c55e;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.38),
+    0 0 18px rgba(34, 197, 94, 0.45);
+}
+
+/* Не в сети */
+.callibri-self-status-dot.offline {
+  background: #64748b;
+}
+
+/* Текстовая подсказка рядом с аватаркой, если есть место */
+.callibri-self-status-label {
+  margin-top: 4px;
+  color: #8fb5c5;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* В профиле статус красиво под логином */
+.profile .callibri-self-status-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.profile .callibri-self-status-label::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.45);
+}
+
+.profile .callibri-self-status-label.offline::before {
+  background: #64748b;
+  box-shadow: none;
+}

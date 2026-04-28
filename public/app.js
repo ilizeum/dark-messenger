@@ -4496,3 +4496,152 @@ if (savedUser) {
     setTimeout(bindAllAvatars, 120);
   });
 })();
+
+/* =========================================================
+   CALLIBRI — статус на своей аватарке вместо шестерёнки
+   ========================================================= */
+
+(function callibriSelfAvatarStatus() {
+  function isSelfOnline() {
+    try {
+      if (typeof socket !== "undefined" && socket && socket.connected) {
+        return true;
+      }
+    } catch {}
+
+    return Boolean(navigator.onLine);
+  }
+
+  function getSelfAvatarElements() {
+    return [
+      document.getElementById("profileAvatarBtn"),
+      document.getElementById("callibriRailUser"),
+      document.querySelector(".callibri-rail-user")
+    ].filter(Boolean);
+  }
+
+  function removeGearVisuals() {
+    [
+      "#callibriBeautifulSettingsBtn",
+      "#profileBtn",
+      "#settingsBtn",
+      "#callibriPremiumGear",
+      "#callibriGlobalSettingsBtn",
+      "#callibriSingleSettingsBtn",
+      "#railSettingsBtn",
+      ".clean-settings-gear",
+      ".callibri-settings-gear"
+    ].forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => {
+        el.style.display = "none";
+        el.style.pointerEvents = "none";
+      });
+    });
+  }
+
+  function ensureStatusDot(avatar) {
+    if (!avatar) return;
+
+    let dot = avatar.querySelector(".callibri-self-status-dot");
+
+    if (!dot) {
+      dot = document.createElement("span");
+      dot.className = "callibri-self-status-dot";
+      avatar.appendChild(dot);
+    }
+
+    const online = isSelfOnline();
+
+    dot.classList.toggle("online", online);
+    dot.classList.toggle("offline", !online);
+    dot.title = online ? "В сети" : "Не в сети";
+  }
+
+  function ensureProfileStatusText() {
+    const meLoginEl = document.getElementById("meLogin");
+
+    if (!meLoginEl) return;
+
+    let label = document.getElementById("callibriSelfStatusLabel");
+
+    if (!label) {
+      label = document.createElement("div");
+      label.id = "callibriSelfStatusLabel";
+      label.className = "callibri-self-status-label";
+      meLoginEl.insertAdjacentElement("afterend", label);
+    }
+
+    const online = isSelfOnline();
+
+    label.textContent = online ? "в сети" : "не в сети";
+    label.classList.toggle("online", online);
+    label.classList.toggle("offline", !online);
+  }
+
+  function updateSelfStatus() {
+    removeGearVisuals();
+
+    getSelfAvatarElements().forEach((avatar) => {
+      ensureStatusDot(avatar);
+      avatar.title = "Открыть настройки";
+    });
+
+    ensureProfileStatusText();
+  }
+
+  function patchSafe(functionName) {
+    const original = window[functionName];
+
+    if (typeof original !== "function") return;
+    if (original.__selfStatusPatched) return;
+
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+
+      setTimeout(updateSelfStatus, 0);
+      setTimeout(updateSelfStatus, 150);
+
+      return result;
+    };
+
+    wrapped.__selfStatusPatched = true;
+    window[functionName] = wrapped;
+  }
+
+  function boot() {
+    [
+      "startApp",
+      "renderMyAvatar",
+      "renderRecentChats",
+      "renderGroups",
+      "renderUsers",
+      "openChat",
+      "openGroup",
+      "renderEmptyChat"
+    ].forEach(patchSafe);
+
+    updateSelfStatus();
+
+    setTimeout(updateSelfStatus, 300);
+    setTimeout(updateSelfStatus, 1000);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("online", updateSelfStatus);
+  window.addEventListener("offline", updateSelfStatus);
+  window.addEventListener("focus", () => {
+    setTimeout(updateSelfStatus, 120);
+  });
+
+  try {
+    if (typeof socket !== "undefined" && socket) {
+      socket.on("connect", updateSelfStatus);
+      socket.on("disconnect", updateSelfStatus);
+    }
+  } catch {}
+})();
