@@ -5694,3 +5694,335 @@ if (savedUser) {
     }
   } catch {}
 })();
+
+/* =========================================================
+   CALLIBRI FIX — open chats, new settings, remove duplicate menu
+   ========================================================= */
+
+(function callibriFixOpenChatsAndSettings() {
+  function removeDuplicateChatMenus() {
+    const duplicateSelectors = [
+      "#callibriChatMoreBtn",
+      "#cmChatActions",
+      ".cm-chat-actions",
+      ".cm-chat-action"
+    ];
+
+    duplicateSelectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => el.remove());
+    });
+  }
+
+  function hideOldSettingsModals() {
+    document.querySelectorAll("#settingsModal, #callibriOldSettingsModal, .old-settings-modal").forEach((el) => {
+      if (el.id !== "cbSettingsOverlay") {
+        el.classList.add("hidden");
+        el.style.display = "none";
+        el.style.pointerEvents = "none";
+      }
+    });
+  }
+
+  function openNewSettings() {
+    hideOldSettingsModals();
+
+    if (typeof openBeautifulSettings === "function") {
+      openBeautifulSettings();
+      return;
+    }
+
+    const overlay = document.getElementById("cbSettingsOverlay");
+
+    if (overlay) {
+      overlay.classList.remove("hidden");
+      overlay.style.display = "flex";
+      overlay.style.pointerEvents = "auto";
+      return;
+    }
+
+    const profileBtn = document.getElementById("profileBtn");
+
+    if (profileBtn && typeof profileBtn.click === "function") {
+      profileBtn.click();
+    }
+  }
+
+  function bindRailSettings() {
+    const settingsButton = document.querySelector('.rail-btn[data-rail="settings"]');
+
+    if (!settingsButton) return;
+
+    settingsButton.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      document.querySelectorAll(".rail-btn").forEach((btn) => {
+        btn.classList.remove("active");
+      });
+
+      settingsButton.classList.add("active");
+      openNewSettings();
+    };
+  }
+
+  function bindRailChats() {
+    const chatsButton = document.querySelector('.rail-btn[data-rail="chats"]');
+
+    if (!chatsButton) return;
+
+    chatsButton.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      document.querySelectorAll(".rail-btn").forEach((btn) => {
+        btn.classList.remove("active");
+      });
+
+      chatsButton.classList.add("active");
+
+      const sidebar = document.querySelector(".sidebar");
+      if (sidebar) {
+        sidebar.style.display = "flex";
+        sidebar.style.pointerEvents = "auto";
+      }
+
+      const search = document.getElementById("search");
+      if (search) search.focus({ preventScroll: true });
+    };
+  }
+
+  function bindDirectChats() {
+    if (typeof openChat !== "function") return;
+
+    document.querySelectorAll(".recent-chat-item").forEach((item) => {
+      if (item.dataset.fixedOpenChat === "1") return;
+      item.dataset.fixedOpenChat = "1";
+
+      item.addEventListener(
+        "click",
+        (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          const username = item.dataset.username || item.getAttribute("data-username");
+
+          let user = null;
+
+          if (username && Array.isArray(recentChatsCache)) {
+            user = recentChatsCache.find((chat) => {
+              return normalizeUsername(chat.username) === normalizeUsername(username);
+            });
+          }
+
+          if (!user && Array.isArray(recentChatsCache)) {
+            const title = item.querySelector(".user-info b");
+            const text = title ? title.textContent.trim() : "";
+
+            user = recentChatsCache.find((chat) => {
+              const display = chat.displayName || chat.username || "";
+              return text.includes(display);
+            });
+          }
+
+          if (user) {
+            openChat(user);
+          }
+        },
+        true
+      );
+    });
+  }
+
+  function bindGroups() {
+    if (typeof openGroup !== "function") return;
+
+    document.querySelectorAll(".group-item").forEach((item) => {
+      if (item.dataset.fixedOpenGroup === "1") return;
+      item.dataset.fixedOpenGroup = "1";
+
+      item.addEventListener(
+        "click",
+        (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          const groupId = item.dataset.groupId || item.getAttribute("data-group-id");
+
+          let group = null;
+
+          if (groupId && Array.isArray(groupsCache)) {
+            group = groupsCache.find((g) => String(g.id) === String(groupId));
+          }
+
+          if (!group && Array.isArray(groupsCache)) {
+            const title = item.querySelector(".user-info b");
+            const text = title ? title.textContent.trim() : "";
+
+            group = groupsCache.find((g) => {
+              return text.includes(g.name || "");
+            });
+          }
+
+          if (group) {
+            openGroup(group);
+          }
+        },
+        true
+      );
+    });
+  }
+
+  function addDataAttributesToChats() {
+    document.querySelectorAll(".recent-chat-item").forEach((item) => {
+      if (item.dataset.username) return;
+
+      const title = item.querySelector(".user-info b");
+      const text = title ? title.textContent.trim() : "";
+
+      const found = Array.isArray(recentChatsCache)
+        ? recentChatsCache.find((chat) => {
+            const display = chat.displayName || chat.username || "";
+            return text.includes(display);
+          })
+        : null;
+
+      if (found) item.dataset.username = found.username;
+    });
+
+    document.querySelectorAll(".group-item").forEach((item) => {
+      if (item.dataset.groupId) return;
+
+      const title = item.querySelector(".user-info b");
+      const text = title ? title.textContent.trim() : "";
+
+      const found = Array.isArray(groupsCache)
+        ? groupsCache.find((group) => text.includes(group.name || ""))
+        : null;
+
+      if (found) item.dataset.groupId = found.id;
+    });
+  }
+
+  function bindSearchUsers() {
+    if (typeof openChat !== "function") return;
+
+    document.querySelectorAll("#users .user").forEach((item) => {
+      if (item.dataset.fixedSearchOpen === "1") return;
+      item.dataset.fixedSearchOpen = "1";
+
+      item.addEventListener(
+        "click",
+        (event) => {
+          const title = item.querySelector(".user-info b");
+
+          if (!title || !Array.isArray(usersCache)) return;
+
+          const text = title.textContent.trim();
+
+          const user = usersCache.find((u) => {
+            const display = u.displayName || u.username || "";
+            return text.includes(display);
+          });
+
+          if (!user) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          openChat(user);
+        },
+        true
+      );
+    });
+  }
+
+  function fixChatHeaderButtons() {
+    const actions = document.querySelector(".chat-top-actions");
+
+    if (!actions) return;
+
+    const buttons = actions.querySelectorAll(".chat-icon-btn");
+
+    if (buttons[0] && buttons[0].dataset.fixedHeaderBtn !== "1") {
+      buttons[0].dataset.fixedHeaderBtn = "1";
+      buttons[0].onclick = function () {
+        const search = document.getElementById("search");
+        if (search) search.focus({ preventScroll: true });
+      };
+    }
+
+    if (buttons[1] && buttons[1].dataset.fixedHeaderBtn !== "1") {
+      buttons[1].dataset.fixedHeaderBtn = "1";
+      buttons[1].onclick = function () {
+        alert("Звонки пока в разработке");
+      };
+    }
+
+    if (buttons[2] && buttons[2].dataset.fixedHeaderBtn !== "1") {
+      buttons[2].dataset.fixedHeaderBtn = "1";
+      buttons[2].onclick = function () {
+        alert("Дополнительное меню чата пока в разработке");
+      };
+    }
+  }
+
+  function runFix() {
+    removeDuplicateChatMenus();
+    hideOldSettingsModals();
+    bindRailSettings();
+    bindRailChats();
+    addDataAttributesToChats();
+    bindDirectChats();
+    bindGroups();
+    bindSearchUsers();
+    fixChatHeaderButtons();
+  }
+
+  function patchSafe(functionName) {
+    const original = window[functionName];
+
+    if (typeof original !== "function") return;
+    if (original.__openChatsSettingsFixed) return;
+
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+
+      setTimeout(runFix, 0);
+      setTimeout(runFix, 120);
+      setTimeout(runFix, 400);
+
+      return result;
+    };
+
+    wrapped.__openChatsSettingsFixed = true;
+    window[functionName] = wrapped;
+  }
+
+  function boot() {
+    [
+      "startApp",
+      "renderRecentChats",
+      "renderGroups",
+      "renderUsers",
+      "openChat",
+      "openGroup",
+      "renderMessages",
+      "renderEmptyChat"
+    ].forEach(patchSafe);
+
+    runFix();
+
+    setTimeout(runFix, 300);
+    setTimeout(runFix, 1000);
+    setTimeout(runFix, 1800);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("focus", () => {
+    setTimeout(runFix, 120);
+  });
+})();

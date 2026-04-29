@@ -1630,3 +1630,90 @@ button {
   display: flex !important;
   pointer-events: auto !important;
 }
+
+/* =========================================================
+   CALLIBRI FIX — clicks, settings, duplicate chat menu
+   ========================================================= */
+
+/* чтобы чаты точно были кликабельны */
+.user,
+.recent-chat-item,
+.group-item,
+#recentChats .user,
+#groups .user,
+#users .user {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
+/* sidebar не должен перекрывать чат и наоборот */
+.app-rail,
+.sidebar,
+.chat,
+#messages,
+.chat-header,
+.chat-input {
+  pointer-events: auto !important;
+}
+
+/* убираем дубли доп-меню чата */
+#callibriChatMoreBtn,
+#cmChatActions,
+.cm-chat-actions,
+.cm-chat-action {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* оставляем только новые кнопки из index.html */
+.chat-top-actions {
+  margin-left: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.chat-top-actions .chat-icon-btn {
+  display: grid !important;
+  pointer-events: auto !important;
+}
+
+/* новая красивая модалка настроек поверх всего */
+#cbSettingsOverlay {
+  z-index: 999999 !important;
+}
+
+#cbSettingsOverlay.hidden {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+#cbSettingsOverlay:not(.hidden) {
+  display: flex !important;
+  pointer-events: auto !important;
+}
+
+/* если открывается старая модалка настроек — прячем её */
+#settingsModal:not(#cbSettingsOverlay),
+#callibriOldSettingsModal,
+.old-settings-modal {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* нижняя шестерёнка в левом баре должна нажиматься */
+.rail-btn[data-rail="settings"] {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* фикс активного чата */
+.recent-chat-item.active,
+.group-item.active,
+.user.active {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.12), transparent 44%),
+    rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(34, 211, 238, 0.28) !important;
+}
