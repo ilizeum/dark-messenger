@@ -5337,3 +5337,360 @@ if (savedUser) {
     setTimeout(runFix, 120);
   });
 })();
+
+/* =========================================================
+   CALLIBRI FIX — new settings from rail, avatar position, statuses
+   ========================================================= */
+
+(function callibriFixSettingsAvatarAndStatuses() {
+  function isOnlineUsername(username) {
+    const key = normalizeUsername(username);
+
+    try {
+      return Boolean(onlineUsers && onlineUsers[key]);
+    } catch {
+      return false;
+    }
+  }
+
+  function normalizeStatusText(text, username) {
+    const online = username ? isOnlineUsername(username) : false;
+    const raw = String(text || "").trim().toLowerCase();
+
+    if (raw === "онлайн" || raw === "online") return "в сети";
+    if (raw === "офлайн" || raw === "offline") return "не в сети";
+
+    if (!raw && username) return online ? "в сети" : "не в сети";
+
+    return text || "";
+  }
+
+  function fixChatHeaderStatus() {
+    if (!chatStatus) return;
+
+    let username = "";
+
+    try {
+      if (selectedChatType === "direct" && selectedUser && selectedUser.username) {
+        username = selectedUser.username;
+      }
+    } catch {}
+
+    if (!username) {
+      chatStatus.classList.remove("callibri-online-status", "callibri-offline-status");
+      return;
+    }
+
+    const online = isOnlineUsername(username);
+
+    chatStatus.textContent = online ? "в сети" : "не в сети";
+    chatStatus.classList.toggle("callibri-online-status", online);
+    chatStatus.classList.toggle("callibri-offline-status", !online);
+  }
+
+  function fixRecentChatStatuses() {
+    document.querySelectorAll(".recent-chat-item").forEach((item) => {
+      const info = item.querySelector(".user-info");
+      if (!info) return;
+
+      const nameEl = info.querySelector("b");
+      const previewEl = info.querySelector("span");
+
+      if (!nameEl) return;
+
+      let username = item.dataset.username || "";
+
+      if (!username) {
+        const clickedUser = recentChatsCache.find((user) => {
+          const display = user.displayName || user.username || "";
+          return nameEl.textContent.trim().includes(display);
+        });
+
+        if (clickedUser) {
+          username = clickedUser.username;
+          item.dataset.username = username;
+        }
+      }
+
+      const online = isOnlineUsername(username);
+
+      nameEl.querySelectorAll(".callibri-user-state-dot").forEach((dot) => dot.remove());
+
+      const dot = document.createElement("span");
+      dot.className = "callibri-user-state-dot " + (online ? "online" : "offline");
+      dot.title = online ? "в сети" : "не в сети";
+      nameEl.appendChild(dot);
+
+      if (previewEl) {
+        const current = previewEl.textContent.trim().toLowerCase();
+
+        if (
+          current === "онлайн" ||
+          current === "офлайн" ||
+          current === "online" ||
+          current === "offline" ||
+          current === "в сети" ||
+          current === "не в сети"
+        ) {
+          previewEl.textContent = online ? "в сети" : "не в сети";
+        }
+      }
+    });
+  }
+
+  function fixUsersSearchStatuses() {
+    document.querySelectorAll("#users .user").forEach((item) => {
+      const info = item.querySelector(".user-info");
+      if (!info) return;
+
+      const nameEl = info.querySelector("b");
+      const previewEl = info.querySelector("span");
+
+      if (!nameEl) return;
+
+      const rawText = nameEl.textContent || "";
+      const candidate = usersCache.find((user) => {
+        const display = user.displayName || user.username || "";
+        return rawText.includes(display);
+      });
+
+      if (!candidate) return;
+
+      const online = isOnlineUsername(candidate.username);
+
+      nameEl.querySelectorAll(".callibri-user-state-dot").forEach((dot) => dot.remove());
+
+      const dot = document.createElement("span");
+      dot.className = "callibri-user-state-dot " + (online ? "online" : "offline");
+      dot.title = online ? "в сети" : "не в сети";
+      nameEl.appendChild(dot);
+
+      if (previewEl) {
+        const current = previewEl.textContent.trim().toLowerCase();
+
+        if (
+          current === "онлайн" ||
+          current === "офлайн" ||
+          current === "online" ||
+          current === "offline" ||
+          current === "в сети" ||
+          current === "не в сети"
+        ) {
+          previewEl.textContent = online ? "в сети" : "не в сети";
+        }
+      }
+    });
+  }
+
+  function fixProfileAvatarPosition() {
+    const avatar = document.getElementById("profileAvatarBtn");
+    const profile = document.querySelector(".sidebar .profile");
+
+    if (!avatar || !profile) return;
+
+    if (avatar.parentElement !== profile) {
+      profile.prepend(avatar);
+    }
+
+    avatar.style.width = "72px";
+    avatar.style.height = "72px";
+    avatar.style.minWidth = "72px";
+    avatar.style.minHeight = "72px";
+    avatar.style.maxWidth = "72px";
+    avatar.style.maxHeight = "72px";
+    avatar.style.borderRadius = "50%";
+    avatar.style.overflow = "visible";
+    avatar.style.position = "relative";
+    avatar.style.transform = "none";
+
+    const img = avatar.querySelector("img");
+
+    if (img) {
+      img.style.width = "72px";
+      img.style.height = "72px";
+      img.style.minWidth = "72px";
+      img.style.minHeight = "72px";
+      img.style.maxWidth = "72px";
+      img.style.maxHeight = "72px";
+      img.style.borderRadius = "50%";
+      img.style.objectFit = "cover";
+    }
+  }
+
+  function openNewBeautifulSettings() {
+    if (typeof openBeautifulSettings === "function") {
+      openBeautifulSettings();
+      return;
+    }
+
+    const overlay = document.getElementById("cbSettingsOverlay");
+
+    if (overlay) {
+      overlay.classList.remove("hidden");
+      overlay.style.display = "flex";
+      overlay.style.pointerEvents = "auto";
+      return;
+    }
+
+    const avatar = document.getElementById("profileAvatarBtn");
+
+    if (avatar && typeof avatar.click === "function") {
+      avatar.click();
+      return;
+    }
+
+    const oldProfileBtn = document.getElementById("profileBtn");
+
+    if (oldProfileBtn && typeof oldProfileBtn.click === "function") {
+      oldProfileBtn.click();
+    }
+  }
+
+  function bindSettingsRailToNewModal() {
+    const settingsRail = document.querySelector('.rail-btn[data-rail="settings"]');
+
+    if (!settingsRail) return;
+
+    if (settingsRail.dataset.newSettingsBound === "1") return;
+
+    settingsRail.dataset.newSettingsBound = "1";
+
+    settingsRail.addEventListener(
+      "click",
+      (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        document.querySelectorAll(".rail-btn").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+
+        settingsRail.classList.add("active");
+
+        openNewBeautifulSettings();
+      },
+      true
+    );
+  }
+
+  function bindAvatarToNewSettings() {
+    const avatar = document.getElementById("profileAvatarBtn");
+
+    if (!avatar) return;
+
+    if (avatar.dataset.newSettingsAvatarBound === "1") return;
+
+    avatar.dataset.newSettingsAvatarBound = "1";
+    avatar.title = "Открыть настройки";
+
+    avatar.addEventListener(
+      "click",
+      (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openNewBeautifulSettings();
+      },
+      true
+    );
+  }
+
+  function patchRenderRecentChatsForData() {
+    if (typeof renderRecentChats !== "function") return;
+    if (renderRecentChats.__statusFixedVersion) return;
+
+    const original = renderRecentChats;
+
+    renderRecentChats = function patchedRenderRecentChats() {
+      original.apply(this, arguments);
+
+      document.querySelectorAll(".recent-chat-item").forEach((item) => {
+        const info = item.querySelector(".user-info");
+        const nameEl = info && info.querySelector("b");
+
+        if (!nameEl) return;
+
+        const found = recentChatsCache.find((user) => {
+          const display = user.displayName || user.username || "";
+          return nameEl.textContent.includes(display);
+        });
+
+        if (found) item.dataset.username = found.username;
+      });
+
+      fixRecentChatStatuses();
+    };
+
+    renderRecentChats.__statusFixedVersion = true;
+  }
+
+  function runFix() {
+    patchRenderRecentChatsForData();
+    fixProfileAvatarPosition();
+    bindSettingsRailToNewModal();
+    bindAvatarToNewSettings();
+    fixRecentChatStatuses();
+    fixUsersSearchStatuses();
+    fixChatHeaderStatus();
+  }
+
+  function patchSafe(functionName) {
+    const original = window[functionName];
+
+    if (typeof original !== "function") return;
+    if (original.__settingsAvatarStatusFixPatched) return;
+
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+
+      setTimeout(runFix, 0);
+      setTimeout(runFix, 160);
+      setTimeout(runFix, 450);
+
+      return result;
+    };
+
+    wrapped.__settingsAvatarStatusFixPatched = true;
+    window[functionName] = wrapped;
+  }
+
+  function boot() {
+    [
+      "startApp",
+      "renderMyAvatar",
+      "renderRecentChats",
+      "renderUsers",
+      "renderGroups",
+      "openChat",
+      "openGroup",
+      "renderMessages",
+      "renderEmptyChat"
+    ].forEach(patchSafe);
+
+    runFix();
+
+    setTimeout(runFix, 300);
+    setTimeout(runFix, 1000);
+    setTimeout(runFix, 1800);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("focus", () => {
+    setTimeout(runFix, 120);
+  });
+
+  try {
+    if (typeof socket !== "undefined" && socket) {
+      socket.on("online", runFix);
+      socket.on("offline", runFix);
+      socket.on("connect", runFix);
+      socket.on("disconnect", runFix);
+      socket.on("user-online", runFix);
+      socket.on("user-offline", runFix);
+    }
+  } catch {}
+})();

@@ -1479,3 +1479,154 @@ button {
     min-width: 74px !important;
   }
 }
+
+/* =========================================================
+   CALLIBRI FIX — settings, avatar, online statuses
+   ========================================================= */
+
+/* Исправляем аватарку в профиле: строго в сайдбаре, не уезжает */
+.sidebar .profile {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: 76px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 14px !important;
+  width: 100% !important;
+  min-height: 92px !important;
+  max-height: 104px !important;
+  padding: 0 8px 22px !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.sidebar #profileAvatarBtn {
+  position: relative !important;
+  inset: auto !important;
+  transform: none !important;
+  width: 72px !important;
+  height: 72px !important;
+  min-width: 72px !important;
+  min-height: 72px !important;
+  max-width: 72px !important;
+  max-height: 72px !important;
+  border-radius: 50% !important;
+  overflow: visible !important;
+  display: grid !important;
+  place-items: center !important;
+  cursor: pointer !important;
+  background: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 45%, #10b981 100%) !important;
+  border: 2px solid rgba(34, 211, 238, 0.22) !important;
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.32),
+    0 0 22px rgba(34, 211, 238, 0.1) !important;
+  z-index: 2 !important;
+}
+
+.sidebar #profileAvatarBtn img {
+  width: 72px !important;
+  height: 72px !important;
+  min-width: 72px !important;
+  min-height: 72px !important;
+  max-width: 72px !important;
+  max-height: 72px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+/* Своя аватарка: зелёная точка, без шестерёнки */
+.sidebar #profileAvatarBtn::after {
+  content: "" !important;
+  position: absolute !important;
+  right: 3px !important;
+  bottom: 4px !important;
+  width: 14px !important;
+  height: 14px !important;
+  border-radius: 50% !important;
+  background: #22c55e !important;
+  border: 3px solid #04111f !important;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.45) !important;
+  display: block !important;
+}
+
+/* Прячем старые отдельные кнопки настроек */
+#profileBtn,
+#settingsBtn,
+#callibriBeautifulSettingsBtn,
+#callibriPremiumGear,
+#callibriGlobalSettingsBtn,
+#callibriSingleSettingsBtn,
+#railSettingsBtn,
+.clean-settings-gear,
+.callibri-settings-gear {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* В списке чатов: точка справа от имени */
+.user-info b {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  max-width: 100% !important;
+}
+
+/* Новая точка справа от имени пользователя */
+.callibri-user-state-dot {
+  width: 8px !important;
+  height: 8px !important;
+  min-width: 8px !important;
+  min-height: 8px !important;
+  border-radius: 999px !important;
+  display: inline-block !important;
+  background: #64748b !important;
+  box-shadow: none !important;
+}
+
+.callibri-user-state-dot.online {
+  background: #22c55e !important;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.55) !important;
+}
+
+.callibri-user-state-dot.offline {
+  background: #64748b !important;
+}
+
+/* Старые точки перед именем можно скрыть, если они остались */
+.online-dot {
+  display: none !important;
+}
+
+/* Статус в шапке чата */
+#chatStatus.callibri-online-status {
+  color: #22c55e !important;
+}
+
+#chatStatus.callibri-offline-status {
+  color: #93a8bb !important;
+}
+
+/* Нижняя шестерёнка должна выглядеть нормально и открывать новые настройки */
+.rail-btn[data-rail="settings"],
+.app-rail .rail-btn[data-rail="settings"] {
+  display: grid !important;
+  pointer-events: auto !important;
+}
+
+/* Новое красивое меню настроек должно быть поверх всего */
+#cbSettingsOverlay {
+  z-index: 999999 !important;
+}
+
+#cbSettingsOverlay.hidden {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+#cbSettingsOverlay:not(.hidden) {
+  display: flex !important;
+  pointer-events: auto !important;
+}
