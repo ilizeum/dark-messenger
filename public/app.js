@@ -6358,3 +6358,251 @@ if (savedUser) {
     setTimeout(runSettingsFix, 120);
   });
 })();
+
+/* =========================================================
+   CALLIBRI FINAL ACTION FIX
+   Сообщения + настройки после полного редизайна
+   ========================================================= */
+
+(function callibriFinalActionFix() {
+  function safeSendMessage() {
+    try {
+      if (typeof sendMessage === "function") {
+        sendMessage();
+        return;
+      }
+    } catch (error) {
+      console.error("sendMessage error:", error);
+    }
+
+    console.warn("sendMessage function not found");
+  }
+
+  function openFinalSettings() {
+    try {
+      if (typeof openBeautifulSettings === "function") {
+        openBeautifulSettings();
+        return;
+      }
+    } catch (error) {
+      console.warn("openBeautifulSettings failed:", error);
+    }
+
+    try {
+      const premiumGear = document.getElementById("callibriPremiumGear");
+
+      if (premiumGear && typeof premiumGear.click === "function") {
+        premiumGear.click();
+        return;
+      }
+    } catch {}
+
+    try {
+      const overlay = document.getElementById("cbSettingsOverlay");
+
+      if (overlay) {
+        overlay.classList.remove("hidden");
+        overlay.style.display = "flex";
+        overlay.style.pointerEvents = "auto";
+        overlay.style.opacity = "1";
+        overlay.style.visibility = "visible";
+        return;
+      }
+    } catch {}
+
+    try {
+      const oldProfileBtn = document.getElementById("profileBtn");
+
+      if (oldProfileBtn && typeof oldProfileBtn.click === "function") {
+        oldProfileBtn.click();
+        return;
+      }
+    } catch {}
+
+    alert("Настройки не найдены. Нужно восстановить блок красивых настроек.");
+  }
+
+  function forceEnableComposer() {
+    const input = document.getElementById("messageInput");
+    const send = document.getElementById("sendBtn");
+
+    const hasChat =
+      typeof selectedChatType !== "undefined" &&
+      selectedChatType &&
+      (
+        (typeof selectedUser !== "undefined" && selectedUser) ||
+        (typeof selectedGroup !== "undefined" && selectedGroup)
+      );
+
+    if (input) {
+      input.disabled = !hasChat;
+    }
+
+    if (send) {
+      send.disabled = !hasChat;
+    }
+
+    try {
+      if (typeof attachBtn !== "undefined" && attachBtn) {
+        attachBtn.disabled = !hasChat;
+      }
+
+      if (typeof voiceBtn !== "undefined" && voiceBtn) {
+        voiceBtn.disabled = !hasChat;
+      }
+    } catch {}
+  }
+
+  function bindSendButton() {
+    const send = document.getElementById("sendBtn");
+
+    if (!send) return;
+
+    send.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      safeSendMessage();
+      return false;
+    };
+  }
+
+  function bindMessageInputEnter() {
+    const input = document.getElementById("messageInput");
+
+    if (!input) return;
+    if (input.dataset.finalEnterBound === "1") return;
+
+    input.dataset.finalEnterBound = "1";
+
+    input.addEventListener(
+      "keydown",
+      function (event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          event.stopPropagation();
+          safeSendMessage();
+        }
+      },
+      true
+    );
+  }
+
+  function bindSettingsButtons() {
+    const settingsButtons = [
+      document.querySelector('.rail-btn[data-rail="settings"]'),
+      document.querySelector('.app-rail .rail-btn[data-rail="settings"]'),
+      document.getElementById("profileAvatarBtn")
+    ].filter(Boolean);
+
+    settingsButtons.forEach((button) => {
+      button.onclick = function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        document.querySelectorAll(".rail-btn").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+
+        if (button.classList.contains("rail-btn")) {
+          button.classList.add("active");
+        }
+
+        openFinalSettings();
+
+        return false;
+      };
+    });
+  }
+
+  function fixOpenChatComposer() {
+    if (typeof openChat === "function" && !openChat.__finalComposerPatched) {
+      const originalOpenChat = openChat;
+
+      openChat = async function patchedOpenChatFinal(user) {
+        const result = await originalOpenChat.apply(this, arguments);
+
+        setTimeout(forceEnableComposer, 0);
+        setTimeout(bindSendButton, 0);
+        setTimeout(bindMessageInputEnter, 0);
+
+        return result;
+      };
+
+      openChat.__finalComposerPatched = true;
+    }
+
+    if (typeof openGroup === "function" && !openGroup.__finalComposerPatched) {
+      const originalOpenGroup = openGroup;
+
+      openGroup = async function patchedOpenGroupFinal(group) {
+        const result = await originalOpenGroup.apply(this, arguments);
+
+        setTimeout(forceEnableComposer, 0);
+        setTimeout(bindSendButton, 0);
+        setTimeout(bindMessageInputEnter, 0);
+
+        return result;
+      };
+
+      openGroup.__finalComposerPatched = true;
+    }
+  }
+
+  function runFinalActionFix() {
+    fixOpenChatComposer();
+    forceEnableComposer();
+    bindSendButton();
+    bindMessageInputEnter();
+    bindSettingsButtons();
+  }
+
+  function patchSafe(functionName) {
+    const original = window[functionName];
+
+    if (typeof original !== "function") return;
+    if (original.__finalActionFixPatched) return;
+
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+
+      setTimeout(runFinalActionFix, 0);
+      setTimeout(runFinalActionFix, 160);
+      setTimeout(runFinalActionFix, 500);
+
+      return result;
+    };
+
+    wrapped.__finalActionFixPatched = true;
+    window[functionName] = wrapped;
+  }
+
+  function boot() {
+    [
+      "startApp",
+      "renderMyAvatar",
+      "renderRecentChats",
+      "renderGroups",
+      "renderUsers",
+      "renderMessages",
+      "renderEmptyChat",
+      "openChat",
+      "openGroup"
+    ].forEach(patchSafe);
+
+    runFinalActionFix();
+
+    setTimeout(runFinalActionFix, 300);
+    setTimeout(runFinalActionFix, 1000);
+    setTimeout(runFinalActionFix, 1800);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("focus", () => {
+    setTimeout(runFinalActionFix, 120);
+  });
+})();

@@ -1717,3 +1717,44 @@ button {
     rgba(255, 255, 255, 0.06) !important;
   border-color: rgba(34, 211, 238, 0.28) !important;
 }
+
+/* =========================================================
+   CALLIBRI FINAL ACTION FIX CSS
+   ========================================================= */
+
+#sendBtn,
+#messageInput,
+.rail-btn[data-rail="settings"],
+#profileAvatarBtn {
+  pointer-events: auto !important;
+}
+
+#sendBtn {
+  cursor: pointer !important;
+}
+
+#sendBtn:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+}
+
+#messageInput:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+}
+
+#cbSettingsOverlay {
+  z-index: 999999 !important;
+}
+
+#cbSettingsOverlay.hidden {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+#cbSettingsOverlay:not(.hidden) {
+  display: flex !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
