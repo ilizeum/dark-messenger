@@ -4686,3 +4686,342 @@ if (savedUser) {
     }
   } catch {}
 })();
+
+/* =========================================================
+   CALLIBRI MINIMAL DESIGN — безопасный JS enhancer
+   Создаёт левый бар, бренд и рабочие кнопки без поломки логики.
+   ========================================================= */
+
+(function callibriMinimalDesign() {
+  function icon(name) {
+    const icons = {
+      logo: `
+        <svg viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 55C27 43 39 40 52 42C46 34 44 25 47 14C61 20 72 31 77 45C86 42 91 37 94 32C93 47 85 59 72 66C66 80 54 89 33 92C43 82 47 73 47 66C35 68 24 64 15 55Z" fill="url(#g1)"/>
+          <path d="M15 55C27 43 39 40 52 42C40 49 31 58 25 71C21 67 18 62 15 55Z" fill="url(#g2)"/>
+          <circle cx="64" cy="29" r="3.2" fill="#06111F"/>
+          <defs>
+            <linearGradient id="g1" x1="18" y1="22" x2="82" y2="83" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#67E8F9"/>
+              <stop offset="0.45" stop-color="#0EA5E9"/>
+              <stop offset="1" stop-color="#10B981"/>
+            </linearGradient>
+            <linearGradient id="g2" x1="15" y1="42" x2="55" y2="74" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#A7F3D0"/>
+              <stop offset="0.52" stop-color="#22D3EE"/>
+              <stop offset="1" stop-color="#0F766E"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      `,
+      chat: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.8 8.8 0 0 1-3.8-.9L3 20l1.1-4.2A8.2 8.2 0 0 1 3 11.5a8.6 8.6 0 0 1 9-8.4 8.6 8.6 0 0 1 9 8.4Z"/>
+          <path d="M8 12h.01M12 12h.01M16 12h.01"/>
+        </svg>
+      `,
+      archive: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7h16"/>
+          <path d="M5 7l1 13h12l1-13"/>
+          <path d="M9 11h6"/>
+          <path d="M7 4h10l1 3H6l1-3Z"/>
+        </svg>
+      `,
+      settings: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 0 1-4 0v-.05a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 0 1 0-4h.05A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 0 1 4 0v.05a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c0 .66.38 1.25.98 1.55.18.09.38.14.57.14H21a2 2 0 0 1 0 4h-.05c-.19 0-.39.05-.57.14-.6.3-.98.89-.98 1.55Z"/>
+        </svg>
+      `,
+      search: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/>
+          <path d="M20 20l-3.2-3.2"/>
+        </svg>
+      `,
+      phone: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.4 19.4 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.92.33 1.82.62 2.68a2 2 0 0 1-.45 2.11L8 9.8a16 16 0 0 0 6.2 6.2l1.29-1.29a2 2 0 0 1 2.11-.45c.86.29 1.76.5 2.68.62A2 2 0 0 1 22 16.92Z"/>
+        </svg>
+      `,
+      more: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+          <path d="M12 5h.01M12 12h.01M12 19h.01"/>
+        </svg>
+      `
+    };
+
+    return icons[name] || "";
+  }
+
+  function getApp() {
+    return document.getElementById("app");
+  }
+
+  function getSidebar() {
+    return document.querySelector(".sidebar");
+  }
+
+  function ensureRail() {
+    const app = getApp();
+    if (!app) return;
+
+    app.classList.add("callibri-minimal-ready");
+
+    if (document.getElementById("callibriMinimalRail")) return;
+
+    const rail = document.createElement("aside");
+    rail.id = "callibriMinimalRail";
+
+    rail.innerHTML = `
+      <div class="cm-rail-logo" title="Callibri">${icon("logo")}</div>
+
+      <button class="cm-rail-btn active" id="cmRailChats" type="button" title="Чаты">
+        ${icon("chat")}
+      </button>
+
+      <button class="cm-rail-btn" id="cmRailArchive" type="button" title="Архив">
+        ${icon("archive")}
+      </button>
+
+      <div class="cm-rail-spacer"></div>
+
+      <button class="cm-rail-btn" id="cmRailSettings" type="button" title="Настройки">
+        ${icon("settings")}
+      </button>
+    `;
+
+    app.prepend(rail);
+
+    document.getElementById("cmRailChats").addEventListener("click", () => {
+      setActiveRail("cmRailChats");
+      const sidebar = getSidebar();
+      if (sidebar) sidebar.style.display = "";
+      const search = document.getElementById("search");
+      if (search) search.focus({ preventScroll: true });
+    });
+
+    document.getElementById("cmRailArchive").addEventListener("click", () => {
+      setActiveRail("cmRailArchive");
+      const archive =
+        document.querySelector(".archive-btn") ||
+        document.getElementById("archiveBtn") ||
+        document.querySelector('[data-archive-button="true"]');
+
+      if (archive && typeof archive.click === "function") {
+        archive.click();
+      }
+    });
+
+    document.getElementById("cmRailSettings").addEventListener("click", () => {
+      setActiveRail("cmRailSettings");
+      openSettingsByAvatarOrModal();
+    });
+  }
+
+  function setActiveRail(id) {
+    document.querySelectorAll(".cm-rail-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.id === id);
+    });
+  }
+
+  function ensureSidebarBrand() {
+    const sidebar = getSidebar();
+    if (!sidebar) return;
+
+    [
+      "#callibriBrandCard",
+      "#callibriRailBrand",
+      ".callibri-brand-logo",
+      ".callibri-brand-text",
+      ".callibri-rail-logo"
+    ].forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => el.remove());
+    });
+
+    if (document.getElementById("cmSidebarBrand")) return;
+
+    const brand = document.createElement("div");
+    brand.id = "cmSidebarBrand";
+    brand.className = "cm-sidebar-brand";
+    brand.innerHTML = `${icon("logo")} <span>Callibri</span>`;
+
+    sidebar.prepend(brand);
+  }
+
+  function wrapSearchIcon() {
+    const search = document.getElementById("search");
+    if (!search) return;
+
+    if (search.parentElement && search.parentElement.classList.contains("cm-search-wrap")) {
+      return;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.className = "cm-search-wrap";
+
+    search.parentNode.insertBefore(wrap, search);
+    wrap.appendChild(search);
+
+    const searchIcon = document.createElement("div");
+    searchIcon.className = "cm-search-icon";
+    searchIcon.innerHTML = icon("search");
+    wrap.appendChild(searchIcon);
+  }
+
+  function openSettingsByAvatarOrModal() {
+    const avatar =
+      document.getElementById("profileAvatarBtn") ||
+      document.querySelector(".callibri-rail-user") ||
+      document.getElementById("callibriRailUser");
+
+    if (avatar && typeof avatar.click === "function") {
+      avatar.click();
+      return;
+    }
+
+    const overlay = document.getElementById("cbSettingsOverlay");
+
+    if (overlay) {
+      overlay.classList.remove("hidden");
+      overlay.style.display = "flex";
+      return;
+    }
+
+    const profileBtn = document.getElementById("profileBtn");
+    if (profileBtn && typeof profileBtn.click === "function") {
+      profileBtn.click();
+    }
+  }
+
+  function ensureChatActions() {
+    const header = document.querySelector(".chat-header");
+    if (!header) return;
+
+    if (document.getElementById("cmChatActions")) return;
+
+    const actions = document.createElement("div");
+    actions.id = "cmChatActions";
+    actions.className = "cm-chat-actions";
+
+    actions.innerHTML = `
+      <button class="cm-chat-action" type="button" title="Поиск">${icon("search")}</button>
+      <button class="cm-chat-action" type="button" title="Звонок">${icon("phone")}</button>
+      <button class="cm-chat-action" type="button" title="Ещё">${icon("more")}</button>
+    `;
+
+    header.appendChild(actions);
+
+    const [searchBtn, phoneBtn, moreBtn] = actions.querySelectorAll("button");
+
+    if (searchBtn) {
+      searchBtn.addEventListener("click", () => {
+        const search = document.getElementById("search");
+        if (search) search.focus({ preventScroll: true });
+      });
+    }
+
+    if (phoneBtn) {
+      phoneBtn.addEventListener("click", () => {
+        alert("Звонки пока в разработке");
+      });
+    }
+
+    if (moreBtn) {
+      moreBtn.addEventListener("click", () => {
+        alert("Дополнительное меню пока в разработке");
+      });
+    }
+  }
+
+  function polishComposer() {
+    const attach = document.getElementById("attachBtn");
+    const voice = document.getElementById("voiceBtn");
+
+    if (attach && attach.dataset.minimalDone !== "1") {
+      attach.dataset.minimalDone = "1";
+      attach.textContent = "⌘";
+      attach.title = "Прикрепить файл";
+    }
+
+    if (voice && voice.dataset.minimalDone !== "1") {
+      voice.dataset.minimalDone = "1";
+      voice.textContent = "🎙";
+      voice.title = "Голосовое сообщение";
+    }
+  }
+
+  function cleanDuplicateSettingsButtons() {
+    [
+      "#callibriBeautifulSettingsBtn",
+      "#callibriPremiumGear",
+      "#callibriGlobalSettingsBtn",
+      "#callibriSingleSettingsBtn",
+      "#railSettingsBtn",
+      ".clean-settings-gear",
+      ".callibri-settings-gear"
+    ].forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => {
+        el.style.display = "none";
+        el.style.pointerEvents = "none";
+      });
+    });
+  }
+
+  function runMinimalDesign() {
+    ensureRail();
+    ensureSidebarBrand();
+    wrapSearchIcon();
+    ensureChatActions();
+    polishComposer();
+    cleanDuplicateSettingsButtons();
+  }
+
+  function patchSafe(functionName) {
+    const original = window[functionName];
+
+    if (typeof original !== "function") return;
+    if (original.__callibriMinimalDesignPatched) return;
+
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+
+      setTimeout(runMinimalDesign, 0);
+      setTimeout(runMinimalDesign, 160);
+
+      return result;
+    };
+
+    wrapped.__callibriMinimalDesignPatched = true;
+    window[functionName] = wrapped;
+  }
+
+  function boot() {
+    [
+      "startApp",
+      "renderRecentChats",
+      "renderGroups",
+      "renderUsers",
+      "renderMessages",
+      "renderEmptyChat",
+      "openChat",
+      "openGroup"
+    ].forEach(patchSafe);
+
+    runMinimalDesign();
+
+    setTimeout(runMinimalDesign, 300);
+    setTimeout(runMinimalDesign, 900);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("focus", () => {
+    setTimeout(runMinimalDesign, 120);
+  });
+})();
