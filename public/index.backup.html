@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Callibri</title>
+
+  <link rel="stylesheet" href="style.css?v=safe-settings-5" />
+</head>
+<body>
+  <!-- ВХОД / РЕГИСТРАЦИЯ -->
+ <!-- ВХОД / РЕГИСТРАЦИЯ -->
+<div id="auth">
+  <div class="auth-card">
+    <h1>Callibri</h1>
+    <p id="authSubtitle">Войди в аккаунт, чтобы продолжить общение</p>
+
+    <div class="auth-tabs">
+      <button id="authLoginTab" class="auth-tab active" type="button">Вход</button>
+      <button id="authRegisterTab" class="auth-tab" type="button">Регистрация</button>
+    </div>
+
+    <div id="registerFields" class="auth-mode-fields hidden">
+      <input
+        id="displayName"
+        type="text"
+        placeholder="Имя"
+        autocomplete="name"
+      />
+
+      <input
+        id="phone"
+        type="tel"
+        placeholder="Телефон, например +79991234567"
+        autocomplete="tel"
+      />
+    </div>
+
+    <input
+      id="username"
+      type="text"
+      placeholder="Логин или телефон"
+      autocomplete="username"
+    />
+
+    <div class="password-wrap">
+      <input
+        id="password"
+        type="password"
+        placeholder="Пароль"
+        autocomplete="current-password"
+      />
+      <button id="togglePassword" type="button">Показать</button>
+    </div>
+
+    <label class="remember-row">
+      <input id="rememberMe" type="checkbox" />
+      <span>Не выходить</span>
+    </label>
+
+    <div class="auth-actions">
+      <button id="loginBtn" type="button">Войти</button>
+      <button id="registerBtn" class="hidden" type="button">Создать аккаунт</button>
+    </div>
+
+    <button id="authSwitchHint" class="auth-switch-hint" type="button">
+      Нет аккаунта? Зарегистрироваться
+    </button>
+
+    <div id="authError"></div>
+  </div>
+</div>
+
+  <!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
+  <div id="app" class="hidden">
+    <aside class="sidebar">
+      <div class="profile">
+        <div>
+          <div id="meName">Пользователь</div>
+          <div id="meLogin">@username</div>
+        </div>
+
+        <!-- Старая кнопка остаётся в коде, но будет скрыта через app.js -->
+        <button id="logoutBtn" type="button">Выйти</button>
+      </div>
+
+      <input
+  id="search"
+  type="text"
+  placeholder="Поиск по @id, например @username"
+  autocomplete="off"
+/>
+
+<button id="archiveToggleBtn" class="archive-btn" type="button">
+  <div class="archive-icon">🗂</div>
+  <div class="archive-info">
+    <b>Архив</b>
+    <span>Скрытые чаты</span>
+  </div>
+  <div id="archiveCount" class="archive-badge hidden">0</div>
+</button>
+
+<div id="users"></div>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-header">
+        <div id="chatAvatar">?</div>
+
+        <div>
+          <div id="chatName">Выберите чат</div>
+          <div id="chatStatus">Выберите личный чат, группу или найдите пользователя</div>
+        </div>
+      </header>
+
+      <section id="messages">
+        <div class="empty">
+          Выберите чат слева или найдите пользователя через поиск.
+        </div>
+      </section>
+
+      <footer class="chat-input">
+        <textarea
+          id="messageInput"
+          placeholder="Сообщение"
+          disabled
+        ></textarea>
+
+        <button id="sendBtn" type="button" disabled>Отправить</button>
+      </footer>
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js?v=callibri-8"></script>
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+  <script src="app.js?v=safe-settings-5"></script>
+</body>
+</html>
