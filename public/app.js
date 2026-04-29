@@ -5153,3 +5153,187 @@ if (savedUser) {
     boot();
   }
 })();
+
+/* =========================================================
+   CALLIBRI RISK REDESIGN FIX 1
+   Удаляет старые инжекты и чинит новый layout
+   ========================================================= */
+
+(function callibriRiskLayoutFixOne() {
+  function removeOldInjectedUi() {
+    [
+      "#callibriMinimalRail",
+      "#callibriRail",
+      "#callibriRailBrand",
+      "#callibriBrandCard",
+      "#cmSidebarBrand",
+      ".cm-sidebar-brand",
+      ".callibri-rail",
+      ".callibri-rail-logo",
+      ".callibri-brand-logo",
+      ".callibri-brand-text",
+      ".callibri-filter-row",
+      ".cm-search-wrap",
+      ".cm-chat-actions",
+      "#callibriBeautifulSettingsBtn",
+      "#callibriPremiumGear",
+      "#callibriGlobalSettingsBtn",
+      "#callibriSingleSettingsBtn",
+      "#railSettingsBtn"
+    ].forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => {
+        el.remove();
+      });
+    });
+  }
+
+  function makeSureMainBlocksAreInRightOrder() {
+    const app = document.getElementById("app");
+    const rail = document.querySelector(".app-rail");
+    const sidebar = document.querySelector(".sidebar");
+    const chat = document.querySelector(".chat");
+
+    if (!app || !rail || !sidebar || !chat) return;
+
+    if (app.children[0] !== rail) app.insertBefore(rail, app.children[0] || null);
+    if (app.children[1] !== sidebar) app.insertBefore(sidebar, app.children[1] || null);
+    if (app.children[2] !== chat) app.insertBefore(chat, app.children[2] || null);
+
+    app.style.display = app.classList.contains("hidden") ? "none" : "grid";
+    app.style.gridTemplateColumns = "82px 390px minmax(0, 1fr)";
+    app.style.gap = "16px";
+    app.style.padding = "16px";
+    app.style.overflow = "hidden";
+  }
+
+  function fixProfileAvatarSize() {
+    const avatar = document.getElementById("profileAvatarBtn");
+
+    if (!avatar) return;
+
+    avatar.style.width = "72px";
+    avatar.style.height = "72px";
+    avatar.style.minWidth = "72px";
+    avatar.style.minHeight = "72px";
+    avatar.style.maxWidth = "72px";
+    avatar.style.maxHeight = "72px";
+    avatar.style.borderRadius = "50%";
+    avatar.style.overflow = "visible";
+    avatar.style.position = "relative";
+    avatar.style.transform = "none";
+
+    const img = avatar.querySelector("img");
+
+    if (img) {
+      img.style.width = "72px";
+      img.style.height = "72px";
+      img.style.minWidth = "72px";
+      img.style.minHeight = "72px";
+      img.style.maxWidth = "72px";
+      img.style.maxHeight = "72px";
+      img.style.borderRadius = "50%";
+      img.style.objectFit = "cover";
+      img.style.display = "block";
+    }
+  }
+
+  function bindNewRail() {
+    document.querySelectorAll(".rail-btn").forEach((button) => {
+      if (button.dataset.riskFixBound === "1") return;
+
+      button.dataset.riskFixBound = "1";
+
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".rail-btn").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+
+        button.classList.add("active");
+
+        const type = button.dataset.rail;
+
+        if (type === "chats" || type === "contacts") {
+          const search = document.getElementById("search");
+          if (search) search.focus({ preventScroll: true });
+        }
+
+        if (type === "settings") {
+          const avatar = document.getElementById("profileAvatarBtn");
+
+          if (avatar) {
+            avatar.click();
+            return;
+          }
+
+          const profileBtn = document.getElementById("profileBtn");
+          if (profileBtn) profileBtn.click();
+        }
+
+        if (type === "calls") {
+          alert("Звонки пока в разработке");
+        }
+
+        if (type === "notifications") {
+          alert("Уведомления появятся позже");
+        }
+      });
+    });
+  }
+
+  function runFix() {
+    removeOldInjectedUi();
+    makeSureMainBlocksAreInRightOrder();
+    fixProfileAvatarSize();
+    bindNewRail();
+  }
+
+  function patchSafe(functionName) {
+    const original = window[functionName];
+
+    if (typeof original !== "function") return;
+    if (original.__riskLayoutFixOnePatched) return;
+
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+
+      setTimeout(runFix, 0);
+      setTimeout(runFix, 120);
+      setTimeout(runFix, 400);
+
+      return result;
+    };
+
+    wrapped.__riskLayoutFixOnePatched = true;
+    window[functionName] = wrapped;
+  }
+
+  function boot() {
+    [
+      "startApp",
+      "renderMyAvatar",
+      "renderRecentChats",
+      "renderGroups",
+      "renderUsers",
+      "renderMessages",
+      "openChat",
+      "openGroup",
+      "renderEmptyChat"
+    ].forEach(patchSafe);
+
+    runFix();
+
+    setTimeout(runFix, 300);
+    setTimeout(runFix, 1000);
+    setTimeout(runFix, 1800);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("focus", () => {
+    setTimeout(runFix, 120);
+  });
+})();

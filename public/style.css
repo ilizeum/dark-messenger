@@ -1102,3 +1102,380 @@ button {
     max-width: 86%;
   }
 }
+
+/* =========================================================
+   CALLIBRI RISK REDESIGN FIX 1
+   Чиним наложения, дубли и огромную аватарку
+   ========================================================= */
+
+/* Главная сетка приложения */
+#app:not(.hidden) {
+  width: 100vw !important;
+  height: 100vh !important;
+  padding: 16px !important;
+  display: grid !important;
+  grid-template-columns: 82px 390px minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  gap: 16px !important;
+  overflow: hidden !important;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(34, 211, 238, 0.08), transparent 28%),
+    radial-gradient(circle at 88% 6%, rgba(16, 185, 129, 0.08), transparent 30%),
+    linear-gradient(135deg, #020617, #03111f 55%, #020617) !important;
+}
+
+/* Оставляем только новый левый бар из index.html */
+.app-rail {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  position: relative !important;
+  inset: auto !important;
+  width: 82px !important;
+  min-width: 82px !important;
+  height: 100% !important;
+  z-index: 5 !important;
+}
+
+/* Сайдбар строго во второй колонке */
+.sidebar {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  position: relative !important;
+  inset: auto !important;
+  width: auto !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  z-index: 4 !important;
+}
+
+/* Чат строго справа */
+.chat {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  position: relative !important;
+  inset: auto !important;
+  width: auto !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  z-index: 3 !important;
+}
+
+/* Удаляем визуально все старые инжектнутые панели */
+#callibriMinimalRail,
+#callibriRail,
+#callibriRailBrand,
+#callibriBrandCard,
+#cmSidebarBrand,
+.cm-sidebar-brand,
+.callibri-rail,
+.callibri-rail-logo,
+.callibri-brand-logo,
+.callibri-brand-text,
+.callibri-filter-row,
+.cm-search-wrap,
+.cm-chat-actions {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  left: -99999px !important;
+  top: -99999px !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Скрываем старые дубли кнопок настроек */
+#callibriBeautifulSettingsBtn,
+#callibriPremiumGear,
+#callibriGlobalSettingsBtn,
+#callibriSingleSettingsBtn,
+#railSettingsBtn,
+#profileBtn,
+#settingsBtn,
+.clean-settings-gear,
+.callibri-settings-gear {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* Новый левый бар */
+.app-rail {
+  border-radius: 24px !important;
+  background:
+    linear-gradient(180deg, rgba(5, 24, 42, 0.88), rgba(2, 10, 22, 0.96)) !important;
+  border: 1px solid rgba(125, 211, 252, 0.12) !important;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.38) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  padding: 14px 8px !important;
+  gap: 10px !important;
+}
+
+.rail-logo,
+.rail-btn {
+  width: 52px !important;
+  height: 52px !important;
+  min-width: 52px !important;
+  min-height: 52px !important;
+  max-width: 52px !important;
+  max-height: 52px !important;
+  border-radius: 18px !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
+.rail-logo {
+  margin-bottom: 8px !important;
+  background: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 45%, #10b981 100%) !important;
+  color: white !important;
+  font-size: 26px !important;
+  font-weight: 950 !important;
+}
+
+.rail-btn {
+  background: transparent !important;
+  color: #8ea7bc !important;
+  border: 1px solid transparent !important;
+  cursor: pointer !important;
+}
+
+.rail-btn:hover,
+.rail-btn.active {
+  color: #67e8f9 !important;
+  background: rgba(14, 165, 233, 0.08) !important;
+  border-color: rgba(34, 211, 238, 0.18) !important;
+}
+
+.rail-spacer {
+  flex: 1 !important;
+}
+
+/* Сайдбар */
+.sidebar {
+  padding: 24px 18px 18px !important;
+  border-radius: 26px !important;
+  background:
+    linear-gradient(180deg, rgba(6, 27, 45, 0.82), rgba(2, 11, 22, 0.94)) !important;
+  border: 1px solid rgba(125, 211, 252, 0.12) !important;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.38) !important;
+  backdrop-filter: blur(18px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Бренд в сайдбаре */
+.sidebar-brand {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 8px 26px !important;
+  flex-shrink: 0 !important;
+}
+
+.sidebar-bird {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  min-height: 38px !important;
+  border-radius: 14px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 45%, #10b981 100%) !important;
+  color: white !important;
+  font-weight: 950 !important;
+}
+
+.sidebar-brand-text strong {
+  display: block !important;
+  font-size: 22px !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+  color: #f8fafc !important;
+}
+
+.sidebar-brand-text span {
+  display: block !important;
+  margin-top: 3px !important;
+  color: #93a8bb !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.12em !important;
+}
+
+/* Профиль — фикс огромной аватарки */
+.profile {
+  position: relative !important;
+  width: 100% !important;
+  min-height: 84px !important;
+  max-height: 96px !important;
+  padding: 0 8px 22px !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  display: grid !important;
+  grid-template-columns: 76px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 14px !important;
+  overflow: visible !important;
+  flex-shrink: 0 !important;
+}
+
+#profileAvatarBtn {
+  position: relative !important;
+  inset: auto !important;
+  width: 72px !important;
+  height: 72px !important;
+  min-width: 72px !important;
+  min-height: 72px !important;
+  max-width: 72px !important;
+  max-height: 72px !important;
+  border-radius: 50% !important;
+  overflow: visible !important;
+  display: grid !important;
+  place-items: center !important;
+  transform: none !important;
+  cursor: pointer !important;
+  background: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 45%, #10b981 100%) !important;
+  border: 2px solid rgba(34, 211, 238, 0.22) !important;
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.32),
+    0 0 22px rgba(34, 211, 238, 0.1) !important;
+}
+
+#profileAvatarBtn img {
+  width: 72px !important;
+  height: 72px !important;
+  min-width: 72px !important;
+  min-height: 72px !important;
+  max-width: 72px !important;
+  max-height: 72px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+#profileAvatarBtn::after {
+  content: "" !important;
+  position: absolute !important;
+  right: 3px !important;
+  bottom: 4px !important;
+  width: 14px !important;
+  height: 14px !important;
+  border-radius: 50% !important;
+  background: #22c55e !important;
+  border: 3px solid #04111f !important;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.45) !important;
+  display: block !important;
+}
+
+#meName {
+  color: #f8fafc !important;
+  font-size: 22px !important;
+  font-weight: 950 !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+#meLogin {
+  margin-top: 7px !important;
+  color: #93a8bb !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Поиск */
+.search-box {
+  position: relative !important;
+  margin-bottom: 18px !important;
+  flex-shrink: 0 !important;
+}
+
+.search-box span {
+  position: absolute !important;
+  left: 18px !important;
+  top: 14px !important;
+  color: #8fa6ba !important;
+  font-size: 22px !important;
+  pointer-events: none !important;
+}
+
+#search {
+  width: 100% !important;
+  height: 54px !important;
+  padding: 0 18px 0 50px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(148, 163, 184, 0.11) !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  color: #f8fafc !important;
+  outline: none !important;
+}
+
+/* Контейнеры, которые app.js дорисовывает */
+#users {
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  padding-right: 3px !important;
+}
+
+#recentChats,
+#groups {
+  min-height: auto !important;
+}
+
+/* Чат */
+.chat {
+  border-radius: 26px !important;
+  background:
+    linear-gradient(180deg, rgba(6, 24, 40, 0.84), rgba(2, 10, 22, 0.95)) !important;
+  border: 1px solid rgba(125, 211, 252, 0.12) !important;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.38) !important;
+  backdrop-filter: blur(18px) !important;
+  display: grid !important;
+  grid-template-rows: 112px minmax(0, 1fr) 104px !important;
+}
+
+.chat-header {
+  padding: 0 34px !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1) !important;
+  background: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+}
+
+#messages {
+  min-height: 0 !important;
+  padding: 44px 42px 28px !important;
+  overflow-y: auto !important;
+}
+
+.chat-input {
+  padding: 18px 38px 34px !important;
+  border-top: none !important;
+  background: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+/* Мобильный вариант */
+@media (max-width: 1100px) {
+  #app:not(.hidden) {
+    grid-template-columns: 74px 330px minmax(0, 1fr) !important;
+  }
+
+  .app-rail {
+    width: 74px !important;
+    min-width: 74px !important;
+  }
+}
