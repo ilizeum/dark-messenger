@@ -6026,3 +6026,335 @@ if (savedUser) {
     setTimeout(runFix, 120);
   });
 })();
+
+/* =========================================================
+   CALLIBRI SETTINGS FORCE FIX
+   Принудительно открывает красивые настройки с нижней шестерёнки
+   ========================================================= */
+
+(function callibriForceBeautifulSettings() {
+  function createSimpleBeautifulSettingsIfMissing() {
+    if (document.getElementById("cbSettingsOverlay")) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "cbSettingsOverlay";
+    overlay.className = "hidden";
+
+    overlay.innerHTML = `
+      <div class="cb-settings-window">
+        <div class="cb-settings-head">
+          <div>
+            <h2>Настройки Callibri</h2>
+            <p>Профиль, внешний вид, уведомления и параметры аккаунта.</p>
+          </div>
+          <button id="cbSettingsCloseX" type="button">×</button>
+        </div>
+
+        <div class="cb-settings-body">
+          <nav class="cb-settings-nav">
+            <button type="button" class="active"><span>👤</span>Профиль</button>
+            <button type="button"><span>☆</span>Избранное</button>
+            <button type="button"><span>🔔</span>Уведомления</button>
+            <button type="button"><span>🎨</span>Внешний вид</button>
+            <button type="button"><span>🔒</span>Конфиденциальность</button>
+            <button type="button"><span>ⓘ</span>О программе</button>
+          </nav>
+
+          <div class="cb-settings-content">
+            <section class="cb-settings-section">
+              <div class="cb-settings-title">Профиль</div>
+
+              <div class="cb-settings-profile-grid">
+                <div>
+                  <div class="cb-settings-field">
+                    <label>Отображаемое имя</label>
+                    <input id="cbSettingsDisplayName" class="cb-settings-input" type="text">
+                  </div>
+
+                  <div class="cb-settings-field">
+                    <label>Имя пользователя</label>
+                    <input id="cbSettingsUsername" class="cb-settings-input" type="text">
+                  </div>
+                </div>
+
+                <div id="cbSettingsAvatar" class="cb-settings-avatar">
+                  <div class="cb-settings-avatar-mark">C</div>
+                </div>
+              </div>
+
+              <div id="cbSettingsStatus"></div>
+            </section>
+
+            <section class="cb-settings-section">
+              <div class="cb-settings-title">Избранное</div>
+              <textarea id="cbSettingsFavorites" class="cb-settings-textarea" placeholder="Заметки, ссылки, важные данные"></textarea>
+            </section>
+
+            <section class="cb-settings-section">
+              <div class="cb-settings-title">Уведомления</div>
+
+              <div class="cb-settings-row">
+                <div class="cb-settings-row-icon">🔔</div>
+                <div class="cb-settings-row-main">
+                  <b>Звуки уведомлений</b>
+                  <span>Получать звук при новых сообщениях</span>
+                </div>
+                <button id="cbSettingsSoundToggle" class="cb-settings-toggle active" type="button"></button>
+              </div>
+            </section>
+
+            <section class="cb-settings-section">
+              <div class="cb-settings-title">Внешний вид</div>
+
+              <div class="cb-settings-row">
+                <div class="cb-settings-row-icon">🎨</div>
+                <div class="cb-settings-row-main">
+                  <b>Callibri Minimal Dark</b>
+                  <span>Минималистичный тёмный стиль приложения</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="cb-settings-section">
+              <div class="cb-settings-title">О программе</div>
+
+              <div class="cb-settings-row">
+                <div class="cb-settings-row-icon">🐦</div>
+                <div class="cb-settings-row-main">
+                  <b>Callibri Messenger</b>
+                  <span>Версия 2.8.1</span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="cb-settings-footer">
+          <button id="cbSettingsLogout" class="danger" type="button">↪ Выйти</button>
+          <button id="cbSettingsClose" type="button">Закрыть</button>
+          <button id="cbSettingsSave" class="primary" type="button">Сохранить</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      overlay.classList.add("hidden");
+      overlay.style.display = "none";
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close();
+    });
+
+    const closeX = document.getElementById("cbSettingsCloseX");
+    const closeBtn = document.getElementById("cbSettingsClose");
+    const logoutBtn = document.getElementById("cbSettingsLogout");
+    const saveBtn = document.getElementById("cbSettingsSave");
+    const soundToggle = document.getElementById("cbSettingsSoundToggle");
+
+    if (closeX) closeX.addEventListener("click", close);
+    if (closeBtn) closeBtn.addEventListener("click", close);
+
+    if (soundToggle) {
+      soundToggle.addEventListener("click", () => {
+        soundToggle.classList.toggle("active");
+      });
+    }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", () => {
+        close();
+        if (typeof logout === "function") logout();
+      });
+    }
+
+    if (saveBtn) {
+      saveBtn.addEventListener("click", async () => {
+        const status = document.getElementById("cbSettingsStatus");
+
+        try {
+          if (!currentUser) return;
+
+          const displayName = document.getElementById("cbSettingsDisplayName").value.trim();
+          const newUsername = normalizeUsername(document.getElementById("cbSettingsUsername").value);
+
+          if (!displayName || !newUsername) {
+            if (status) {
+              status.style.color = "#fda4af";
+              status.textContent = "Заполни имя и username";
+            }
+            return;
+          }
+
+          if (typeof request === "function") {
+            const data = await request("/api/profile", {
+              method: "PUT",
+              body: JSON.stringify({
+                oldUsername: currentUser.username,
+                newUsername,
+                displayName,
+                avatar: currentUser.avatar || ""
+              })
+            });
+
+            if (typeof updateSavedUser === "function") {
+              updateSavedUser(data.user);
+            } else {
+              currentUser = data.user;
+            }
+
+            if (meName) meName.textContent = currentUser.displayName || currentUser.username;
+            if (meLogin) meLogin.textContent = "@" + currentUser.username;
+          }
+
+          localStorage.setItem(
+            "callibri_minimal_settings_" + currentUser.username,
+            JSON.stringify({
+              favorites: document.getElementById("cbSettingsFavorites").value,
+              notificationSounds: document.getElementById("cbSettingsSoundToggle").classList.contains("active")
+            })
+          );
+
+          if (status) {
+            status.style.color = "#86efac";
+            status.textContent = "Настройки сохранены";
+          }
+
+          setTimeout(close, 500);
+        } catch (error) {
+          if (status) {
+            status.style.color = "#fda4af";
+            status.textContent = error.message || "Ошибка сохранения";
+          }
+        }
+      });
+    }
+  }
+
+  function fillSettingsData() {
+    if (!currentUser) return;
+
+    const nameInput = document.getElementById("cbSettingsDisplayName");
+    const usernameInput = document.getElementById("cbSettingsUsername");
+    const avatarBox = document.getElementById("cbSettingsAvatar");
+    const favoritesInput = document.getElementById("cbSettingsFavorites");
+
+    if (nameInput) nameInput.value = currentUser.displayName || currentUser.username || "";
+    if (usernameInput) usernameInput.value = currentUser.username || "";
+
+    if (avatarBox) {
+      if (currentUser.avatar) {
+        avatarBox.innerHTML = `<img src="${escapeHtml(currentUser.avatar)}" alt="avatar">`;
+      } else {
+        const letter = ((currentUser.displayName || currentUser.username || "C")[0] || "C").toUpperCase();
+        avatarBox.innerHTML = `<div class="cb-settings-avatar-mark">${escapeHtml(letter)}</div>`;
+      }
+    }
+
+    try {
+      const saved = JSON.parse(localStorage.getItem("callibri_minimal_settings_" + currentUser.username) || "{}");
+
+      if (favoritesInput) {
+        favoritesInput.value = saved.favorites || "";
+      }
+
+      const toggle = document.getElementById("cbSettingsSoundToggle");
+      if (toggle) {
+        toggle.classList.toggle("active", saved.notificationSounds !== false);
+      }
+    } catch {}
+  }
+
+  function openForcedBeautifulSettings() {
+    createSimpleBeautifulSettingsIfMissing();
+
+    const overlay = document.getElementById("cbSettingsOverlay");
+
+    if (!overlay) return;
+
+    fillSettingsData();
+
+    overlay.classList.remove("hidden");
+    overlay.style.display = "flex";
+    overlay.style.pointerEvents = "auto";
+  }
+
+  function bindSettingsButtons() {
+    const buttons = [
+      document.querySelector('.rail-btn[data-rail="settings"]'),
+      document.getElementById("profileAvatarBtn")
+    ].filter(Boolean);
+
+    buttons.forEach((button) => {
+      button.onclick = function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        document.querySelectorAll(".rail-btn").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+
+        if (button.classList.contains("rail-btn")) {
+          button.classList.add("active");
+        }
+
+        openForcedBeautifulSettings();
+
+        return false;
+      };
+    });
+  }
+
+  function runSettingsFix() {
+    createSimpleBeautifulSettingsIfMissing();
+    bindSettingsButtons();
+  }
+
+  function patchSafe(functionName) {
+    const original = window[functionName];
+
+    if (typeof original !== "function") return;
+    if (original.__forceBeautifulSettingsPatched) return;
+
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+
+      setTimeout(runSettingsFix, 0);
+      setTimeout(runSettingsFix, 200);
+
+      return result;
+    };
+
+    wrapped.__forceBeautifulSettingsPatched = true;
+    window[functionName] = wrapped;
+  }
+
+  function boot() {
+    [
+      "startApp",
+      "renderMyAvatar",
+      "renderRecentChats",
+      "renderGroups",
+      "renderUsers",
+      "openChat",
+      "openGroup"
+    ].forEach(patchSafe);
+
+    runSettingsFix();
+
+    setTimeout(runSettingsFix, 500);
+    setTimeout(runSettingsFix, 1500);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("focus", () => {
+    setTimeout(runSettingsFix, 120);
+  });
+})();
