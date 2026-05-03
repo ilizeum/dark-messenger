@@ -6,155 +6,111 @@
 
   <title>Callibri</title>
 
-  <link rel="stylesheet" href="style.css?v=final-action-fix-1" />
+  <link rel="stylesheet" href="style.css?v=callibri-11" />
 </head>
-
 <body>
-  <!-- AUTH -->
-  <div id="auth">
-    <div class="auth-card">
-      <div class="auth-brand">
-        <div class="brand-bird">✦</div>
+  <!-- ВХОД / РЕГИСТРАЦИЯ -->
+ <!-- ВХОД / РЕГИСТРАЦИЯ -->
+<div id="auth">
+  <div class="auth-card">
+    <h1>Callibri</h1>
+    <p id="authSubtitle">Войди в аккаунт, чтобы продолжить общение</p>
 
-        <div>
-          <h1>Callibri</h1>
-          <p id="authSubtitle">Войди в аккаунт, чтобы продолжить общение</p>
-        </div>
-      </div>
+    <div class="auth-tabs">
+      <button id="authLoginTab" class="auth-tab active" type="button">Вход</button>
+      <button id="authRegisterTab" class="auth-tab" type="button">Регистрация</button>
+    </div>
 
-      <div class="auth-tabs">
-        <button id="authLoginTab" class="active" type="button">Вход</button>
-        <button id="authRegisterTab" type="button">Регистрация</button>
-      </div>
-
-      <div id="registerFields">
-        <input
-          id="displayName"
-          type="text"
-          placeholder="Имя, например Александр"
-          autocomplete="name"
-        />
-
-        <input
-          id="phone"
-          type="tel"
-          placeholder="Телефон, например +79161234567"
-          autocomplete="tel"
-        />
-      </div>
-
+    <div id="registerFields" class="auth-mode-fields hidden">
       <input
-        id="username"
+        id="displayName"
         type="text"
-        placeholder="Логин или телефон"
-        autocomplete="username"
+        placeholder="Имя"
+        autocomplete="name"
       />
 
-      <div class="password-wrap">
-        <input
-          id="password"
-          type="password"
-          placeholder="Пароль"
-          autocomplete="current-password"
-        />
-
-        <button id="togglePassword" type="button">Показать</button>
-      </div>
-
-      <label class="remember-row">
-        <input id="rememberMe" type="checkbox" />
-        <span>Не выходить</span>
-      </label>
-
-      <div class="auth-actions">
-        <button id="loginBtn" type="button">Войти</button>
-        <button id="registerBtn" type="button" class="hidden">Создать аккаунт</button>
-      </div>
-
-      <button id="authSwitchHint" type="button">Нет аккаунта? Зарегистрироваться</button>
-
-      <div id="authError"></div>
+      <input
+        id="phone"
+        type="tel"
+        placeholder="Телефон, например +79991234567"
+        autocomplete="tel"
+      />
     </div>
+
+    <input
+      id="username"
+      type="text"
+      placeholder="Логин или телефон"
+      autocomplete="username"
+    />
+
+    <div class="password-wrap">
+      <input
+        id="password"
+        type="password"
+        placeholder="Пароль"
+        autocomplete="current-password"
+      />
+      <button id="togglePassword" type="button">Показать</button>
+    </div>
+
+    <label class="remember-row">
+      <input id="rememberMe" type="checkbox" />
+      <span>Не выходить</span>
+    </label>
+
+    <div class="auth-actions">
+      <button id="loginBtn" type="button">Войти</button>
+      <button id="registerBtn" class="hidden" type="button">Создать аккаунт</button>
+    </div>
+
+    <button id="authSwitchHint" class="auth-switch-hint" type="button">
+      Нет аккаунта? Зарегистрироваться
+    </button>
+
+    <div id="authError"></div>
   </div>
+</div>
 
-  <!-- APP -->
+  <!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
   <div id="app" class="hidden">
-    <!-- LEFT RAIL -->
-    <nav class="app-rail">
-      <div class="rail-logo" title="Callibri">
-        <span>c</span>
-      </div>
-
-      <button class="rail-btn active" type="button" data-rail="chats" title="Чаты">
-        <span>💬</span>
-      </button>
-
-      <button class="rail-btn" type="button" data-rail="contacts" title="Контакты">
-        <span>👥</span>
-      </button>
-
-      <button class="rail-btn" type="button" data-rail="calls" title="Звонки">
-        <span>☎</span>
-      </button>
-
-      <button class="rail-btn" type="button" data-rail="notifications" title="Уведомления">
-        <span>🔔</span>
-      </button>
-
-      <div class="rail-spacer"></div>
-
-      <button class="rail-btn" type="button" data-rail="settings" title="Настройки">
-        <span>⚙</span>
-      </button>
-    </nav>
-
-    <!-- SIDEBAR -->
     <aside class="sidebar">
-      <div class="sidebar-brand">
-        <div class="sidebar-bird">✦</div>
-        <div class="sidebar-brand-text">
-          <strong>Callibri</strong>
-          <span>messenger</span>
-        </div>
-      </div>
-
       <div class="profile">
         <div>
           <div id="meName">Пользователь</div>
           <div id="meLogin">@username</div>
         </div>
 
+        <!-- Старая кнопка остаётся в коде, но будет скрыта через app.js -->
         <button id="logoutBtn" type="button">Выйти</button>
       </div>
 
-      <div class="search-box">
-        <span>⌕</span>
+      <input
+  id="search"
+  type="text"
+  placeholder="Поиск по @id, например @username"
+  autocomplete="off"
+/>
 
-        <input
-          id="search"
-          type="text"
-          placeholder="Поиск по @id"
-          autocomplete="off"
-        />
-      </div>
+<button id="archiveToggleBtn" class="archive-btn" type="button">
+  <div class="archive-icon">🗂</div>
+  <div class="archive-info">
+    <b>Архив</b>
+    <span>Скрытые чаты</span>
+  </div>
+  <div id="archiveCount" class="archive-badge hidden">0</div>
+</button>
 
-      <div id="users"></div>
+<div id="users"></div>
     </aside>
 
-    <!-- CHAT -->
     <main class="chat">
       <header class="chat-header">
         <div id="chatAvatar">?</div>
 
-        <div class="chat-title-wrap">
+        <div>
           <div id="chatName">Выберите чат</div>
           <div id="chatStatus">Выберите личный чат, группу или найдите пользователя</div>
-        </div>
-
-        <div class="chat-top-actions">
-          <button type="button" class="chat-icon-btn" title="Поиск">⌕</button>
-          <button type="button" class="chat-icon-btn" title="Звонок">☎</button>
-          <button type="button" class="chat-icon-btn" title="Ещё">⋮</button>
         </div>
       </header>
 
@@ -167,7 +123,7 @@
       <footer class="chat-input">
         <textarea
           id="messageInput"
-          placeholder="Напишите сообщение..."
+          placeholder="Сообщение"
           disabled
         ></textarea>
 
@@ -176,127 +132,8 @@
     </main>
   </div>
 
-  <!-- SOCKET.IO -->
-  <script src="/socket.io/socket.io.js"></script>
-
-  <!-- WAVESURFER -->
+  <script src="/socket.io/socket.io.js?v=callibri-8"></script>
   <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
-
-  <!-- APP LOGIC -->
-  <script src="app.js?v=final-action-fix-1"></script>
-  "></script>
-
-  <!-- MESSAGE CONTEXT MENU -->
-  <div id="messageContextMenu" class="message-context-menu hidden">
-    <button id="replyMessageBtn" type="button">
-      <span>↩</span>
-      Ответить
-    </button>
-
-    <button id="editMessageBtn" type="button">
-      <span>✎</span>
-      Редактировать
-    </button>
-
-    <button id="deleteMessageBtn" type="button" class="danger">
-      <span>🗑</span>
-      Удалить
-    </button>
-  </div>
-
-  <!-- REPLY PANEL -->
-  <div id="replyPanel" class="reply-panel hidden">
-    <div class="reply-panel-line"></div>
-
-    <div class="reply-panel-content">
-      <div class="reply-panel-title">Ответ на сообщение</div>
-      <div id="replyText" class="reply-panel-text"></div>
-    </div>
-
-    <button id="cancelReplyBtn" class="reply-panel-close" type="button">×</button>
-  </div>
-
-  <!-- EDIT PANEL -->
-  <div id="editPanel" class="edit-panel hidden">
-    <div class="edit-panel-line"></div>
-
-    <div class="edit-panel-content">
-      <div class="edit-panel-title">Редактирование сообщения</div>
-      <div class="edit-panel-text">Измени текст и нажми отправить</div>
-    </div>
-
-    <button id="cancelEditBtn" class="edit-panel-close" type="button">×</button>
-  </div>
-
-  <!-- ELECTRON UPDATE UI -->
-  <script>
-    if (window.require) {
-      try {
-        const { ipcRenderer } = require("electron");
-
-        const updateBox = document.createElement("div");
-        updateBox.id = "updateBox";
-        updateBox.style.position = "fixed";
-        updateBox.style.right = "18px";
-        updateBox.style.bottom = "18px";
-        updateBox.style.zIndex = "99999";
-        updateBox.style.maxWidth = "360px";
-        updateBox.style.padding = "16px";
-        updateBox.style.borderRadius = "18px";
-        updateBox.style.background = "rgba(5, 18, 31, 0.96)";
-        updateBox.style.border = "1px solid rgba(125, 211, 252, 0.16)";
-        updateBox.style.color = "white";
-        updateBox.style.boxShadow = "0 24px 60px rgba(0,0,0,0.45)";
-        updateBox.style.display = "none";
-        updateBox.style.fontFamily = "Inter, Arial, sans-serif";
-        document.body.appendChild(updateBox);
-
-        function showUpdateMessage(text) {
-          updateBox.textContent = text;
-          updateBox.style.display = "block";
-        }
-
-        ipcRenderer.on("update-message", (event, message) => {
-          showUpdateMessage(message);
-        });
-
-        ipcRenderer.on("update-downloaded", () => {
-          updateBox.innerHTML = "";
-
-          const title = document.createElement("div");
-          title.textContent = "Обновление загружено";
-          title.style.fontWeight = "900";
-          title.style.marginBottom = "8px";
-
-          const text = document.createElement("div");
-          text.textContent = "Перезапусти приложение, чтобы установить новую версию.";
-          text.style.color = "#9fb6c9";
-          text.style.fontSize = "14px";
-          text.style.marginBottom = "12px";
-
-          const button = document.createElement("button");
-          button.textContent = "Перезапустить";
-          button.style.background = "linear-gradient(135deg,#0ea5e9,#22d3ee,#10b981)";
-          button.style.color = "white";
-          button.style.border = "none";
-          button.style.borderRadius = "14px";
-          button.style.padding = "10px 14px";
-          button.style.fontWeight = "900";
-          button.style.cursor = "pointer";
-
-          button.addEventListener("click", () => {
-            ipcRenderer.send("restart-app");
-          });
-
-          updateBox.appendChild(title);
-          updateBox.appendChild(text);
-          updateBox.appendChild(button);
-          updateBox.style.display = "block";
-        });
-      } catch (error) {
-        console.log("Electron update UI disabled:", error);
-      }
-    }
-  </script>
+  <script src="app.js?v=callibri-30"></script>
 </body>
 </html>
